@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-type StatusType = "pending" | "active" | "expired" | "terminated" | "vacant" | "occupied"
+type StatusType = "pending" | "active" | "expired" | "terminated" | "vacant" | "occupied" | "maintenance" | "completed" | "in-progress" | "open" | "failed"
 
 interface StatusBadgeProps {
   status: StatusType
@@ -14,6 +14,11 @@ const statusStyles: Record<StatusType, string> = {
   terminated: "bg-destructive/10 text-destructive",
   vacant: "bg-muted text-text-muted",
   occupied: "bg-success/10 text-success",
+  maintenance: "bg-orange-100 text-orange-600",
+  completed: "bg-success/10 text-success",
+  "in-progress": "bg-teal/10 text-teal-dark",
+  open: "bg-warning/10 text-warning",
+  failed: "bg-destructive/10 text-destructive",
 }
 
 const statusLabels: Record<StatusType, string> = {
@@ -23,6 +28,11 @@ const statusLabels: Record<StatusType, string> = {
   terminated: "Terminated",
   vacant: "Vacant",
   occupied: "Occupied",
+  maintenance: "Under Maintenance",
+  completed: "Completed",
+  "in-progress": "In Progress",
+  open: "Open",
+  failed: "Failed",
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
