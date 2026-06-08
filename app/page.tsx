@@ -1,11 +1,6 @@
-"use client"
-
-import { useState } from "react"
 import Link from "next/link"
-import { Building2, Home, MessageSquare, DollarSign, Calculator } from "lucide-react"
+import { Building2, Home, MessageSquare, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 
 function Logo() {
@@ -16,74 +11,6 @@ function Logo() {
       </div>
       <span className="text-xl font-medium text-navy">HomeSuite</span>
     </Link>
-  )
-}
-
-function SavingsCalculator() {
-  const [rent, setRent] = useState<number>(2000)
-  const [properties, setProperties] = useState<number>(1)
-
-  const traditionalCost = rent * properties * 0.08
-  const homeSuiteCost = 49.99 + Math.max(0, properties - 1) * 15
-  const yearlySavings = (traditionalCost - homeSuiteCost) * 12
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-CA", {
-      style: "currency",
-      currency: "CAD",
-      minimumFractionDigits: 2,
-    }).format(value)
-  }
-
-  return (
-    <Card className="border-[0.5px] border-sage">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Calculator className="h-5 w-5 text-navy" />
-          <h3 className="text-lg font-medium text-navy">Savings Calculator</h3>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 mb-6">
-          <div>
-            <Label htmlFor="rent" className="text-text-primary">Average Rent Amount</Label>
-            <Input
-              id="rent"
-              type="number"
-              value={rent}
-              onChange={(e) => setRent(Number(e.target.value))}
-              className="mt-1 border-sage focus:ring-teal"
-            />
-          </div>
-          <div>
-            <Label htmlFor="properties" className="text-text-primary">Number of Properties</Label>
-            <Input
-              id="properties"
-              type="number"
-              min={1}
-              max={15}
-              value={properties}
-              onChange={(e) => setProperties(Number(e.target.value))}
-              className="mt-1 border-sage focus:ring-teal"
-            />
-          </div>
-        </div>
-        <div className="bg-cream/50 rounded-lg p-4 text-center">
-          <div className="grid gap-2 sm:grid-cols-3 text-sm">
-            <div>
-              <p className="text-text-muted">Traditional PM costs</p>
-              <p className="text-lg font-medium text-navy">{formatCurrency(traditionalCost)}/mo</p>
-            </div>
-            <div>
-              <p className="text-text-muted">HomeSuite costs</p>
-              <p className="text-lg font-medium text-teal">{formatCurrency(homeSuiteCost)}/mo</p>
-            </div>
-            <div>
-              <p className="text-text-muted">You save</p>
-              <p className="text-lg font-medium text-success">{formatCurrency(yearlySavings)}/year</p>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -135,24 +62,22 @@ export default function LandingPage() {
           <p className="text-lg text-text-muted max-w-2xl mx-auto mb-8">
             HomeSuite gives you everything they do for as little as $49.99/mo
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
             <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
-              <Link href="/signup">Start Free Trial</Link>
+              <Link href="/pricing">Start Free Trial</Link>
             </Button>
             <Button
               asChild
               variant="outline"
               size="lg"
-              className="border-navy/20 text-navy hover:bg-navy/5"
+              className="border-navy text-navy hover:bg-navy/5"
             >
-              <Link href="/pricing">See How It Works</Link>
+              <Link href="/pricing">Start Free Trial</Link>
             </Button>
           </div>
-
-          {/* Savings Calculator */}
-          <div className="max-w-2xl mx-auto mb-16">
-            <SavingsCalculator />
-          </div>
+          <p className="text-sm text-text-muted mb-16">
+            Starting at $49.99/mo — no credit card required
+          </p>
         </div>
       </section>
 
