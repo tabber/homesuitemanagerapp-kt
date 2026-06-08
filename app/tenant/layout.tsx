@@ -1,6 +1,7 @@
 "use client"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 
 export default function TenantLayout({
   children,
@@ -20,12 +21,14 @@ export default function TenantLayout({
 
   return (
     <div className="min-h-screen bg-cream">
-      <AppSidebar
-        portal="tenant"
-        user={user}
-        onSignOut={handleSignOut}
-      />
-      <main className="ml-64 p-8">
+      <MobileSidebarWrapper>
+        <AppSidebar
+          portal="tenant"
+          user={user}
+          onSignOut={handleSignOut}
+        />
+      </MobileSidebarWrapper>
+      <main className="md:ml-64 p-8 pt-14 md:pt-8 w-full">
         {children}
       </main>
     </div>
