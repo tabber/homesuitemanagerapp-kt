@@ -4,11 +4,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Building2, User, Home } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 type RoleType = "landlord" | "tenant"
 
@@ -36,8 +38,27 @@ export default function SignupPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    const supabase = createClient()
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo:
+          process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
+          `${window.location.origin}/auth/callback`,
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          role,
+        },
+      },
+    })
+
+    if (error) {
+      toast.error(error.message)
+      setIsLoading(false)
+      return
+    }
 
     router.push(`/signup-success?email=${encodeURIComponent(email)}`)
   }
