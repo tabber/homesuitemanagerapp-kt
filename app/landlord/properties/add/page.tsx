@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Check,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 const PROVINCES = [
   { value: "AB", label: "Alberta" },
@@ -193,9 +195,84 @@ export default function AddPropertyPage() {
     if (currentStep < totalSteps - 1) {
       setCurrentStep((prev) => prev + 1)
     } else {
-      // Submit form
-      router.push("/landlord/properties")
+      handleSubmit()
     }
+  }
+
+  const handleSubmit = async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      toast.error("You must be signed in to add a property.")
+      return
+    }
+
+    const formData =
+      propertyType === "single"
+        ? {
+            name: singleForm.name,
+            property_type: singleForm.type,
+            status: singleForm.status || "vacant",
+            address: singleForm.streetAddress,
+            city: singleForm.city,
+            province: singleForm.province,
+            postal_code: singleForm.postalCode,
+            description: singleForm.description,
+            bedrooms: singleForm.bedrooms ? String(singleForm.bedrooms) : "",
+            bathrooms: singleForm.bathrooms ? String(singleForm.bathrooms) : "",
+            square_feet: singleForm.squareFeet,
+            rent_amount: singleForm.monthlyRent,
+            deposit_amount: singleForm.securityDeposit,
+            total_units: "",
+            total_floors: "",
+          }
+        : {
+            name: multiForm.name,
+            property_type: "building",
+            status: multiForm.status || "vacant",
+            address: multiForm.streetAddress,
+            city: multiForm.city,
+            province: multiForm.province,
+            postal_code: multiForm.postalCode,
+            description: multiForm.description,
+            bedrooms: "",
+            bathrooms: "",
+            square_feet: "",
+            rent_amount: "",
+            deposit_amount: "",
+            total_units: String(calculateTotalUnits()),
+            total_floors: String(multiForm.totalFloors),
+          }
+
+    const { error } = await supabase.from("properties").insert({
+      landlord_id: user.id,
+      name: formData.name,
+      property_type: formData.property_type,
+      status: formData.status || "vacant",
+      address: formData.address,
+      city: formData.city,
+      province: formData.province,
+      postal_code: formData.postal_code,
+      country: "Canada",
+      description: formData.description,
+      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
+      square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
+      rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
+      deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
+      total_units: formData.total_units ? parseInt(formData.total_units) : null,
+      total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
+    })
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    router.push("/landlord/properties")
   }
 
   const formatCurrency = (amount: number) => {
