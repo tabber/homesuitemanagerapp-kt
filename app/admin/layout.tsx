@@ -2,12 +2,16 @@
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const router = useRouter()
+
   // Mock admin user data
   const user = {
     firstName: "Admin",
@@ -15,8 +19,10 @@ export default function AdminLayout({
     email: "admin@homesuite.ca",
   }
 
-  const handleSignOut = () => {
-    // Handle sign out
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/login")
   }
 
   return (

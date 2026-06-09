@@ -2,12 +2,16 @@
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 export default function TenantLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const router = useRouter()
+
   // Mock user data - in real app this would come from auth context
   const user = {
     firstName: "Sarah",
@@ -15,8 +19,10 @@ export default function TenantLayout({
     email: "sarah.chen@email.com",
   }
 
-  const handleSignOut = () => {
-    // Handle sign out
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/login")
   }
 
   return (
