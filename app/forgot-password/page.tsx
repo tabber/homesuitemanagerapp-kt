@@ -1,5 +1,5 @@
 "use client"
-
+import { createClient } from "@/lib/supabase/client"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -29,13 +29,20 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
+    
+    const supabase = createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    
+    if (error) {
+      alert(error.message)
+      setIsLoading(false)
+      return
+    }
+    
     setIsSuccess(true)
     setIsLoading(false)
-    router.push("/reset-password")
   }
 
   return (
