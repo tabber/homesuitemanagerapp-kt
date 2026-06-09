@@ -29,8 +29,12 @@ export const FEATURES = {
 
 export function hasFeatureAccess(
   feature: keyof typeof FEATURES,
-  subscriptionStatus: 'trial' | 'essential' | 'expired'
+  subscriptionStatus: 'trial' | 'essential' | 'expired',
+  role?: string
 ): boolean {
+  // Admins always have full access
+  if (role === 'admin') return true
+  
   const f = FEATURES[feature]
   if (f.tier === 'coming_soon') return false
   if (subscriptionStatus === 'expired') return false
