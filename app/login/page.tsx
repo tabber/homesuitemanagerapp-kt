@@ -4,11 +4,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Building2, AlertCircle } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { createClient } from "@/lib/supabase/client"
 
 function Logo() {
   return (
@@ -33,11 +35,32 @@ export default function LoginPage() {
     setError("")
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    const supabase = createClient()
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-    // For demo, redirect to landlord dashboard
-    router.push("/landlord")
+    if (signInError) {
+      setError(signInError.message)
+      toast.error(signInError.message)
+      setIsLoading(false)
+      return
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single()
+
+    if (profile?.role === "tenant") {
+      router.push("/tenant")
+    } else if (profile?.role === "admin") {
+      router.push("/admin")
+    } else {
+      router.push("/landlord")
+    }
   }
 
   return (
