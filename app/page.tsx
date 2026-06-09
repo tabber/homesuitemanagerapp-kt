@@ -66,14 +66,6 @@ export default function LandingPage() {
             <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
               <Link href="/pricing">Start Free Trial</Link>
             </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="border-navy text-navy hover:bg-navy/5"
-            >
-              <Link href="/pricing">Start Free Trial</Link>
-            </Button>
           </div>
           <p className="text-sm text-text-muted mb-16">
             Starting at $49.99/mo — no credit card required
