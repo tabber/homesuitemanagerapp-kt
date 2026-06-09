@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Building2, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,7 @@ function Logo() {
 }
 
 export default function ForgotPasswordPage() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -33,6 +35,7 @@ export default function ForgotPasswordPage() {
 
     setIsSuccess(true)
     setIsLoading(false)
+    router.push("/reset-password")
   }
 
   return (
