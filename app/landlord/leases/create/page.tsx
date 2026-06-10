@@ -692,15 +692,15 @@ export default function CreateLeasePage() {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <Step1 />
+        return Step1()
       case 1:
-        return <Step2 />
+        return Step2()
       case 2:
-        return <Step3 />
+        return Step3()
       case 3:
-        return <Step4 />
+        return Step4()
       case 4:
-        return <Step5 />
+        return Step5()
       default:
         return null
     }
@@ -719,7 +719,7 @@ export default function CreateLeasePage() {
         </Button>
       </div>
 
-      <StepIndicator />
+      {StepIndicator()}
 
       {renderStep()}
 

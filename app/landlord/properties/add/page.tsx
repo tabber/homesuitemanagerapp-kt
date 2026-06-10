@@ -1283,28 +1283,28 @@ export default function AddPropertyPage() {
     if (propertyType === "single") {
       switch (currentStep) {
         case 0:
-          return <SingleUnitStep1 />
+          return SingleUnitStep1()
         case 1:
-          return <SingleUnitStep2 />
+          return SingleUnitStep2()
         case 2:
-          return <SingleUnitStep3 />
+          return SingleUnitStep3()
         case 3:
-          return <SingleUnitStep4 />
+          return SingleUnitStep4()
         default:
           return null
       }
     } else {
       switch (currentStep) {
         case 0:
-          return <MultiUnitStep1 />
+          return MultiUnitStep1()
         case 1:
-          return <MultiUnitStep2 />
+          return MultiUnitStep2()
         case 2:
-          return <MultiUnitStep3 />
+          return MultiUnitStep3()
         case 3:
-          return <MultiUnitStep4 />
+          return MultiUnitStep4()
         case 4:
-          return <MultiUnitStep5 />
+          return MultiUnitStep5()
         default:
           return null
       }
