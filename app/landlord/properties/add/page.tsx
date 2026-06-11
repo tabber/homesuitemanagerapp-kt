@@ -130,6 +130,28 @@ interface Floor {
   units: FloorUnit[]
 }
 
+// Step Indicator
+function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-text-muted">Step {currentStep + 1} of {totalSteps}</span>
+      </div>
+      <div className="flex gap-2">
+        {Array.from({ length: totalSteps }).map((_, index) => (
+          <div
+            key={index}
+            className={cn(
+              "h-2 flex-1 rounded-full transition-colors",
+              index <= currentStep ? "bg-teal" : "bg-sage/30"
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AddPropertyPage() {
   const router = useRouter()
   const [propertyType, setPropertyType] = useState<PropertyType>(null)
@@ -368,26 +390,6 @@ export default function AddPropertyPage() {
       </div>
     )
   }
-
-  // Step Indicator
-  const StepIndicator = () => (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-text-muted">Step {currentStep + 1} of {totalSteps}</span>
-      </div>
-      <div className="flex gap-2">
-        {Array.from({ length: totalSteps }).map((_, index) => (
-          <div
-            key={index}
-            className={cn(
-              "h-2 flex-1 rounded-full transition-colors",
-              index <= currentStep ? "bg-teal" : "bg-sage/30"
-            )}
-          />
-        ))}
-      </div>
-    </div>
-  )
 
   // Single Unit Steps
   const SingleUnitStep1 = () => (
@@ -1324,7 +1326,7 @@ export default function AddPropertyPage() {
         </Button>
       </div>
 
-      <StepIndicator />
+      <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
 
       {renderStep()}
 
