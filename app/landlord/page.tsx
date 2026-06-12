@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
 import {
@@ -35,6 +35,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatCard } from "@/components/stat-card"
 import { TrialBanner } from "@/components/trial-banner"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 // Mock data
 const revenueData = [
@@ -154,6 +155,81 @@ export default function LandlordDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
   const trialDaysRemaining = 5
 
+  const [stats, setStats] = useState({
+    totalProperties: 0,
+    activeTenants: 0,
+    monthlyRevenue: 0,
+    openRequests: 0,
+  })
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadStats() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        if (isMounted) setStatsLoading(false)
+        return
+      }
+
+      // First and last day of the current month (for payment_date filtering)
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      const monthStartStr = format(monthStart, "yyyy-MM-dd")
+      const monthEndStr = format(monthEnd, "yyyy-MM-dd")
+
+      const [propertiesRes, leasesRes, paymentsRes, maintenanceRes] = await Promise.all([
+        supabase
+          .from("properties")
+          .select("id", { count: "exact", head: true })
+          .eq("landlord_id", user.id),
+        supabase
+          .from("leases")
+          .select("id", { count: "exact", head: true })
+          .eq("landlord_id", user.id)
+          .eq("status", "active"),
+        supabase
+          .from("payments")
+          .select("amount")
+          .eq("landlord_id", user.id)
+          .gte("payment_date", monthStartStr)
+          .lte("payment_date", monthEndStr),
+        supabase
+          .from("maintenance_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("landlord_id", user.id)
+          .eq("status", "open"),
+      ])
+
+      const monthlyRevenue = (paymentsRes.data ?? []).reduce(
+        (sum, payment) => sum + (payment.amount ?? 0),
+        0
+      )
+
+      if (isMounted) {
+        setStats({
+          totalProperties: propertiesRes.count ?? 0,
+          activeTenants: leasesRes.count ?? 0,
+          monthlyRevenue,
+          openRequests: maintenanceRes.count ?? 0,
+        })
+        setStatsLoading(false)
+      }
+    }
+
+    loadStats()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const completedSteps = onboardingChecklist.filter((item) => item.completed).length
   const totalSteps = onboardingChecklist.length
   const showChecklist = completedSteps < totalSteps
@@ -181,23 +257,19 @@ export default function LandlordDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Properties"
-          value="5"
-          sublabel="3 houses, 2 condos"
+          value={statsLoading ? "—" : stats.totalProperties}
         />
         <StatCard
           label="Active Tenants"
-          value="4"
-          sublabel="80% occupancy"
+          value={statsLoading ? "—" : stats.activeTenants}
         />
         <StatCard
           label="Monthly Revenue"
-          value="$9,160"
-          trend={{ direction: "up", value: "+5.2%" }}
+          value={statsLoading ? "—" : formatCurrency(stats.monthlyRevenue)}
         />
         <StatCard
           label="Open Maintenance"
-          value="2"
-          sublabel="1 urgent"
+          value={statsLoading ? "—" : stats.openRequests}
         />
       </div>
 
