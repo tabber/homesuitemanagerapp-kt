@@ -439,7 +439,7 @@ export default function LandlordDashboard() {
                 className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
                 asChild
               >
-                <Link href="/landlord/properties/new">
+                <Link href="/landlord/properties/add">
                   <Building2 className="h-5 w-5" />
                   <span className="text-sm">Add Property</span>
                 </Link>
@@ -449,7 +449,7 @@ export default function LandlordDashboard() {
                 className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
                 asChild
               >
-                <Link href="/landlord/leases/new">
+                <Link href="/landlord/leases/create">
                   <Plus className="h-5 w-5" />
                   <span className="text-sm">Create Lease</span>
                 </Link>
@@ -459,7 +459,7 @@ export default function LandlordDashboard() {
                 className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
                 asChild
               >
-                <Link href="/landlord/maintenance">
+                <Link href="/landlord/inbox?tab=maintenance">
                   <Wrench className="h-5 w-5" />
                   <span className="text-sm">Maintenance</span>
                 </Link>
