@@ -1,20 +1,54 @@
 "use client"
 
-import { ReactNode } from "react"
+import { ReactNode, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { createClient } from "@/lib/supabase/client"
 
-// Mock user data - in production this would come from auth
-const mockUser = {
-  firstName: "Sarah",
-  lastName: "Mitchell",
-  email: "sarah@example.com",
-}
-
 export default function LandlordLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const [user, setUser] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+  })
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadUser() {
+      const supabase = createClient()
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
+
+      if (!authUser) return
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", authUser.id)
+        .single()
+
+      const fullName = profile?.full_name?.trim() ?? ""
+      const [firstName = "", ...rest] = fullName.split(" ")
+
+      if (isMounted) {
+        setUser({
+          firstName,
+          lastName: rest.join(" "),
+          email: authUser.email ?? "",
+        })
+      }
+    }
+
+    loadUser()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -27,7 +61,7 @@ export default function LandlordLayout({ children }: { children: ReactNode }) {
       <MobileSidebarWrapper>
         <AppSidebar
           portal="landlord"
-          user={mockUser}
+          user={user}
           trialDaysRemaining={5}
           onUpgrade={() => console.log("Upgrade clicked")}
           onSignOut={handleSignOut}
