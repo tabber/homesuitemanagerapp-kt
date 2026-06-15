@@ -204,6 +204,44 @@ export default function TenantMyHome() {
     payDirectly: toUtilityList(leaseRow?.utilities_included),
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-medium text-navy">My Home</h1>
+          <p className="text-sm text-text-muted mt-1">
+            View your lease details, payments, and utilities
+          </p>
+        </div>
+        <Card className="border-sage/50">
+          <CardContent className="p-6 text-sm text-text-muted">Loading...</CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!lease) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-medium text-navy">My Home</h1>
+          <p className="text-sm text-text-muted mt-1">
+            View your lease details, payments, and utilities
+          </p>
+        </div>
+        <Card className="border-sage/50">
+          <CardContent className="p-6">
+            <EmptyState
+              icon={FileText}
+              title="No Lease Found"
+              description="You don't have an active lease yet. Your lease details will appear here once your landlord sets one up."
+            />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -225,30 +263,30 @@ export default function TenantMyHome() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-medium text-navy">
-                    {mockLease.propertyName}
+                    {lease.propertyName}
                   </h2>
-                  <StatusBadge status={mockLease.status} />
+                  <StatusBadge status={lease.status} />
                 </div>
                 <div className="flex items-start gap-2 mt-1 text-sm text-text-muted">
                   <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
-                    <p>{mockLease.address}</p>
-                    <p>{mockLease.city}</p>
+                    <p>{lease.address}</p>
+                    <p>{lease.city}</p>
                   </div>
                 </div>
                 <div className="mt-3 text-sm text-text-muted">
                   <p>
                     <span className="font-medium text-navy">Landlord:</span>{" "}
-                    {mockLandlord.name}
+                    {landlord.name}
                   </p>
-                  <p>{mockLandlord.email}</p>
+                  <p>{landlord.email}</p>
                   <div className="flex items-center gap-1">
                     <Phone className="h-3.5 w-3.5" />
-                    <span>{mockLandlord.phone}</span>
+                    <span>{landlord.phone}</span>
                   </div>
                 </div>
                 <p className="mt-2 text-sm text-text-muted">
-                  Lease: {mockLease.startDate} - {mockLease.endDate}
+                  Lease: {lease.startDate} - {lease.endDate}
                 </p>
               </div>
             </div>
@@ -277,15 +315,15 @@ export default function TenantMyHome() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
               label="Monthly Rent"
-              value={formatCurrency(mockLease.monthlyRent)}
+              value={formatCurrency(lease.monthlyRent)}
             />
             <StatCard
               label="Security Deposit"
-              value={formatCurrency(mockLease.securityDeposit)}
+              value={formatCurrency(lease.securityDeposit)}
             />
             <StatCard
               label="Payment Due Day"
-              value={`${mockLease.paymentDueDay}${mockLease.paymentDueDay === 1 ? "st" : "th"} of each month`}
+              value={`${lease.paymentDueDay}${lease.paymentDueDay === 1 ? "st" : "th"} of each month`}
             />
           </div>
 
@@ -302,7 +340,7 @@ export default function TenantMyHome() {
                   Utilities (Tenant Responsible)
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {mockLease.utilities.map((utility) => (
+                  {lease.utilities.map((utility) => (
                     <Badge
                       key={utility}
                       variant="secondary"
@@ -319,35 +357,35 @@ export default function TenantMyHome() {
                   <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                     Parking
                   </p>
-                  <p className="text-sm text-navy">{mockLease.parking}</p>
+                  <p className="text-sm text-navy">{lease.parking}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                     Smoking Policy
                   </p>
-                  <p className="text-sm text-navy">{mockLease.smokingPolicy}</p>
+                  <p className="text-sm text-navy">{lease.smokingPolicy}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                     Pet Policy
                   </p>
-                  <p className="text-sm text-navy">{mockLease.petPolicy}</p>
+                  <p className="text-sm text-navy">{lease.petPolicy}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                     Vehicle Details
                   </p>
-                  <p className="text-sm text-navy">{mockLease.vehicleDetails}</p>
+                  <p className="text-sm text-navy">{lease.vehicleDetails}</p>
                 </div>
               </div>
 
-              {mockLease.additionalTenants.length > 0 && (
+              {lease.additionalTenants.length > 0 && (
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                     Additional Tenants
                   </p>
                   <p className="text-sm text-navy">
-                    {mockLease.additionalTenants.join(", ")}
+                    {lease.additionalTenants.join(", ")}
                   </p>
                 </div>
               )}
@@ -356,7 +394,7 @@ export default function TenantMyHome() {
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Additional Terms
                 </p>
-                <p className="text-sm text-navy">{mockLease.additionalTerms}</p>
+                <p className="text-sm text-navy">{lease.additionalTerms}</p>
               </div>
             </CardContent>
           </Card>
@@ -373,12 +411,12 @@ export default function TenantMyHome() {
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      mockLease.tenantSigned
+                      lease.tenantSigned
                         ? "bg-success/10"
                         : "bg-warning/10"
                     }`}
                   >
-                    {mockLease.tenantSigned ? (
+                    {lease.tenantSigned ? (
                       <Check className="h-4 w-4 text-success" />
                     ) : (
                       <FileText className="h-4 w-4 text-warning" />
@@ -389,13 +427,13 @@ export default function TenantMyHome() {
                       Tenant Signature
                     </p>
                     <p className="text-sm text-text-muted">
-                      {mockLease.tenantSigned
-                        ? `Signed on ${mockLease.tenantSignedDate}`
+                      {lease.tenantSigned
+                        ? `Signed on ${lease.tenantSignedDate}`
                         : "Awaiting your signature"}
                     </p>
                   </div>
                 </div>
-                {!mockLease.tenantSigned && (
+                {!lease.tenantSigned && (
                   <Button className="bg-teal hover:bg-teal-dark text-white">
                     Sign Now
                   </Button>
@@ -406,12 +444,12 @@ export default function TenantMyHome() {
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      mockLease.landlordSigned
+                      lease.landlordSigned
                         ? "bg-success/10"
                         : "bg-warning/10"
                     }`}
                   >
-                    {mockLease.landlordSigned ? (
+                    {lease.landlordSigned ? (
                       <Check className="h-4 w-4 text-success" />
                     ) : (
                       <FileText className="h-4 w-4 text-warning" />
@@ -422,8 +460,8 @@ export default function TenantMyHome() {
                       Landlord Signature
                     </p>
                     <p className="text-sm text-text-muted">
-                      {mockLease.landlordSigned
-                        ? `Signed on ${mockLease.landlordSignedDate}`
+                      {lease.landlordSigned
+                        ? `Signed on ${lease.landlordSignedDate}`
                         : "Awaiting landlord signature"}
                     </p>
                   </div>
@@ -447,19 +485,19 @@ export default function TenantMyHome() {
                     <p>
                       <span className="text-text-muted">Send to:</span>{" "}
                       <span className="font-medium text-navy">
-                        {mockLandlord.eTransferEmail}
+                        {landlord.eTransferEmail}
                       </span>
                     </p>
                     <p>
                       <span className="text-text-muted">Amount:</span>{" "}
                       <span className="font-medium text-navy">
-                        {formatCurrency(mockLease.monthlyRent)}
+                        {formatCurrency(lease.monthlyRent)}
                       </span>
                     </p>
                     <p>
                       <span className="text-text-muted">Message:</span>{" "}
                       <span className="font-medium text-navy">
-                        &quot;Rent - {mockLease.address}&quot;
+                        &quot;Rent - {lease.address}&quot;
                       </span>
                     </p>
                   </div>
@@ -492,7 +530,14 @@ export default function TenantMyHome() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockPayments.map((payment) => (
+                  {payments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-sm text-text-muted py-6">
+                        No data yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    payments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="font-normal text-navy">
                         {payment.date}
@@ -507,7 +552,8 @@ export default function TenantMyHome() {
                         <StatusBadge status={payment.status} />
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -525,7 +571,10 @@ export default function TenantMyHome() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockUtilities.payThroughLandlord.map((utility) => (
+                {utilities.payThroughLandlord.length === 0 && (
+                  <p className="text-sm text-text-muted">No data yet</p>
+                )}
+                {utilities.payThroughLandlord.map((utility: any) => (
                   <div
                     key={utility.name}
                     className="flex items-center justify-between p-4 rounded-lg bg-cream"
@@ -563,7 +612,10 @@ export default function TenantMyHome() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockUtilities.payDirectly.map((utility) => (
+                {utilities.payDirectly.length === 0 && (
+                  <p className="text-sm text-text-muted">No data yet</p>
+                )}
+                {utilities.payDirectly.map((utility) => (
                   <div
                     key={utility}
                     className="flex items-center justify-between p-4 rounded-lg bg-cream"
@@ -606,10 +658,10 @@ export default function TenantMyHome() {
                   Landlord
                 </p>
                 <p className="text-sm font-medium text-navy">
-                  {mockLandlord.name}
+                  {landlord.name}
                 </p>
-                <p className="text-sm text-text-muted">{mockLandlord.email}</p>
-                <p className="text-sm text-text-muted">{mockLandlord.phone}</p>
+                <p className="text-sm text-text-muted">{landlord.email}</p>
+                <p className="text-sm text-text-muted">{landlord.phone}</p>
               </div>
               <div className="p-4 rounded-lg bg-cream">
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
@@ -626,9 +678,9 @@ export default function TenantMyHome() {
                 Property
               </p>
               <p className="text-sm font-medium text-navy">
-                {mockLease.address}
+                {lease.address}
               </p>
-              <p className="text-sm text-text-muted">{mockLease.city}</p>
+              <p className="text-sm text-text-muted">{lease.city}</p>
             </div>
 
             {/* Lease Terms */}
@@ -639,7 +691,7 @@ export default function TenantMyHome() {
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-text-muted" />
                 <span className="text-navy">
-                  {mockLease.startDate} - {mockLease.endDate}
+                  {lease.startDate} - {lease.endDate}
                 </span>
               </div>
             </div>
@@ -651,7 +703,7 @@ export default function TenantMyHome() {
                   Monthly Rent
                 </p>
                 <p className="text-lg font-medium text-navy">
-                  {formatCurrency(mockLease.monthlyRent)}
+                  {formatCurrency(lease.monthlyRent)}
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-cream">
@@ -659,7 +711,7 @@ export default function TenantMyHome() {
                   Security Deposit
                 </p>
                 <p className="text-lg font-medium text-navy">
-                  {formatCurrency(mockLease.securityDeposit)}
+                  {formatCurrency(lease.securityDeposit)}
                 </p>
               </div>
             </div>
@@ -670,8 +722,8 @@ export default function TenantMyHome() {
                 Payment
               </p>
               <p className="text-sm text-navy">
-                Due on the {mockLease.paymentDueDay}st of each month via
-                e-Transfer to {mockLandlord.eTransferEmail}
+                Due on the {lease.paymentDueDay}st of each month via
+                e-Transfer to {landlord.eTransferEmail}
               </p>
             </div>
 
@@ -681,25 +733,25 @@ export default function TenantMyHome() {
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Utilities
                 </p>
-                <p className="text-navy">{mockLease.utilities.join(", ")}</p>
+                <p className="text-navy">{lease.utilities.join(", ")}</p>
               </div>
               <div>
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Parking
                 </p>
-                <p className="text-navy">{mockLease.parking}</p>
+                <p className="text-navy">{lease.parking}</p>
               </div>
               <div>
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Smoking
                 </p>
-                <p className="text-navy">{mockLease.smokingPolicy}</p>
+                <p className="text-navy">{lease.smokingPolicy}</p>
               </div>
               <div>
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Pets
                 </p>
-                <p className="text-navy">{mockLease.petPolicy}</p>
+                <p className="text-navy">{lease.petPolicy}</p>
               </div>
             </div>
 
@@ -708,34 +760,34 @@ export default function TenantMyHome() {
               <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                 Additional Terms
               </p>
-              <p className="text-sm text-navy">{mockLease.additionalTerms}</p>
+              <p className="text-sm text-navy">{lease.additionalTerms}</p>
             </div>
 
             {/* Signatures */}
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
-                  {mockLease.landlordSigned && (
+                  {lease.landlordSigned && (
                     <span className="text-navy italic">John Smith</span>
                   )}
                 </div>
                 <p className="text-xs text-text-muted">Landlord Signature</p>
-                {mockLease.landlordSignedDate && (
+                {lease.landlordSignedDate && (
                   <p className="text-xs text-text-muted">
-                    {mockLease.landlordSignedDate}
+                    {lease.landlordSignedDate}
                   </p>
                 )}
               </div>
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
-                  {mockLease.tenantSigned && (
+                  {lease.tenantSigned && (
                     <span className="text-navy italic">Sarah Chen</span>
                   )}
                 </div>
                 <p className="text-xs text-text-muted">Tenant Signature</p>
-                {mockLease.tenantSignedDate && (
+                {lease.tenantSignedDate && (
                   <p className="text-xs text-text-muted">
-                    {mockLease.tenantSignedDate}
+                    {lease.tenantSignedDate}
                   </p>
                 )}
               </div>
@@ -783,13 +835,13 @@ export default function TenantMyHome() {
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Amount</span>
                 <span className="font-medium text-navy">
-                  {formatCurrency(mockLease.monthlyRent)}
+                  {formatCurrency(lease.monthlyRent)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Sent to</span>
                 <span className="font-medium text-navy">
-                  {mockLandlord.eTransferEmail}
+                  {landlord.eTransferEmail}
                 </span>
               </div>
             </div>
