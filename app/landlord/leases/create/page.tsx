@@ -892,14 +892,14 @@ export default function CreateLeasePage() {
       <div className="flex justify-between mt-8 pt-6 border-t border-sage/30">
         <Button
           variant="outline"
-          onClick={handleBack}
+         onClick={() => setCurrentStep(prev => prev - 1)}
           className="border-navy/20 text-navy hover:bg-navy/5"
         >
           <ChevronLeft className="h-4 w-4 mr-1" />
           Back
         </Button>
         <Button
-          onClick={handleContinue}
+          onClick={currentStep === totalSteps - 1 ? handleSubmit : () => setCurrentStep(prev => prev + 1)}
           className="bg-teal hover:bg-teal-dark text-white"
         >
           {currentStep === totalSteps - 1 ? (
