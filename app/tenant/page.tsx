@@ -249,7 +249,7 @@ export default function TenantDashboard() {
             </Link>
 
             <Link
-              href="/tenant/home"
+              href="/tenant/my-home"
               className="w-full flex items-center justify-between p-3 rounded-lg bg-cream hover:bg-sage/20 transition-colors"
             >
               <div className="flex items-center gap-3">
