@@ -233,13 +233,31 @@ export default function CreateLeasePage() {
       return
     }
 
+    // Guard the NOT NULL columns so the insert never fails with a 23502 violation
+    const monthlyRent = form.monthlyRent ? parseFloat(form.monthlyRent) : NaN
+    if (!form.propertyId) {
+      toast.error("Please select a property before creating the lease.")
+      setIsSubmitting(false)
+      return
+    }
+    if (!form.startDate || !form.endDate) {
+      toast.error("Please set both a start date and an end date.")
+      setIsSubmitting(false)
+      return
+    }
+    if (Number.isNaN(monthlyRent)) {
+      toast.error("Please enter the monthly rent amount.")
+      setIsSubmitting(false)
+      return
+    }
+
     // Resolve tenant_id by matching the entered email to a tenant profile
     const matchedTenant = tenants.find(
       (t) => t.email && t.email.toLowerCase() === form.tenantEmail.trim().toLowerCase()
     )
 
     const { error } = await supabase.from("leases").insert({
-      property_id: form.propertyId || null,
+      property_id: form.propertyId,
       unit_id: form.unitId || null,
       tenant_id: matchedTenant?.id ?? null,
       landlord_id: user.id,
@@ -259,9 +277,9 @@ export default function CreateLeasePage() {
       parking_details: form.parkingDetails || null,
       smoking_allowed: form.smokingAllowed,
       utilities_included: form.tenantUtilities,
-      start_date: form.startDate || null,
-      end_date: form.endDate || null,
-      monthly_rent: form.monthlyRent ? parseFloat(form.monthlyRent) : null,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      monthly_rent: monthlyRent,
       security_deposit: form.securityDeposit ? parseFloat(form.securityDeposit) : null,
       payment_due_day: form.paymentDueDay ? parseInt(form.paymentDueDay) : null,
       terms: form.additionalTerms || null,
