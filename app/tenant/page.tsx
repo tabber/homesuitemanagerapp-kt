@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   FileText,
@@ -23,77 +23,162 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { createClient } from "@/lib/supabase/client"
+import { useUser } from "@/lib/context/UserContext"
 
-// Mock data
-const mockTenant = {
-  hasPendingLease: true,
-  monthlyRent: 1850,
-  rentDueDay: 1,
-  leaseExpires: "August 31, 2026",
-  leaseExpiresInDays: 91,
-  openRequests: 1,
-  paymentsMade: 8,
+interface LeaseData {
+  monthly_rent: number | null
+  payment_due_day: number | null
+  end_date: string | null
+  status: string | null
+  property_id: string | null
+  landlord_id: string | null
+  etransfer_email: string | null
 }
 
-const mockProperty = {
-  name: "Riverside Apartments",
-  address: "456 Oak Street, Unit 4B",
-  city: "Toronto, ON M5V 2K1",
-  status: "active" as const,
+interface PropertyData {
+  name: string | null
+  address: string | null
+  city: string | null
+  province: string | null
+  postal_code: string | null
 }
 
-const mockLandlord = {
-  name: "John Smith",
-  email: "john.smith@email.com",
-  phone: "(416) 555-0123",
-  eTransferEmail: "payments@smithproperties.ca",
+interface LandlordData {
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  phone: string | null
 }
 
-const mockRecentActivity = [
-  {
-    id: "1",
-    type: "maintenance",
-    title: "Maintenance request updated",
-    description: "Kitchen faucet repair - Contractor assigned",
-    date: "May 28, 2026",
-    status: "in-progress" as const,
-  },
-  {
-    id: "2",
-    type: "payment",
-    title: "Payment received",
-    description: "May rent - $1,850.00",
-    date: "May 1, 2026",
-    status: "completed" as const,
-  },
-  {
-    id: "3",
-    type: "message",
-    title: "New message from landlord",
-    description: "Building maintenance notice",
-    date: "April 28, 2026",
-    status: "completed" as const,
-  },
-  {
-    id: "4",
-    type: "payment",
-    title: "Payment received",
-    description: "April rent - $1,850.00",
-    date: "April 1, 2026",
-    status: "completed" as const,
-  },
-  {
-    id: "5",
-    type: "maintenance",
-    title: "Maintenance request completed",
-    description: "Bathroom exhaust fan replacement",
-    date: "March 15, 2026",
-    status: "completed" as const,
-  },
-]
+interface ActivityItem {
+  id: string
+  type: "maintenance" | "payment"
+  title: string
+  description: string
+  date: string
+  sortDate: number
+  status: string
+}
 
 export default function TenantDashboard() {
+  const { firstName } = useUser()
   const [showETransferModal, setShowETransferModal] = useState(false)
+
+  const [loading, setLoading] = useState(true)
+  const [lease, setLease] = useState<LeaseData | null>(null)
+  const [property, setProperty] = useState<PropertyData | null>(null)
+  const [landlord, setLandlord] = useState<LandlordData | null>(null)
+  const [openRequests, setOpenRequests] = useState(0)
+  const [paymentsMade, setPaymentsMade] = useState(0)
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadDashboard() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        if (isMounted) setLoading(false)
+        return
+      }
+
+      const { data: leaseRows } = await supabase
+        .from("leases")
+        .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email")
+        .eq("tenant_id", user.id)
+        .limit(1)
+      const leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
+
+      const { count: openCount } = await supabase
+        .from("maintenance_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", user.id)
+        .eq("status", "open")
+
+      const { count: paymentCount } = await supabase
+        .from("payments")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", user.id)
+
+      let landlordRow: LandlordData | null = null
+      if (leaseRow?.landlord_id) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, email, phone")
+          .eq("id", leaseRow.landlord_id)
+          .single()
+        landlordRow = (data as LandlordData | null) ?? null
+      }
+
+      let propertyRow: PropertyData | null = null
+      if (leaseRow?.property_id) {
+        const { data } = await supabase
+          .from("properties")
+          .select("name, address, city, province, postal_code")
+          .eq("id", leaseRow.property_id)
+          .single()
+        propertyRow = (data as PropertyData | null) ?? null
+      }
+
+      const { data: recentPayments } = await supabase
+        .from("payments")
+        .select("id, amount, payment_date, description, status, created_at")
+        .eq("tenant_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      const { data: recentMaintenance } = await supabase
+        .from("maintenance_requests")
+        .select("id, title, status, created_at, updated_at")
+        .eq("tenant_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(5)
+
+      const activityItems: ActivityItem[] = [
+        ...(recentPayments ?? []).map((p) => ({
+          id: `payment-${p.id}`,
+          type: "payment" as const,
+          title: "Payment received",
+          description: `${p.description ?? "Rent"} - ${formatCurrency(p.amount ?? 0)}`,
+          date: formatDate(p.payment_date ?? p.created_at),
+          sortDate: new Date(p.payment_date ?? p.created_at ?? 0).getTime(),
+          status: p.status ?? "completed",
+        })),
+        ...(recentMaintenance ?? []).map((m) => ({
+          id: `maintenance-${m.id}`,
+          type: "maintenance" as const,
+          title: "Maintenance request",
+          description: m.title ?? "Maintenance request",
+          date: formatDate(m.updated_at ?? m.created_at),
+          sortDate: new Date(m.updated_at ?? m.created_at ?? 0).getTime(),
+          status: m.status ?? "open",
+        })),
+      ]
+        .sort((a, b) => b.sortDate - a.sortDate)
+        .slice(0, 5)
+
+      if (!isMounted) return
+
+      setLease(leaseRow)
+      setProperty(propertyRow)
+      setLandlord(landlordRow)
+      setOpenRequests(openCount ?? 0)
+      setPaymentsMade(paymentCount ?? 0)
+      setActivity(activityItems)
+      setLoading(false)
+    }
+
+    loadDashboard()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
@@ -102,18 +187,45 @@ export default function TenantDashboard() {
     }).format(amount)
   }
 
+  const monthlyRent = lease?.monthly_rent ?? 0
+  const rentDueDay = lease?.payment_due_day ?? null
+  const hasPendingLease = lease?.status === "pending"
+
+  const leaseExpiresInDays = lease?.end_date
+    ? Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86400000)
+    : null
+
+  const nextRentDueDate = (() => {
+    if (!rentDueDay) return null
+    const now = new Date()
+    let due = new Date(now.getFullYear(), now.getMonth(), rentDueDay)
+    if (due.getTime() < now.getTime()) {
+      due = new Date(now.getFullYear(), now.getMonth() + 1, rentDueDay)
+    }
+    return due
+  })()
+
+  const landlordName = landlord
+    ? `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()
+    : ""
+  const propertyCityLine = property
+    ? [property.city, property.province, property.postal_code].filter(Boolean).join(", ")
+    : ""
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-medium text-navy">Welcome back, Sarah</h1>
+        <h1 className="text-2xl font-medium text-navy">
+          Welcome back{firstName ? `, ${firstName}` : ""}
+        </h1>
         <p className="text-sm text-text-muted mt-1">
           Here&apos;s what&apos;s happening with your rental
         </p>
       </div>
 
       {/* Pending Lease Alert */}
-      {mockTenant.hasPendingLease && (
+      {hasPendingLease && (
         <div className="bg-teal/10 border border-teal/20 rounded-lg p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-teal-dark" />
@@ -133,28 +245,32 @@ export default function TenantDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Monthly Rent"
-          value={formatCurrency(mockTenant.monthlyRent)}
-          sublabel={`Due on the ${mockTenant.rentDueDay}${mockTenant.rentDueDay === 1 ? "st" : "th"}`}
+          value={loading ? "—" : formatCurrency(monthlyRent)}
+          sublabel={
+            rentDueDay
+              ? `Due on the ${rentDueDay}${rentDueDay === 1 ? "st" : "th"}`
+              : "No data yet"
+          }
         />
         <StatCard
           label="Lease Expires"
-          value={mockTenant.leaseExpires}
+          value={loading ? "—" : lease?.end_date ? formatDate(lease.end_date) : "No data yet"}
           sublabel={
-            mockTenant.leaseExpiresInDays < 90 ? (
+            leaseExpiresInDays !== null && leaseExpiresInDays < 90 ? (
               <span className="text-destructive">
-                {mockTenant.leaseExpiresInDays} days remaining
+                {leaseExpiresInDays} days remaining
               </span>
             ) : undefined
           }
         />
         <StatCard
           label="Open Requests"
-          value={mockTenant.openRequests}
+          value={loading ? "—" : openRequests}
           sublabel="Maintenance requests"
         />
         <StatCard
           label="Payments Made"
-          value={mockTenant.paymentsMade}
+          value={loading ? "—" : paymentsMade}
           sublabel="Total payments"
         />
       </div>
@@ -166,18 +282,24 @@ export default function TenantDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-medium text-navy flex items-center justify-between">
               Your Property
-              <StatusBadge status={mockProperty.status} />
+              {property?.name && <StatusBadge status="active" />}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <h3 className="font-medium text-navy">{mockProperty.name}</h3>
-            <div className="flex items-start gap-2 mt-2 text-sm text-text-muted">
-              <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>
-                <p>{mockProperty.address}</p>
-                <p>{mockProperty.city}</p>
-              </div>
-            </div>
+            {property ? (
+              <>
+                <h3 className="font-medium text-navy">{property.name}</h3>
+                <div className="flex items-start gap-2 mt-2 text-sm text-text-muted">
+                  <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p>{property.address}</p>
+                    <p>{propertyCityLine}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-text-muted">No data yet</p>
+            )}
           </CardContent>
         </Card>
 
@@ -189,23 +311,31 @@ export default function TenantDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <h3 className="font-medium text-navy">{mockLandlord.name}</h3>
-            <div className="mt-2 space-y-1 text-sm text-text-muted">
-              <p>{mockLandlord.email}</p>
-              <div className="flex items-center gap-1">
-                <Phone className="h-3.5 w-3.5" />
-                <span>{mockLandlord.phone}</span>
-              </div>
-            </div>
-            <Link href="/tenant/inbox">
-              <Button
-                variant="outline"
-                className="mt-4 border-teal text-teal hover:bg-teal/10"
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Message
-              </Button>
-            </Link>
+            {landlord ? (
+              <>
+                <h3 className="font-medium text-navy">{landlordName}</h3>
+                <div className="mt-2 space-y-1 text-sm text-text-muted">
+                  <p>{landlord.email}</p>
+                  {landlord.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="h-3.5 w-3.5" />
+                      <span>{landlord.phone}</span>
+                    </div>
+                  )}
+                </div>
+                <Link href="/tenant/inbox">
+                  <Button
+                    variant="outline"
+                    className="mt-4 border-teal text-teal hover:bg-teal/10"
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Message
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-text-muted">No data yet</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -288,48 +418,42 @@ export default function TenantDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-cream">
-              <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center shrink-0">
-                <Calendar className="h-4 w-4 text-teal-dark" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-navy">Next rent due</p>
-                <p className="text-sm text-text-muted">
-                  {formatCurrency(mockTenant.monthlyRent)} - June 1, 2026
-                </p>
-              </div>
-            </div>
+            {!loading && lease ? (
+              <>
+                {nextRentDueDate && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-cream">
+                    <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center shrink-0">
+                      <Calendar className="h-4 w-4 text-teal-dark" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-navy">Next rent due</p>
+                      <p className="text-sm text-text-muted">
+                        {formatCurrency(monthlyRent)} - {formatDate(nextRentDueDate.toISOString())}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-            {mockTenant.leaseExpiresInDays < 90 && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5">
-                <div className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-navy">
-                    Lease expiring soon
-                  </p>
-                  <p className="text-sm text-text-muted">
-                    {mockTenant.leaseExpiresInDays} days remaining - Contact
-                    your landlord to renew
-                  </p>
-                </div>
-              </div>
+                {leaseExpiresInDays !== null && leaseExpiresInDays < 90 && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5">
+                    <div className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-navy">
+                        Lease expiring soon
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        {leaseExpiresInDays} days remaining - Contact your
+                        landlord to renew
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              !loading && <p className="text-sm text-text-muted">No data yet</p>
             )}
-
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-cream">
-              <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center shrink-0">
-                <Wrench className="h-4 w-4 text-teal-dark" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-navy">
-                  Scheduled maintenance
-                </p>
-                <p className="text-sm text-text-muted">
-                  Kitchen faucet repair - June 2, 2026 at 2:00 PM
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -342,40 +466,41 @@ export default function TenantDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {mockRecentActivity.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center justify-between py-3 border-b border-sage/30 last:border-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-sage/30 flex items-center justify-center">
-                    {activity.type === "maintenance" && (
-                      <Wrench className="h-4 w-4 text-navy" />
-                    )}
-                    {activity.type === "payment" && (
-                      <CreditCard className="h-4 w-4 text-navy" />
-                    )}
-                    {activity.type === "message" && (
-                      <Mail className="h-4 w-4 text-navy" />
-                    )}
+          {activity.length > 0 ? (
+            <div className="space-y-3">
+              {activity.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between py-3 border-b border-sage/30 last:border-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-sage/30 flex items-center justify-center">
+                      {item.type === "maintenance" && (
+                        <Wrench className="h-4 w-4 text-navy" />
+                      )}
+                      {item.type === "payment" && (
+                        <CreditCard className="h-4 w-4 text-navy" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-normal text-navy">
+                        {item.title}
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        {item.description}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-normal text-navy">
-                      {activity.title}
-                    </p>
-                    <p className="text-sm text-text-muted">
-                      {activity.description}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={item.status} />
+                    <span className="text-sm text-text-muted">{item.date}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={activity.status} />
-                  <span className="text-sm text-text-muted">{activity.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted">No data yet</p>
+          )}
         </CardContent>
       </Card>
 
@@ -394,7 +519,7 @@ export default function TenantDashboard() {
                   Send to
                 </p>
                 <p className="text-sm font-medium text-navy">
-                  {mockLandlord.eTransferEmail}
+                  {lease?.etransfer_email ?? "No data yet"}
                 </p>
               </div>
               <div>
@@ -402,7 +527,7 @@ export default function TenantDashboard() {
                   Amount
                 </p>
                 <p className="text-sm font-medium text-navy">
-                  {formatCurrency(mockTenant.monthlyRent)}
+                  {formatCurrency(monthlyRent)}
                 </p>
               </div>
               <div>
@@ -410,7 +535,7 @@ export default function TenantDashboard() {
                   Message
                 </p>
                 <p className="text-sm font-medium text-navy">
-                  Rent - {mockProperty.address}
+                  Rent - {property?.address ?? "No data yet"}
                 </p>
               </div>
             </div>
@@ -428,4 +553,15 @@ export default function TenantDashboard() {
       </Dialog>
     </div>
   )
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "No data yet"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "No data yet"
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date)
 }
