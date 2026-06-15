@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Home,
@@ -45,6 +45,8 @@ import { PriorityBadge } from "@/components/priority-badge"
 import { EmptyState } from "@/components/empty-state"
 import { LockedFeature } from "@/components/locked-feature"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
+import type { Property } from "@/lib/supabase/types"
 
 // Mock data
 const properties = [
@@ -129,7 +131,89 @@ export default function PropertiesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
 
-  const selectedProperty = properties.find((p) => p.id === selectedPropertyId)!
+  // Real properties for the switcher dropdown
+  const [dbProperties, setDbProperties] = useState<Property[]>([])
+  // Aggregated unit stats for the selected property's stat cards
+  const [unitStats, setUnitStats] = useState({
+    totalUnits: 0,
+    occupied: 0,
+    vacant: 0,
+    monthlyRevenue: 0,
+  })
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadProperties() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const { data } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("landlord_id", user.id)
+        .order("created_at", { ascending: true })
+
+      if (isMounted && data) {
+        setDbProperties(data as Property[])
+        if (data.length > 0) {
+          setSelectedPropertyId(data[0].id)
+        }
+      }
+    }
+
+    loadProperties()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadUnitStats() {
+      // Reset to zeros before each fetch so missing data shows 0
+      if (isMounted) {
+        setUnitStats({ totalUnits: 0, occupied: 0, vacant: 0, monthlyRevenue: 0 })
+      }
+
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("units")
+        .select("status, rent_amount")
+        .eq("property_id", selectedPropertyId)
+
+      // If the units table doesn't exist or has no rows, keep zeros
+      if (error || !data || !isMounted) return
+
+      const occupied = data.filter((u) => u.status === "occupied").length
+      const vacant = data.filter((u) => u.status === "vacant").length
+      const monthlyRevenue = data
+        .filter((u) => u.status === "occupied")
+        .reduce((sum, u) => sum + (u.rent_amount ?? 0), 0)
+
+      setUnitStats({
+        totalUnits: data.length,
+        occupied,
+        vacant,
+        monthlyRevenue,
+      })
+    }
+
+    loadUnitStats()
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedPropertyId])
+
+  const selectedProperty = properties.find((p) => p.id === selectedPropertyId) ?? properties[0]
+  const selectedDbProperty = dbProperties.find((p) => p.id === selectedPropertyId)
   const isApartment = selectedProperty.type === "apartment"
   const selectedUnit = isApartment && selectedUnitId
     ? selectedProperty.units?.find((u) => u.id === selectedUnitId)
