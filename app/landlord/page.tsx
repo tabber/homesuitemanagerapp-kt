@@ -37,108 +37,6 @@ import { TrialBanner } from "@/components/trial-banner"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 
-// Mock data
-const revenueData = [
-  { month: "Jan", collected: 7200, expected: 7500 },
-  { month: "Feb", collected: 7500, expected: 7500 },
-  { month: "Mar", collected: 7350, expected: 7500 },
-  { month: "Apr", collected: 7500, expected: 7500 },
-  { month: "May", collected: 7200, expected: 7500 },
-  { month: "Jun", collected: 5100, expected: 7500 },
-]
-
-const occupancyData = [
-  { name: "Occupied", value: 4, color: "var(--success)" },
-  { name: "Vacant", value: 1, color: "var(--sage)" },
-]
-
-const upcomingEvents = [
-  {
-    type: "rent",
-    icon: DollarSign,
-    title: "Rent due",
-    description: "Michael Chen - Unit 2A",
-    amount: "$2,150.00",
-    date: new Date(2026, 5, 1),
-  },
-  {
-    type: "lease",
-    icon: FileText,
-    title: "Lease expiring",
-    description: "Emma Wilson - Main St House",
-    daysRemaining: 28,
-    date: new Date(2026, 5, 29),
-  },
-  {
-    type: "maintenance",
-    icon: Wrench,
-    title: "HVAC inspection",
-    description: "Downtown Condo - TechPro Services",
-    date: new Date(2026, 5, 3),
-  },
-  {
-    type: "rent",
-    icon: DollarSign,
-    title: "Rent due",
-    description: "James Park - Downtown Condo",
-    amount: "$2,580.00",
-    date: new Date(2026, 5, 1),
-  },
-  {
-    type: "utility",
-    icon: CreditCard,
-    title: "Utility bill due",
-    description: "Hydro - Main St Duplex",
-    amount: "$245.00",
-    date: new Date(2026, 5, 15),
-  },
-]
-
-const recentActivity = [
-  {
-    type: "payment",
-    description: "Payment received from Sarah Johnson",
-    property: "Oak Street Apartment",
-    amount: "$1,850.00",
-    time: "2 hours ago",
-  },
-  {
-    type: "lease",
-    description: "Lease signed by Michael Chen",
-    property: "Unit 2A",
-    time: "Yesterday",
-  },
-  {
-    type: "maintenance",
-    description: "Maintenance request submitted",
-    title: "Leaky faucet in bathroom",
-    property: "Main St House",
-    time: "Yesterday",
-  },
-  {
-    type: "message",
-    description: "New message from Emma Wilson",
-    property: "Main St House",
-    time: "2 days ago",
-  },
-  {
-    type: "payment",
-    description: "Payment received from James Park",
-    property: "Downtown Condo",
-    amount: "$2,580.00",
-    time: "3 days ago",
-  },
-]
-
-const onboardingChecklist = [
-  { id: "account", label: "Account created", completed: true },
-  { id: "profile", label: "Complete your profile", completed: true },
-  { id: "property", label: "Add your first property", completed: true },
-  { id: "lease", label: "Create your first lease", completed: false },
-  { id: "tenant", label: "Invite your first tenant", completed: false },
-  { id: "payment", label: "Set up payment details", completed: false },
-]
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
@@ -151,44 +49,105 @@ function formatDate(date: Date) {
   return format(date, "MMMM d, yyyy")
 }
 
+function formatRelativeTime(dateStr: string) {
+  const date = new Date(dateStr)
+  const diffMs = Date.now() - date.getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return "Just now"
+  if (mins < 60) return `${mins} minute${mins > 1 ? "s" : ""} ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return "Yesterday"
+  if (days < 7) return `${days} days ago`
+  return format(date, "MMM d, yyyy")
+}
+
+const eventIconByType: Record<string, typeof DollarSign> = {
+  rent: DollarSign,
+  lease: FileText,
+  maintenance: Wrench,
+  utility: CreditCard,
+}
+
+interface UpcomingEvent {
+  type: string
+  icon: typeof DollarSign
+  title: string
+  description: string
+  amount?: string
+  daysRemaining?: number
+  date: Date
+}
+
+interface ActivityItem {
+  type: string
+  description: string
+  property: string
+  title?: string
+  amount?: string
+  time: string
+  sortDate: number
+}
+
+interface ChecklistItem {
+  id: string
+  label: string
+  completed: boolean
+}
+
 export default function LandlordDashboard() {
   const [searchQuery, setSearchQuery] = useState("")
-  const trialDaysRemaining = 5
 
+  const [loading, setLoading] = useState(true)
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0)
   const [stats, setStats] = useState({
     totalProperties: 0,
     activeTenants: 0,
     monthlyRevenue: 0,
     openRequests: 0,
   })
-  const [statsLoading, setStatsLoading] = useState(true)
+  const [revenueData, setRevenueData] = useState<{ month: string; collected: number; expected: number }[]>([])
+  const [hasRevenue, setHasRevenue] = useState(false)
+  const [occupancy, setOccupancy] = useState({ occupied: 0, vacant: 0, total: 0 })
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
   useEffect(() => {
     let isMounted = true
 
-    async function loadStats() {
+    async function loadDashboard() {
       const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       if (!user) {
-        if (isMounted) setStatsLoading(false)
+        if (isMounted) setLoading(false)
         return
       }
 
-      // First and last day of the current month (for payment_date filtering)
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
       const monthStartStr = format(monthStart, "yyyy-MM-dd")
       const monthEndStr = format(monthEnd, "yyyy-MM-dd")
 
-      const [propertiesRes, leasesRes, paymentsRes, maintenanceRes] = await Promise.all([
-        supabase
-          .from("properties")
-          .select("id", { count: "exact", head: true })
-          .eq("landlord_id", user.id),
+      const [
+        propertiesRes,
+        activeLeasesCountRes,
+        monthlyPaymentsRes,
+        maintenanceCountRes,
+        profileRes,
+        paymentsRes,
+        leasesRes,
+        maintenanceRes,
+        messagesRes,
+        paymentConfigRes,
+      ] = await Promise.all([
+        supabase.from("properties").select("id, name, status").eq("landlord_id", user.id),
         supabase
           .from("leases")
           .select("id", { count: "exact", head: true })
@@ -205,34 +164,208 @@ export default function LandlordDashboard() {
           .select("id", { count: "exact", head: true })
           .eq("landlord_id", user.id)
           .eq("status", "open"),
+        supabase
+          .from("profiles")
+          .select("profile_completed, trial_end_date")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("payments")
+          .select("amount, payment_date, created_at, property_id")
+          .eq("landlord_id", user.id)
+          .gte("payment_date", format(sixMonthsAgo, "yyyy-MM-dd")),
+        supabase
+          .from("leases")
+          .select(
+            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at"
+          )
+          .eq("landlord_id", user.id),
+        supabase
+          .from("maintenance_requests")
+          .select("id, title, status, scheduled_date, created_at, property_id")
+          .eq("landlord_id", user.id),
+        supabase
+          .from("messages")
+          .select("id, subject, created_at")
+          .eq("recipient_id", user.id),
+        supabase.from("payment_configuration").select("id").eq("landlord_id", user.id),
       ])
 
-      const monthlyRevenue = (paymentsRes.data ?? []).reduce(
-        (sum, payment) => sum + (payment.amount ?? 0),
+      if (!isMounted) return
+
+      const properties = propertiesRes.data ?? []
+      const propertyMap = new Map(properties.map((p) => [p.id, p.name]))
+      const leases = leasesRes.data ?? []
+      const maintenance = maintenanceRes.data ?? []
+      const payments = paymentsRes.data ?? []
+      const messages = messagesRes.data ?? []
+
+      // Stat cards
+      const monthlyRevenue = (monthlyPaymentsRes.data ?? []).reduce(
+        (sum, p) => sum + Number(p.amount ?? 0),
         0
       )
+      setStats({
+        totalProperties: properties.length,
+        activeTenants: activeLeasesCountRes.count ?? 0,
+        monthlyRevenue,
+        openRequests: maintenanceCountRes.count ?? 0,
+      })
 
-      if (isMounted) {
-        setStats({
-          totalProperties: propertiesRes.count ?? 0,
-          activeTenants: leasesRes.count ?? 0,
-          monthlyRevenue,
-          openRequests: maintenanceRes.count ?? 0,
-        })
-        setStatsLoading(false)
+      // Trial days remaining from profile
+      if (profileRes.data?.trial_end_date) {
+        const end = new Date(profileRes.data.trial_end_date)
+        const days = Math.ceil((end.getTime() - now.getTime()) / 86400000)
+        setTrialDaysRemaining(days > 0 ? days : 0)
       }
+
+      // Revenue (last 6 months)
+      const months: { key: string; month: string }[] = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        months.push({ key: format(d, "yyyy-MM"), month: format(d, "MMM") })
+      }
+      const expectedMonthly = leases
+        .filter((l) => l.status === "active")
+        .reduce((sum, l) => sum + Number(l.monthly_rent ?? 0), 0)
+      setRevenueData(
+        months.map((m) => ({
+          month: m.month,
+          collected: payments
+            .filter((p) => p.payment_date?.startsWith(m.key))
+            .reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+          expected: expectedMonthly,
+        }))
+      )
+      setHasRevenue(payments.length > 0)
+
+      // Occupancy (from properties)
+      const occupied = properties.filter((p) => p.status === "occupied").length
+      setOccupancy({
+        occupied,
+        vacant: properties.length - occupied,
+        total: properties.length,
+      })
+
+      // Upcoming events (lease expirations + scheduled maintenance)
+      const events: UpcomingEvent[] = []
+      leases.forEach((l) => {
+        if (!l.end_date) return
+        const end = new Date(l.end_date)
+        const days = Math.ceil((end.getTime() - now.getTime()) / 86400000)
+        if (days >= 0 && days <= 60) {
+          events.push({
+            type: "lease",
+            icon: eventIconByType.lease,
+            title: "Lease expiring",
+            description: `${l.tenant_name ?? "Tenant"} - ${propertyMap.get(l.property_id) ?? "Property"}`,
+            daysRemaining: days,
+            date: end,
+          })
+        }
+      })
+      maintenance.forEach((m) => {
+        if (!m.scheduled_date) return
+        const d = new Date(m.scheduled_date)
+        if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+          events.push({
+            type: "maintenance",
+            icon: eventIconByType.maintenance,
+            title: m.title,
+            description: propertyMap.get(m.property_id) ?? "Property",
+            date: d,
+          })
+        }
+      })
+      events.sort((a, b) => a.date.getTime() - b.date.getTime())
+      setUpcomingEvents(events)
+
+      // Recent activity (payments, leases, maintenance, messages)
+      const activity: ActivityItem[] = []
+      payments.forEach((p) => {
+        activity.push({
+          type: "payment",
+          description: "Payment received",
+          property: propertyMap.get(p.property_id) ?? "",
+          amount: formatCurrency(Number(p.amount ?? 0)),
+          time: p.created_at ? formatRelativeTime(p.created_at) : "",
+          sortDate: p.created_at ? new Date(p.created_at).getTime() : 0,
+        })
+      })
+      leases.forEach((l) => {
+        activity.push({
+          type: "lease",
+          description: `Lease ${l.status === "active" ? "signed" : "created"}${
+            l.tenant_name ? ` by ${l.tenant_name}` : ""
+          }`,
+          property: propertyMap.get(l.property_id) ?? "",
+          time: l.created_at ? formatRelativeTime(l.created_at) : "",
+          sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
+        })
+      })
+      maintenance.forEach((m) => {
+        activity.push({
+          type: "maintenance",
+          description: "Maintenance request submitted",
+          title: m.title,
+          property: propertyMap.get(m.property_id) ?? "",
+          time: m.created_at ? formatRelativeTime(m.created_at) : "",
+          sortDate: m.created_at ? new Date(m.created_at).getTime() : 0,
+        })
+      })
+      messages.forEach((msg) => {
+        activity.push({
+          type: "message",
+          description: "New message",
+          property: msg.subject ?? "",
+          time: msg.created_at ? formatRelativeTime(msg.created_at) : "",
+          sortDate: msg.created_at ? new Date(msg.created_at).getTime() : 0,
+        })
+      })
+      activity.sort((a, b) => b.sortDate - a.sortDate)
+      setRecentActivity(activity.slice(0, 5))
+
+      // Onboarding checklist
+      setChecklist([
+        { id: "account", label: "Account created", completed: true },
+        {
+          id: "profile",
+          label: "Complete your profile",
+          completed: !!profileRes.data?.profile_completed,
+        },
+        { id: "property", label: "Add your first property", completed: properties.length > 0 },
+        { id: "lease", label: "Create your first lease", completed: leases.length > 0 },
+        {
+          id: "tenant",
+          label: "Invite your first tenant",
+          completed: leases.some((l) => l.tenant_id || l.invitation_sent_at),
+        },
+        {
+          id: "payment",
+          label: "Set up payment details",
+          completed: (paymentConfigRes.data?.length ?? 0) > 0,
+        },
+      ])
+
+      setLoading(false)
     }
 
-    loadStats()
+    loadDashboard()
 
     return () => {
       isMounted = false
     }
   }, [])
 
-  const completedSteps = onboardingChecklist.filter((item) => item.completed).length
-  const totalSteps = onboardingChecklist.length
-  const showChecklist = completedSteps < totalSteps
+  const occupancyData = [
+    { name: "Occupied", value: occupancy.occupied, color: "var(--success)" },
+    { name: "Vacant", value: occupancy.vacant, color: "var(--sage)" },
+  ]
+  const occupancyPercent = occupancy.total > 0 ? Math.round((occupancy.occupied / occupancy.total) * 100) : 0
+
+  const completedSteps = checklist.filter((item) => item.completed).length
+  const totalSteps = checklist.length
+  const showChecklist = totalSteps > 0 && completedSteps < totalSteps
 
   return (
     <div className="space-y-6">
@@ -257,19 +390,19 @@ export default function LandlordDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Properties"
-          value={statsLoading ? "—" : stats.totalProperties}
+          value={loading ? "—" : stats.totalProperties}
         />
         <StatCard
           label="Active Tenants"
-          value={statsLoading ? "—" : stats.activeTenants}
+          value={loading ? "—" : stats.activeTenants}
         />
         <StatCard
           label="Monthly Revenue"
-          value={statsLoading ? "—" : formatCurrency(stats.monthlyRevenue)}
+          value={loading ? "—" : formatCurrency(stats.monthlyRevenue)}
         />
         <StatCard
           label="Open Maintenance"
-          value={statsLoading ? "—" : stats.openRequests}
+          value={loading ? "—" : stats.openRequests}
         />
       </div>
 
@@ -281,34 +414,42 @@ export default function LandlordDashboard() {
             <CardTitle className="text-lg font-medium text-navy">Revenue (Last 6 Months)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueData}>
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{
-                      backgroundColor: "var(--white)",
-                      border: "1px solid var(--sage)",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Bar dataKey="expected" fill="var(--sage)" radius={[4, 4, 0, 0]} name="Expected" />
-                  <Bar dataKey="collected" fill="var(--teal)" radius={[4, 4, 0, 0]} name="Collected" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-sage" />
-                <span className="text-text-muted">Expected</span>
+            {!loading && !hasRevenue ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-text-muted">No data yet</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-teal" />
-                <span className="text-text-muted">Collected</span>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={revenueData}>
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(value) => `$${value / 1000}k`} />
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{
+                          backgroundColor: "var(--white)",
+                          border: "1px solid var(--sage)",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Bar dataKey="expected" fill="var(--sage)" radius={[4, 4, 0, 0]} name="Expected" />
+                      <Bar dataKey="collected" fill="var(--teal)" radius={[4, 4, 0, 0]} name="Collected" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-sage" />
+                    <span className="text-text-muted">Expected</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-teal" />
+                    <span className="text-text-muted">Collected</span>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -318,34 +459,42 @@ export default function LandlordDashboard() {
             <CardTitle className="text-lg font-medium text-navy">Occupancy</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={occupancyData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {occupancyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={(value) => <span className="text-sm text-text-muted">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="text-center -mt-4">
-              <p className="text-3xl font-medium text-navy">80%</p>
-              <p className="text-sm text-text-muted">4 of 5 units occupied</p>
-            </div>
+            {!loading && occupancy.total === 0 ? (
+              <div className="h-64 flex items-center justify-center">
+                <p className="text-sm text-text-muted">No data yet</p>
+              </div>
+            ) : (
+              <>
+                <div className="h-64 flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={occupancyData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {occupancyData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value) => <span className="text-sm text-text-muted">{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center -mt-4">
+                  <p className="text-3xl font-medium text-navy">{occupancyPercent}%</p>
+                  <p className="text-sm text-text-muted">{occupancy.occupied} of {occupancy.total} properties occupied</p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -361,34 +510,38 @@ export default function LandlordDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-3">
-              {upcomingEvents.slice(0, 5).map((event, index) => (
-                <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
-                  <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
-                    <event.icon className="h-4 w-4 text-navy" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-navy">{event.title}</p>
-                    <p className="text-xs text-text-muted truncate">{event.description}</p>
-                    {event.amount && (
-                      <p className="text-xs font-medium text-teal">{event.amount}</p>
-                    )}
-                    {event.daysRemaining !== undefined && (
-                      <p className={cn(
-                        "text-xs font-medium",
-                        event.daysRemaining < 30 ? "text-destructive" : "text-text-muted"
-                      )}>
-                        {event.daysRemaining} days remaining
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-text-muted">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(event.date)}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {!loading && upcomingEvents.length === 0 ? (
+              <p className="text-sm text-text-muted py-4 text-center">No data yet</p>
+            ) : (
+              <ul className="space-y-3">
+                {upcomingEvents.slice(0, 5).map((event, index) => (
+                  <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
+                    <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
+                      <event.icon className="h-4 w-4 text-navy" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-navy">{event.title}</p>
+                      <p className="text-xs text-text-muted truncate">{event.description}</p>
+                      {event.amount && (
+                        <p className="text-xs font-medium text-teal">{event.amount}</p>
+                      )}
+                      {event.daysRemaining !== undefined && (
+                        <p className={cn(
+                          "text-xs font-medium",
+                          event.daysRemaining < 30 ? "text-destructive" : "text-text-muted"
+                        )}>
+                          {event.daysRemaining} days remaining
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-text-muted">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(event.date)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
@@ -401,26 +554,30 @@ export default function LandlordDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-3">
-              {recentActivity.map((activity, index) => (
-                <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
-                  <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
-                    {activity.type === "payment" && <DollarSign className="h-4 w-4 text-navy" />}
-                    {activity.type === "lease" && <FileText className="h-4 w-4 text-navy" />}
-                    {activity.type === "maintenance" && <Wrench className="h-4 w-4 text-navy" />}
-                    {activity.type === "message" && <MessageSquare className="h-4 w-4 text-navy" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-primary">{activity.description}</p>
-                    <p className="text-xs text-text-muted">{activity.property}</p>
-                    {activity.amount && (
-                      <p className="text-xs font-medium text-teal">{activity.amount}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-text-muted whitespace-nowrap">{activity.time}</span>
-                </li>
-              ))}
-            </ul>
+            {!loading && recentActivity.length === 0 ? (
+              <p className="text-sm text-text-muted py-4 text-center">No data yet</p>
+            ) : (
+              <ul className="space-y-3">
+                {recentActivity.map((activity, index) => (
+                  <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
+                    <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
+                      {activity.type === "payment" && <DollarSign className="h-4 w-4 text-navy" />}
+                      {activity.type === "lease" && <FileText className="h-4 w-4 text-navy" />}
+                      {activity.type === "maintenance" && <Wrench className="h-4 w-4 text-navy" />}
+                      {activity.type === "message" && <MessageSquare className="h-4 w-4 text-navy" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-text-primary">{activity.description}</p>
+                      <p className="text-xs text-text-muted">{activity.property}</p>
+                      {activity.amount && (
+                        <p className="text-xs font-medium text-teal">{activity.amount}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-text-muted whitespace-nowrap">{activity.time}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -477,7 +634,7 @@ export default function LandlordDashboard() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {onboardingChecklist.map((item) => (
+                {checklist.map((item) => (
                   <li key={item.id} className="flex items-center gap-3">
                     {item.completed ? (
                       <div className="w-5 h-5 rounded-full bg-teal flex items-center justify-center">
