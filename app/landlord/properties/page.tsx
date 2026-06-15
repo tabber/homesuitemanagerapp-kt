@@ -212,8 +212,8 @@ export default function PropertiesPage() {
     }
   }, [selectedPropertyId])
 
- const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0]
-const isApartment = selectedProperty?.type === "apartment"
+const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
+  const isApartment = selectedProperty?.type === "apartment" ?? false
 const selectedUnit = isApartment && selectedUnitId
   ? selectedProperty?.units?.find((u: any) => u.id === selectedUnitId)
   : null
