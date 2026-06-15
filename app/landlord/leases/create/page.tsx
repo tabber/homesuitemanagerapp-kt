@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   FileText,
   Upload,
@@ -28,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 const UTILITIES = [
   "Water",
@@ -39,36 +41,29 @@ const UTILITIES = [
   "Trash",
 ]
 
-// Mock data
-const properties = [
-  {
-    id: "1",
-    name: "Viceroy",
-    address: "1009 Fairfield Rd, Victoria, BC V8V 3A9",
-    type: "apartment",
-    monthlyRent: 1800,
-    vacantUnits: [
-      { id: "103", number: "103", bedrooms: 1, bathrooms: 1, rent: 1500 },
-      { id: "402", number: "402", bedrooms: 1, bathrooms: 1, rent: 1600 },
-    ],
-  },
-  {
-    id: "2",
-    name: "Oak Street House",
-    address: "456 Oak St, Vancouver, BC V6H 2M4",
-    type: "single",
-    monthlyRent: 2800,
-    vacantUnits: [],
-  },
-  {
-    id: "3",
-    name: "Maple Condo",
-    address: "789 Maple Ave, Toronto, ON M5V 1A1",
-    type: "single",
-    monthlyRent: 2200,
-    vacantUnits: [],
-  },
-]
+type VacantUnit = {
+  id: string
+  number: string
+  bedrooms: number
+  bathrooms: number
+  rent: number
+}
+
+type PropertyOption = {
+  id: string
+  name: string
+  address: string
+  type: string
+  monthlyRent: number
+  vacantUnits: VacantUnit[]
+}
+
+type TenantOption = {
+  id: string
+  name: string
+  email: string
+  phone: string
+}
 
 type LeaseType = "create" | "upload" | null
 
@@ -77,15 +72,19 @@ export default function CreateLeasePage() {
   const [leaseType, setLeaseType] = useState<LeaseType>(null)
   const [currentStep, setCurrentStep] = useState(0)
 
+  const [properties, setProperties] = useState<PropertyOption[]>([])
+  const [tenants, setTenants] = useState<TenantOption[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   const [form, setForm] = useState({
     // Step 1 - Property & Unit
     propertyId: "",
     unitId: "",
     // Step 2 - Landlord Details
-    landlordName: "John Smith",
-    landlordPhone: "(604) 555-1234",
-    landlordEmail: "john.smith@email.com",
-    eTransferEmail: "payments@email.com",
+    landlordName: "",
+    landlordPhone: "",
+    landlordEmail: "",
+    eTransferEmail: "",
     // Step 3 - Tenant Details
     tenantName: "",
     tenantEmail: "",
@@ -114,6 +113,95 @@ export default function CreateLeasePage() {
   const totalSteps = 5
   const selectedProperty = properties.find((p) => p.id === form.propertyId)
 
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadData() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      // Landlord profile -> prefill landlord details
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, phone, email")
+        .eq("id", user.id)
+        .single()
+
+      // Properties owned by this landlord
+      const { data: propertyRows } = await supabase
+        .from("properties")
+        .select("id, name, address, property_type, rent_amount")
+        .eq("landlord_id", user.id)
+        .order("created_at", { ascending: true })
+
+      // Vacant units across those properties
+      const propertyIds = (propertyRows ?? []).map((p) => p.id)
+      let unitRows: any[] = []
+      if (propertyIds.length > 0) {
+        const { data: units } = await supabase
+          .from("units")
+          .select("id, property_id, unit_number, bedrooms, bathrooms, rent_amount, status")
+          .in("property_id", propertyIds)
+          .eq("status", "vacant")
+        unitRows = units ?? []
+      }
+
+      const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => ({
+        id: p.id,
+        name: p.name ?? "",
+        address: p.address ?? "",
+        type: p.property_type === "building" ? "apartment" : "single",
+        monthlyRent: p.rent_amount ?? 0,
+        vacantUnits: unitRows
+          .filter((u) => u.property_id === p.id)
+          .map((u) => ({
+            id: u.id,
+            number: u.unit_number ?? "",
+            bedrooms: u.bedrooms ?? 0,
+            bathrooms: u.bathrooms ?? 0,
+            rent: u.rent_amount ?? 0,
+          })),
+      }))
+
+      // Tenants available to assign to a lease
+      const { data: tenantRows } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, phone")
+        .eq("role", "tenant")
+
+      const mappedTenants: TenantOption[] = (tenantRows ?? []).map((t) => ({
+        id: t.id,
+        name: `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim(),
+        email: t.email ?? "",
+        phone: t.phone ?? "",
+      }))
+
+      if (!isMounted) return
+
+      setProperties(mappedProperties)
+      setTenants(mappedTenants)
+
+      if (profile) {
+        setForm((prev) => ({
+          ...prev,
+          landlordName: `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
+          landlordPhone: profile.phone ?? "",
+          landlordEmail: profile.email ?? "",
+        }))
+      }
+    }
+
+    loadData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const handleBack = () => {
     if (currentStep === 0) {
       setLeaseType(null)
@@ -126,9 +214,68 @@ export default function CreateLeasePage() {
     if (currentStep < totalSteps - 1) {
       setCurrentStep((prev) => prev + 1)
     } else {
-      // Submit form
-      router.push("/landlord/properties")
+      handleSubmit()
     }
+  }
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      toast.error("You must be signed in to create a lease.")
+      setIsSubmitting(false)
+      return
+    }
+
+    // Resolve tenant_id by matching the entered email to a tenant profile
+    const matchedTenant = tenants.find(
+      (t) => t.email && t.email.toLowerCase() === form.tenantEmail.trim().toLowerCase()
+    )
+
+    const { error } = await supabase.from("leases").insert({
+      property_id: form.propertyId || null,
+      unit_id: form.unitId || null,
+      tenant_id: matchedTenant?.id ?? null,
+      landlord_id: user.id,
+      landlord_name: form.landlordName || null,
+      landlord_phone: form.landlordPhone || null,
+      landlord_email: form.landlordEmail || null,
+      etransfer_email: form.eTransferEmail || null,
+      tenant_name: form.tenantName || null,
+      tenant_email: form.tenantEmail || null,
+      tenant_phone: form.tenantPhone || null,
+      additional_tenants: form.additionalTenants || null,
+      additional_occupants: form.additionalOccupants || null,
+      pets_allowed: form.petsAllowed,
+      pet_details: form.petDetails || null,
+      num_vehicles: form.numberOfVehicles || null,
+      vehicle_details: form.vehicleDetails || null,
+      parking_details: form.parkingDetails || null,
+      smoking_allowed: form.smokingAllowed,
+      utilities_included: form.tenantUtilities,
+      start_date: form.startDate || null,
+      end_date: form.endDate || null,
+      monthly_rent: form.monthlyRent ? parseFloat(form.monthlyRent) : null,
+      security_deposit: form.securityDeposit ? parseFloat(form.securityDeposit) : null,
+      payment_due_day: form.paymentDueDay ? parseInt(form.paymentDueDay) : null,
+      terms: form.additionalTerms || null,
+      notes: form.internalNotes || null,
+      status: "active",
+    })
+
+    if (error) {
+      toast.error(error.message)
+      setIsSubmitting(false)
+      return
+    }
+
+    router.push("/landlord/properties")
   }
 
   const formatCurrency = (amount: number) => {
