@@ -126,7 +126,7 @@ const maintenanceRequests = [
 
 export default function PropertiesPage() {
   const router = useRouter()
-  const [selectedPropertyId, setSelectedPropertyId] = useState(properties[0].id)
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("")
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
@@ -1023,13 +1023,13 @@ export default function PropertiesPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
-              {properties.map((property) => (
-                <DropdownMenuItem
-                  key={property.id}
-                  onClick={() => {
-                    setSelectedPropertyId(property.id)
-                    setSelectedUnitId(null)
-                  }}
+             {dbProperties.map((property) => (
+  <DropdownMenuItem
+    key={property.id}
+    onClick={() => {
+      setSelectedPropertyId(property.id)
+      setSelectedUnitId(null)
+    }}
                   className={cn(
                     "flex items-center gap-3 py-2",
                     property.id === selectedPropertyId && "bg-sage/20"
