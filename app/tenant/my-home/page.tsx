@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   FileText,
   CreditCard,
@@ -33,94 +33,175 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-
-// Mock data
-const mockLease = {
-  propertyName: "Riverside Apartments",
-  address: "456 Oak Street, Unit 4B",
-  city: "Toronto, ON M5V 2K1",
-  status: "active" as const,
-  startDate: "September 1, 2025",
-  endDate: "August 31, 2026",
-  monthlyRent: 1850,
-  securityDeposit: 1850,
-  paymentDueDay: 1,
-  utilities: ["Hydro", "Internet"],
-  parking: "1 underground spot included",
-  smokingPolicy: "No smoking on premises",
-  petPolicy: "One small pet allowed (under 25 lbs)",
-  vehicleDetails: "2022 Honda Civic - License: ABCD 123",
-  additionalTenants: ["Michael Chen (spouse)"],
-  additionalTerms:
-    "Tenant agrees to maintain renter&apos;s insurance throughout the lease term. Landlord will provide 24-hour notice before entry except in emergencies.",
-  tenantSigned: true,
-  tenantSignedDate: "May 13, 2026",
-  landlordSigned: true,
-  landlordSignedDate: "May 13, 2026",
-}
-
-const mockLandlord = {
-  name: "John Smith",
-  email: "john.smith@email.com",
-  phone: "(416) 555-0123",
-  eTransferEmail: "payments@smithproperties.ca",
-}
-
-const mockPayments = [
-  {
-    id: "1",
-    date: "May 1, 2026",
-    amount: 1850,
-    method: "e-Transfer",
-    status: "completed" as const,
-  },
-  {
-    id: "2",
-    date: "April 1, 2026",
-    amount: 1850,
-    method: "e-Transfer",
-    status: "completed" as const,
-  },
-  {
-    id: "3",
-    date: "March 1, 2026",
-    amount: 1850,
-    method: "e-Transfer",
-    status: "completed" as const,
-  },
-  {
-    id: "4",
-    date: "February 1, 2026",
-    amount: 1850,
-    method: "e-Transfer",
-    status: "completed" as const,
-  },
-  {
-    id: "5",
-    date: "January 1, 2026",
-    amount: 1850,
-    method: "e-Transfer",
-    status: "completed" as const,
-  },
-]
-
-const mockUtilities = {
-  payThroughLandlord: [
-    { name: "Water", amount: 45, dueDate: "June 15, 2026" },
-    { name: "Gas", amount: 62, dueDate: "June 20, 2026" },
-  ],
-  payDirectly: ["Hydro (Toronto Hydro)", "Internet (Bell Canada)"],
-}
+import { EmptyState } from "@/components/empty-state"
+import { createClient } from "@/lib/supabase/client"
 
 export default function TenantMyHome() {
   const [showLeaseModal, setShowLeaseModal] = useState(false)
   const [showETransferModal, setShowETransferModal] = useState(false)
+
+  const [loading, setLoading] = useState(true)
+  const [leaseRow, setLeaseRow] = useState<any | null>(null)
+  const [landlordRow, setLandlordRow] = useState<any | null>(null)
+  const [propertyRow, setPropertyRow] = useState<any | null>(null)
+  const [tenantRow, setTenantRow] = useState<any | null>(null)
+  const [paymentRows, setPaymentRows] = useState<any[]>([])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
       style: "currency",
       currency: "CAD",
     }).format(amount)
+  }
+
+  const formatLongDate = (value?: string | null) => {
+    if (!value) return ""
+    return new Date(value).toLocaleDateString("en-CA", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadHome() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        if (isMounted) setLoading(false)
+        return
+      }
+
+      // Current tenant profile
+      const { data: tenant } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      // Tenant's lease
+      const { data: lease } = await supabase
+        .from("leases")
+        .select("*")
+        .eq("tenant_id", user.id)
+        .limit(1)
+        .maybeSingle()
+
+      let landlord: any = null
+      let property: any = null
+      if (lease?.landlord_id) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", lease.landlord_id)
+          .maybeSingle()
+        landlord = data ?? null
+      }
+      if (lease?.property_id) {
+        const { data } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("id", lease.property_id)
+          .maybeSingle()
+        property = data ?? null
+      }
+
+      // Tenant's recent payments
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("tenant_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (!isMounted) return
+      setTenantRow(tenant ?? null)
+      setLeaseRow(lease ?? null)
+      setLandlordRow(landlord)
+      setPropertyRow(property)
+      setPaymentRows(payments ?? [])
+      setLoading(false)
+    }
+
+    loadHome()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Coerce a jsonb utilities value into a string array
+  const toUtilityList = (value: any): string[] => {
+    if (!value) return []
+    if (Array.isArray(value)) return value.map((v) => String(v))
+    if (typeof value === "object") {
+      return Object.keys(value).filter((k) => value[k])
+    }
+    return []
+  }
+
+  const tenantName =
+    [tenantRow?.first_name, tenantRow?.last_name].filter(Boolean).join(" ").trim() ||
+    leaseRow?.tenant_name ||
+    tenantRow?.email ||
+    "Tenant"
+
+  const landlord = {
+    name:
+      [landlordRow?.first_name, landlordRow?.last_name].filter(Boolean).join(" ").trim() ||
+      leaseRow?.landlord_name ||
+      "—",
+    email: landlordRow?.email || leaseRow?.landlord_email || "—",
+    phone: landlordRow?.phone || leaseRow?.landlord_phone || "—",
+    eTransferEmail: leaseRow?.etransfer_email || propertyRow?.etransfer_email || "—",
+  }
+
+  const lease = leaseRow
+    ? {
+        propertyName: propertyRow?.name || "—",
+        address: propertyRow?.address || "—",
+        city: propertyRow
+          ? [propertyRow.city, propertyRow.province, propertyRow.postal_code].filter(Boolean).join(", ")
+          : "",
+        status: leaseRow.status || "active",
+        startDate: formatLongDate(leaseRow.start_date),
+        endDate: formatLongDate(leaseRow.end_date),
+        monthlyRent: leaseRow.monthly_rent ?? 0,
+        securityDeposit: leaseRow.security_deposit ?? 0,
+        paymentDueDay: leaseRow.payment_due_day ?? 1,
+        utilities: toUtilityList(leaseRow.utilities_included),
+        parking: leaseRow.parking_details || "—",
+        smokingPolicy: leaseRow.smoking_allowed ? "Smoking allowed" : "No smoking on premises",
+        petPolicy: leaseRow.pets_allowed
+          ? leaseRow.pet_details || "Pets allowed"
+          : "No pets allowed",
+        vehicleDetails: leaseRow.vehicle_details || "—",
+        additionalTenants: leaseRow.additional_tenants
+          ? [leaseRow.additional_tenants]
+          : [],
+        additionalTerms: leaseRow.terms || "—",
+        tenantSigned: !!leaseRow.tenant_signed_at,
+        tenantSignedDate: formatLongDate(leaseRow.tenant_signed_at),
+        landlordSigned: !!leaseRow.landlord_signed_at,
+        landlordSignedDate: formatLongDate(leaseRow.landlord_signed_at),
+      }
+    : null
+
+  const payments = paymentRows.map((p: any) => ({
+    id: p.id,
+    date: formatLongDate(p.payment_date),
+    amount: p.amount ?? 0,
+    method: p.payment_method || "—",
+    status: p.status || "completed",
+  }))
+
+  const utilities = {
+    payThroughLandlord: Array.isArray(leaseRow?.utility_costs) ? leaseRow.utility_costs : [],
+    payDirectly: toUtilityList(leaseRow?.utilities_included),
   }
 
   return (
