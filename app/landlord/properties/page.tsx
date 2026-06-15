@@ -1011,12 +1011,12 @@ const selectedUnit = isApartment && selectedUnitId
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="border-sage text-navy hover:bg-sage/20">
-                {selectedProperty.type === "apartment" ? (
-                  <Building2 className="h-4 w-4 mr-2" />
-                ) : (
-                  <Home className="h-4 w-4 mr-2" />
-                )}
-                {selectedProperty.name} - {selectedProperty.address.split(",")[0]}
+               {selectedProperty?.type === "apartment" ? (
+  <Building2 className="h-4 w-4 mr-2" />
+) : (
+  <Home className="h-4 w-4 mr-2" />
+)}
+{selectedProperty?.name ?? "Select Property"} - {selectedProperty?.address?.split(",")[0] ?? ""}
                 <ChevronDown className="h-4 w-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
