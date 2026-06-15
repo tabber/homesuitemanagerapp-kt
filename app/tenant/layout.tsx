@@ -1,23 +1,15 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { UserProvider, useUser } from "@/lib/context/UserContext"
 
-export default function TenantLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+function TenantLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter()
-
-  // Mock user data - in real app this would come from auth context
-  const user = {
-    firstName: "Sarah",
-    lastName: "Chen",
-    email: "sarah.chen@email.com",
-  }
+  const { firstName, lastName, email } = useUser()
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -30,7 +22,7 @@ export default function TenantLayout({
       <MobileSidebarWrapper>
         <AppSidebar
           portal="tenant"
-          user={user}
+          user={{ firstName, lastName, email }}
           onSignOut={handleSignOut}
         />
       </MobileSidebarWrapper>
@@ -38,5 +30,17 @@ export default function TenantLayout({
         {children}
       </main>
     </div>
+  )
+}
+
+export default function TenantLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <UserProvider>
+      <TenantLayoutInner>{children}</TenantLayoutInner>
+    </UserProvider>
   )
 }

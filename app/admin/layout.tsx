@@ -1,23 +1,15 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { UserProvider, useUser } from "@/lib/context/UserContext"
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+function AdminLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter()
-
-  // Mock admin user data
-  const user = {
-    firstName: "Admin",
-    lastName: "User",
-    email: "admin@homesuite.ca",
-  }
+  const { firstName, lastName, email } = useUser()
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -30,7 +22,7 @@ export default function AdminLayout({
       <MobileSidebarWrapper>
         <AppSidebar
           portal="admin"
-          user={user}
+          user={{ firstName, lastName, email }}
           onSignOut={handleSignOut}
         />
       </MobileSidebarWrapper>
@@ -38,5 +30,17 @@ export default function AdminLayout({
         {children}
       </main>
     </div>
+  )
+}
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <UserProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </UserProvider>
   )
 }

@@ -1,54 +1,15 @@
 "use client"
 
-import { ReactNode, useEffect, useState } from "react"
+import { ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { createClient } from "@/lib/supabase/client"
+import { UserProvider, useUser } from "@/lib/context/UserContext"
 
-export default function LandlordLayout({ children }: { children: ReactNode }) {
+function LandlordLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const [user, setUser] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-  })
-
-  useEffect(() => {
-    let isMounted = true
-
-    async function loadUser() {
-      const supabase = createClient()
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser()
-
-      if (!authUser) return
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", authUser.id)
-        .single()
-
-      const fullName = profile?.full_name?.trim() ?? ""
-      const [firstName = "", ...rest] = fullName.split(" ")
-
-      if (isMounted) {
-        setUser({
-          firstName,
-          lastName: rest.join(" "),
-          email: authUser.email ?? "",
-        })
-      }
-    }
-
-    loadUser()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  const { firstName, lastName, email } = useUser()
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -61,7 +22,7 @@ export default function LandlordLayout({ children }: { children: ReactNode }) {
       <MobileSidebarWrapper>
         <AppSidebar
           portal="landlord"
-          user={user}
+          user={{ firstName, lastName, email }}
           trialDaysRemaining={5}
           onUpgrade={() => console.log("Upgrade clicked")}
           onSignOut={handleSignOut}
@@ -69,5 +30,13 @@ export default function LandlordLayout({ children }: { children: ReactNode }) {
       </MobileSidebarWrapper>
       <main className="md:ml-64 p-8 pt-14 md:pt-8 w-full">{children}</main>
     </div>
+  )
+}
+
+export default function LandlordLayout({ children }: { children: ReactNode }) {
+  return (
+    <UserProvider>
+      <LandlordLayoutInner>{children}</LandlordLayoutInner>
+    </UserProvider>
   )
 }

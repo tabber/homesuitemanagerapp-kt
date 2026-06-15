@@ -1,10 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Users,
-  Building2,
-  DollarSign,
   Eye,
   Mail,
   MoreHorizontal,
@@ -36,106 +34,95 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-} from "recharts"
+import { createClient } from "@/lib/supabase/client"
 
-// Mock MRR data
-const mrrData = [
-  { month: "Jun", revenue: 2450 },
-  { month: "Jul", revenue: 3200 },
-  { month: "Aug", revenue: 4100 },
-  { month: "Sep", revenue: 5250 },
-  { month: "Oct", revenue: 6800 },
-  { month: "Nov", revenue: 8100 },
-  { month: "Dec", revenue: 9450 },
-  { month: "Jan", revenue: 11200 },
-  { month: "Feb", revenue: 12800 },
-  { month: "Mar", revenue: 14500 },
-  { month: "Apr", revenue: 16200 },
-  { month: "May", revenue: 18450 },
-]
-
-// Mock subscription breakdown
-const subscriptionData = [
-  { name: "Trial", value: 28, color: "var(--warning)" },
-  { name: "Essential", value: 72, color: "var(--teal)" },
-]
-
-// Mock recent landlords
-const mockLandlords = [
-  {
-    id: "1",
-    firstName: "John",
-    lastName: "Smith",
-    email: "john.smith@email.com",
-    status: "active" as const,
-    plan: "Essential",
-    properties: 3,
-    joinedAt: "May 15, 2026",
-  },
-  {
-    id: "2",
-    firstName: "Maria",
-    lastName: "Garcia",
-    email: "maria.garcia@email.com",
-    status: "active" as const,
-    plan: "Essential",
-    properties: 5,
-    joinedAt: "May 12, 2026",
-  },
-  {
-    id: "3",
-    firstName: "David",
-    lastName: "Wilson",
-    email: "david.wilson@email.com",
-    status: "pending" as const,
-    plan: "Trial",
-    properties: 1,
-    joinedAt: "May 28, 2026",
-  },
-  {
-    id: "4",
-    firstName: "Sarah",
-    lastName: "Johnson",
-    email: "sarah.johnson@email.com",
-    status: "expired" as const,
-    plan: "Trial",
-    properties: 2,
-    joinedAt: "April 20, 2026",
-  },
-  {
-    id: "5",
-    firstName: "Michael",
-    lastName: "Brown",
-    email: "michael.brown@email.com",
-    status: "active" as const,
-    plan: "Essential",
-    properties: 8,
-    joinedAt: "March 5, 2026",
-  },
-]
+interface LandlordRow {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  created_at: string | null
+  subscription_status: string | null
+  propertyCount: number
+}
 
 export default function AdminDashboard() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-CA", {
-      style: "currency",
-      currency: "CAD",
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const [loading, setLoading] = useState(true)
+  const [totalLandlords, setTotalLandlords] = useState(0)
+  const [activeProperties, setActiveProperties] = useState(0)
+  const [totalUsers, setTotalUsers] = useState(0)
+  const [landlords, setLandlords] = useState<LandlordRow[]>([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadDashboard() {
+      const supabase = createClient()
+
+      const { count: landlordCount } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "landlord")
+
+      const { count: propertyCount } = await supabase
+        .from("properties")
+        .select("id", { count: "exact", head: true })
+
+      const { count: userCount } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .in("role", ["landlord", "tenant"])
+
+      const { data: recentLandlords } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, created_at, subscription_status")
+        .eq("role", "landlord")
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      // Real property counts per recent landlord
+      const ids = (recentLandlords ?? []).map((l) => l.id)
+      const propsByLandlord: Record<string, number> = {}
+      if (ids.length > 0) {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("landlord_id")
+          .in("landlord_id", ids)
+        for (const p of props ?? []) {
+          if (p.landlord_id) {
+            propsByLandlord[p.landlord_id] = (propsByLandlord[p.landlord_id] ?? 0) + 1
+          }
+        }
+      }
+
+      if (!isMounted) return
+
+      setTotalLandlords(landlordCount ?? 0)
+      setActiveProperties(propertyCount ?? 0)
+      setTotalUsers(userCount ?? 0)
+      setLandlords(
+        (recentLandlords ?? []).map((l) => ({
+          id: l.id,
+          first_name: l.first_name,
+          last_name: l.last_name,
+          email: l.email,
+          created_at: l.created_at,
+          subscription_status: l.subscription_status,
+          propertyCount: propsByLandlord[l.id] ?? 0,
+        }))
+      )
+      setLoading(false)
+    }
+
+    loadDashboard()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleInvite = () => {
     // Handle invitation
@@ -143,9 +130,9 @@ export default function AdminDashboard() {
     setInviteEmail("")
   }
 
-  const getStatusBadgeStatus = (status: string) => {
+  const getStatusBadgeStatus = (status: string | null) => {
     if (status === "active") return "active"
-    if (status === "pending") return "pending"
+    if (status === "trial" || status === "pending") return "pending"
     return "expired"
   }
 
@@ -172,22 +159,22 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Landlords"
-          value="100"
-          sublabel="72 active, 28 trial, 5 pending"
+          value={loading ? "—" : totalLandlords}
+          sublabel="Registered landlords"
         />
         <StatCard
           label="MRR"
-          value={formatCurrency(18450)}
-          trend={{ direction: "up", value: "12.4%" }}
+          value="No data yet"
+          sublabel="Requires Stripe integration"
         />
         <StatCard
           label="Active Properties"
-          value="342"
+          value={loading ? "—" : activeProperties}
           sublabel="Across all landlords"
         />
         <StatCard
           label="Total Users"
-          value="1,247"
+          value={loading ? "—" : totalUsers}
           sublabel="Landlords + tenants"
         />
       </div>
@@ -202,29 +189,10 @@ export default function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mrrData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--sage)" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                  />
-                  <YAxis
-                    tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                    tickFormatter={(value) => `$${value / 1000}k`}
-                  />
-                  <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), "Revenue"]}
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid var(--sage)",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Bar dataKey="revenue" fill="var(--teal)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="h-[300px] flex items-center justify-center">
+              <p className="text-sm text-text-muted">
+                No data yet — requires Stripe integration
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -237,45 +205,10 @@ export default function AdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={subscriptionData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {subscriptionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => [`${value}%`, ""]}
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid var(--sage)",
-                      borderRadius: "8px",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex justify-center gap-6 mt-4">
-              {subscriptionData.map((item) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-sm text-text-muted">
-                    {item.name} ({item.value}%)
-                  </span>
-                </div>
-              ))}
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="text-sm text-text-muted text-center">
+                No data yet — requires Stripe integration
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -289,69 +222,78 @@ export default function AdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Landlord</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Properties</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockLandlords.map((landlord) => (
-                <TableRow key={landlord.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8 bg-sage-light">
-                        <AvatarFallback className="bg-sage-light text-navy text-xs">
-                          {landlord.firstName[0]}
-                          {landlord.lastName[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium text-navy">
-                          {landlord.firstName} {landlord.lastName}
-                        </p>
-                        <p className="text-xs text-text-muted">{landlord.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={getStatusBadgeStatus(landlord.status)} />
-                  </TableCell>
-                  <TableCell className="text-sm text-navy">{landlord.plan}</TableCell>
-                  <TableCell className="text-sm text-navy">
-                    {landlord.properties}
-                  </TableCell>
-                  <TableCell className="text-sm text-text-muted">
-                    {landlord.joinedAt}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Users className="h-4 w-4 mr-2" />
-                          Impersonate
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {landlords.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Landlord</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Properties</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {landlords.map((landlord) => {
+                  const fullName = `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()
+                  const initials = `${landlord.first_name?.[0] ?? ""}${landlord.last_name?.[0] ?? ""}`
+                  return (
+                    <TableRow key={landlord.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 bg-sage-light">
+                            <AvatarFallback className="bg-sage-light text-navy text-xs">
+                              {initials || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium text-navy">
+                              {fullName || "No data yet"}
+                            </p>
+                            <p className="text-xs text-text-muted">{landlord.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={getStatusBadgeStatus(landlord.subscription_status)} />
+                      </TableCell>
+                      <TableCell className="text-sm text-navy capitalize">
+                        {landlord.subscription_status ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-navy">
+                        {landlord.propertyCount}
+                      </TableCell>
+                      <TableCell className="text-sm text-text-muted">
+                        {formatDate(landlord.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Users className="h-4 w-4 mr-2" />
+                              Impersonate
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-text-muted">No data yet</p>
+          )}
         </CardContent>
       </Card>
 
@@ -396,4 +338,15 @@ export default function AdminDashboard() {
       </Dialog>
     </div>
   )
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "No data yet"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "No data yet"
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date)
 }
