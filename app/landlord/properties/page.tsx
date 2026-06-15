@@ -1066,7 +1066,7 @@ const selectedUnit = isApartment && selectedUnitId
       </div>
 
       {/* Content */}
-      {isApartment ? <MultiUnitBuildingView /> : <SingleUnitView />}
+     {selectedProperty ? (isApartment ? <MultiUnitBuildingView /> : <SingleUnitView />) : <div className="p-6 text-text-muted">Loading properties...</div>}
     </div>
   )
 }
