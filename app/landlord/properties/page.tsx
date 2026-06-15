@@ -212,13 +212,11 @@ export default function PropertiesPage() {
     }
   }, [selectedPropertyId])
 
-  const selectedProperty = properties.find((p) => p.id === selectedPropertyId) ?? properties[0]
-  const selectedDbProperty = dbProperties.find((p) => p.id === selectedPropertyId)
-  const isApartment = selectedProperty.type === "apartment"
-  const selectedUnit = isApartment && selectedUnitId
-    ? selectedProperty.units?.find((u) => u.id === selectedUnitId)
-    : null
-
+ const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0]
+const isApartment = selectedProperty?.type === "apartment"
+const selectedUnit = isApartment && selectedUnitId
+  ? selectedProperty?.units?.find((u: any) => u.id === selectedUnitId)
+  : null
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
       year: "numeric",
