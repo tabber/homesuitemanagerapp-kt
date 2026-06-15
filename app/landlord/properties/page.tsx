@@ -279,7 +279,7 @@ const selectedUnit = isApartment && selectedUnitId
           />
           <StatCard
             label="Last Payment"
-            value={property.payments[0] ? formatDate(property.payments[0].date) : "N/A"}
+            value={property.payments?.[0] ? formatDate(property.payments?.[0].date) : "N/A"}
           />
         </div>
 
@@ -401,7 +401,7 @@ const selectedUnit = isApartment && selectedUnitId
                 </div>
               </CardHeader>
               <CardContent>
-                {property.payments.length > 0 ? (
+                {(property.payments ?? []).length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -413,7 +413,7 @@ const selectedUnit = isApartment && selectedUnitId
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {property.payments.map((payment) => (
+                      {(property.payments ?? []).map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium text-navy">{payment.tenant}</TableCell>
                           <TableCell>{formatCurrency(payment.amount)}</TableCell>
@@ -474,7 +474,7 @@ const selectedUnit = isApartment && selectedUnitId
                     </SelectContent>
                   </Select>
                 </div>
-                {property.maintenanceRequests.length > 0 ? (
+                {(property.maintenanceRequests ?? []).length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -485,7 +485,7 @@ const selectedUnit = isApartment && selectedUnitId
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {property.maintenanceRequests.map((request) => (
+                      {(property.maintenanceRequests ?? []).map((request) => (
                         <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
                           <TableCell className="font-medium text-navy">{request.title}</TableCell>
                           <TableCell><PriorityBadge priority={request.priority} /></TableCell>
