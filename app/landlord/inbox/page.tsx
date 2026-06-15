@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Send,
   Plus,
@@ -50,130 +50,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
-// Mock data
-const conversations = [
-  {
-    id: "1",
-    tenant: "Amanda Wilson",
-    property: "Oak Street House",
-    unit: null,
-    lastMessage: "Hi, I wanted to follow up on the maintenance request I submitted last week...",
-    timestamp: "2 hours ago",
-    unread: true,
-    messages: [
-      { id: "m1", sender: "tenant", text: "Hi, I noticed the kitchen faucet is leaking again. Can someone take a look?", timestamp: "May 28, 2026 at 10:15 AM" },
-      { id: "m2", sender: "landlord", text: "Hi Amanda, thanks for letting me know. I'll schedule a plumber to come by this week. Would Thursday work for you?", timestamp: "May 28, 2026 at 11:30 AM" },
-      { id: "m3", sender: "tenant", text: "Thursday afternoon would be perfect. Thank you!", timestamp: "May 28, 2026 at 11:45 AM" },
-      { id: "m4", sender: "landlord", text: "Great, I've scheduled it for Thursday between 2-4 PM. The plumber will call before arriving.", timestamp: "May 28, 2026 at 12:00 PM" },
-      { id: "m5", sender: "tenant", text: "Hi, I wanted to follow up on the maintenance request I submitted last week...", timestamp: "May 30, 2026 at 3:00 PM" },
-    ],
-  },
-  {
-    id: "2",
-    tenant: "John Smith",
-    property: "Viceroy",
-    unit: "101",
-    lastMessage: "The new dishwasher is working great. Thanks for getting it replaced so quickly!",
-    timestamp: "1 day ago",
-    unread: false,
-    messages: [
-      { id: "m1", sender: "tenant", text: "The new dishwasher is working great. Thanks for getting it replaced so quickly!", timestamp: "May 29, 2026 at 4:30 PM" },
-    ],
-  },
-  {
-    id: "3",
-    tenant: "Sarah Johnson",
-    property: "Viceroy",
-    unit: "102",
-    lastMessage: "Just wanted to confirm my rent payment went through for this month.",
-    timestamp: "2 days ago",
-    unread: false,
-    messages: [
-      { id: "m1", sender: "tenant", text: "Just wanted to confirm my rent payment went through for this month.", timestamp: "May 28, 2026 at 9:00 AM" },
-      { id: "m2", sender: "landlord", text: "Yes, I received it. Thank you!", timestamp: "May 28, 2026 at 9:30 AM" },
-    ],
-  },
-]
-
-const maintenanceRequests = [
-  {
-    id: "1",
-    title: "HVAC not cooling properly",
-    description: "The air conditioning unit in the living room isn't cooling effectively. It's been running constantly but the temperature won't go below 78°F.",
-    property: "Viceroy",
-    unit: "303",
-    tenant: "David Lee",
-    category: "HVAC",
-    priority: "urgent" as const,
-    status: "in-progress" as const,
-    submittedDate: "2026-05-25",
-    photos: [],
-    notes: "",
-    scheduledDate: "2026-06-01",
-    scheduledTime: "10:00 AM",
-    contractor: "Cool Air HVAC Services",
-  },
-  {
-    id: "2",
-    title: "Broken window latch",
-    description: "The window latch in the bedroom is broken and won't lock properly.",
-    property: "Viceroy",
-    unit: "201",
-    tenant: "Mike Brown",
-    category: "Structural",
-    priority: "high" as const,
-    status: "open" as const,
-    submittedDate: "2026-05-28",
-    photos: [],
-    notes: "",
-    scheduledDate: "",
-    scheduledTime: "",
-    contractor: "",
-  },
-  {
-    id: "3",
-    title: "Dishwasher leaking",
-    description: "Water is pooling under the dishwasher after each cycle.",
-    property: "Viceroy",
-    unit: "102",
-    tenant: "Sarah Johnson",
-    category: "Appliance",
-    priority: "medium" as const,
-    status: "open" as const,
-    submittedDate: "2026-05-20",
-    photos: [],
-    notes: "",
-    scheduledDate: "",
-    scheduledTime: "",
-    contractor: "",
-  },
-  {
-    id: "4",
-    title: "Garbage disposal jammed",
-    description: "The garbage disposal is making a grinding noise and won't work.",
-    property: "Oak Street House",
-    unit: null,
-    tenant: "Amanda Wilson",
-    category: "Appliance",
-    priority: "low" as const,
-    status: "completed" as const,
-    submittedDate: "2026-05-15",
-    photos: [],
-    notes: "Fixed by resetting the disposal unit.",
-    scheduledDate: "",
-    scheduledTime: "",
-    contractor: "",
-  },
-]
-
-const documents = [
-  { id: "1", name: "Lease Agreement - Oak Street House", type: "Lease", property: "Oak Street House", date: "2025-09-01", size: "245 KB" },
-  { id: "2", name: "Move-in Inspection Report", type: "Inspection", property: "Oak Street House", date: "2025-09-01", size: "1.2 MB" },
-  { id: "3", name: "Lease Agreement - Unit 101", type: "Lease", property: "Viceroy", date: "2025-06-15", size: "230 KB" },
-  { id: "4", name: "Insurance Certificate 2026", type: "Insurance", property: "Viceroy", date: "2026-01-15", size: "156 KB" },
-]
-
+// Static reference content (no backing table)
 const provincialForms = {
   ON: [
     { name: "Standard Lease (OREA)", description: "Ontario Standard Form of Lease", category: "Lease", url: "#" },
@@ -229,16 +108,15 @@ const contractors = {
   ],
 }
 
-const properties = [
-  { id: "all", name: "All Properties" },
-  { id: "1", name: "Viceroy" },
-  { id: "2", name: "Oak Street House" },
-]
-
 export default function InboxPage() {
   const [activeTab, setActiveTab] = useState("messages")
-  const [selectedConversation, setSelectedConversation] = useState(conversations[0])
-  const [selectedRequest, setSelectedRequest] = useState(maintenanceRequests[0])
+  const [conversations, setConversations] = useState<any[]>([])
+  const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
+  const [dbProperties, setDbProperties] = useState<any[]>([])
+  // No documents table exists yet; render an empty list
+  const documents: any[] = []
+  const [selectedConversation, setSelectedConversation] = useState<any | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all")
@@ -254,12 +132,131 @@ export default function InboxPage() {
     })
   }
 
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadInbox() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Properties owned by this landlord (for the filter + name lookups)
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("landlord_id", user.id)
+      const propertyNameMap = new Map<string, string>((props ?? []).map((p: any) => [p.id, p.name]))
+
+      // Messages involving this user (messages table uses sender_id / recipient_id)
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("*")
+        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        .order("created_at", { ascending: true })
+
+      // Maintenance requests for this landlord
+      const { data: requests } = await supabase
+        .from("maintenance_requests")
+        .select("*")
+        .eq("landlord_id", user.id)
+        .order("created_at", { ascending: false })
+
+      // Collect every other-party / tenant id so we can resolve names in one query
+      const profileIds = new Set<string>()
+      ;(msgs ?? []).forEach((m: any) => {
+        const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
+        if (otherId) profileIds.add(otherId)
+      })
+      ;(requests ?? []).forEach((r: any) => {
+        if (r.tenant_id) profileIds.add(r.tenant_id)
+      })
+
+      const profileNameMap = new Map<string, string>()
+      if (profileIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email")
+          .in("id", Array.from(profileIds))
+        ;(profiles ?? []).forEach((p: any) => {
+          const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Unknown"
+          profileNameMap.set(p.id, name)
+        })
+      }
+
+      // Group messages into conversations keyed by the other participant
+      const convoMap = new Map<string, any>()
+      ;(msgs ?? []).forEach((m: any) => {
+        const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
+        if (!otherId) return
+        if (!convoMap.has(otherId)) {
+          convoMap.set(otherId, {
+            id: otherId,
+            tenant: profileNameMap.get(otherId) || "Unknown",
+            property: "",
+            unit: null,
+            lastMessage: "",
+            timestamp: "",
+            unread: false,
+            messages: [],
+          })
+        }
+        const convo = convoMap.get(otherId)
+        convo.messages.push({
+          id: m.id,
+          sender: m.sender_id === user.id ? "landlord" : "tenant",
+          text: m.content,
+          timestamp: m.created_at ? formatDate(m.created_at) : "",
+        })
+        convo.lastMessage = m.content
+        convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
+        if (m.recipient_id === user.id && !m.read) convo.unread = true
+      })
+      const convos = Array.from(convoMap.values())
+
+      // Reshape maintenance requests for the existing UI
+      const mappedRequests = (requests ?? []).map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description ?? "",
+        category: r.category ?? "—",
+        priority: r.priority ?? "medium",
+        status: r.status ?? "open",
+        property_id: r.property_id,
+        property: r.property_id ? propertyNameMap.get(r.property_id) ?? "—" : "—",
+        unit: r.unit_id ?? null,
+        tenant: r.tenant_id ? profileNameMap.get(r.tenant_id) ?? "—" : "—",
+        submittedDate: r.created_at,
+        scheduledDate: r.scheduled_date ?? "",
+        scheduledTime: r.scheduled_time ?? "",
+        contractor: "",
+        notes: r.landlord_notes ?? "",
+      }))
+
+      if (!isMounted) return
+      setDbProperties(props ?? [])
+      setConversations(convos)
+      setMaintenanceRequests(mappedRequests)
+      setSelectedConversation(convos[0] ?? null)
+      setSelectedRequest(mappedRequests[0] ?? null)
+    }
+
+    loadInbox()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
+
   const unreadMessages = conversations.filter((c) => c.unread).length
   const openRequests = maintenanceRequests.filter((r) => r.status === "open" || r.status === "in-progress").length
 
   // Filter maintenance requests
   const filteredRequests = maintenanceRequests.filter((request) => {
-    const matchesProperty = propertyFilter === "all" || request.property === properties.find(p => p.id === propertyFilter)?.name
+    const matchesProperty = propertyFilter === "all" || request.property_id === propertyFilter
     const matchesStatus = maintenanceStatusFilter === "all" || request.status === maintenanceStatusFilter
     return matchesProperty && matchesStatus
   })
@@ -313,13 +310,16 @@ export default function InboxPage() {
             <Card className="w-80 border-sage/50 flex flex-col">
               <CardContent className="p-0 flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
+                  {conversations.length === 0 && (
+                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                  )}
                   {conversations.map((conversation) => (
                     <button
                       key={conversation.id}
                       onClick={() => setSelectedConversation(conversation)}
                       className={cn(
                         "w-full p-4 text-left border-b border-sage/20 hover:bg-sage/10 transition-colors",
-                        selectedConversation.id === conversation.id && "bg-sage/20"
+                        selectedConversation?.id === conversation.id && "bg-sage/20"
                       )}
                     >
                       <div className="flex items-start gap-3">
@@ -350,10 +350,16 @@ export default function InboxPage() {
 
             {/* Message Thread */}
             <Card className="flex-1 border-sage/50 flex flex-col">
+              {!selectedConversation ? (
+                <CardContent className="flex-1 flex items-center justify-center text-sm text-text-muted">
+                  No data yet
+                </CardContent>
+              ) : (
+              <>
               <CardHeader className="border-b border-sage/20 py-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium">
-                    {selectedConversation.tenant.split(" ").map((n) => n[0]).join("")}
+                    {selectedConversation.tenant.split(" ").map((n: string) => n[0]).join("")}
                   </div>
                   <div>
                     <p className="font-medium text-navy">{selectedConversation.tenant}</p>
@@ -366,7 +372,7 @@ export default function InboxPage() {
               <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4">
-                    {selectedConversation.messages.map((message) => (
+                    {selectedConversation.messages.map((message: any) => (
                       <div
                         key={message.id}
                         className={cn(
@@ -424,6 +430,8 @@ export default function InboxPage() {
                   </div>
                 </div>
               </CardContent>
+              </>
+              )}
             </Card>
           </div>
         </TabsContent>
@@ -457,13 +465,16 @@ export default function InboxPage() {
               </CardHeader>
               <CardContent className="p-0 flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
+                  {filteredRequests.length === 0 && (
+                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                  )}
                   {filteredRequests.map((request) => (
                     <button
                       key={request.id}
                       onClick={() => setSelectedRequest(request)}
                       className={cn(
                         "w-full p-4 text-left border-b border-sage/20 hover:bg-sage/10 transition-colors",
-                        selectedRequest.id === request.id && "bg-sage/20"
+                        selectedRequest?.id === request.id && "bg-sage/20"
                       )}
                     >
                       <div className="flex items-start gap-2 mb-2">
@@ -485,6 +496,11 @@ export default function InboxPage() {
 
             {/* Request Detail */}
             <Card className="flex-1 border-sage/50">
+              {!selectedRequest ? (
+                <CardContent className="h-full flex items-center justify-center text-sm text-text-muted">
+                  No data yet
+                </CardContent>
+              ) : (
               <ScrollArea className="h-full">
                 <CardContent className="p-6">
                   <div className="space-y-6">
@@ -638,6 +654,7 @@ export default function InboxPage() {
                   </div>
                 </CardContent>
               </ScrollArea>
+              )}
             </Card>
           </div>
         </TabsContent>
@@ -661,6 +678,9 @@ export default function InboxPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
+                  {documents.length === 0 && (
+                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                  )}
                   {documents.map((doc) => (
                     <div
                       key={doc.id}

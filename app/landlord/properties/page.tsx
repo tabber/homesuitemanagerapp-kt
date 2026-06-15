@@ -48,81 +48,7 @@ import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
 
-// Mock data
-const properties = [
-  {
-    id: "1",
-    name: "Viceroy",
-    address: "1009 Fairfield Rd, Victoria, BC V8V 3A9",
-    type: "apartment",
-    status: "occupied" as const,
-    totalUnits: 12,
-    occupiedUnits: 10,
-    monthlyRevenue: 18500,
-    units: [
-      { id: "101", number: "101", floor: 1, bedrooms: 1, bathrooms: 1, tenant: "John Smith", rent: 1500, status: "occupied" as const },
-      { id: "102", number: "102", floor: 1, bedrooms: 2, bathrooms: 1, tenant: "Sarah Johnson", rent: 1800, status: "occupied" as const },
-      { id: "103", number: "103", floor: 1, bedrooms: 1, bathrooms: 1, tenant: null, rent: 1500, status: "vacant" as const },
-      { id: "201", number: "201", floor: 2, bedrooms: 2, bathrooms: 2, tenant: "Mike Brown", rent: 2000, status: "occupied" as const },
-      { id: "202", number: "202", floor: 2, bedrooms: 1, bathrooms: 1, tenant: null, rent: 1500, status: "maintenance" as const },
-      { id: "203", number: "203", floor: 2, bedrooms: 2, bathrooms: 1, tenant: "Emily Davis", rent: 1800, status: "occupied" as const },
-      { id: "301", number: "301", floor: 3, bedrooms: 3, bathrooms: 2, tenant: "Robert Wilson", rent: 2500, status: "occupied" as const },
-      { id: "302", number: "302", floor: 3, bedrooms: 2, bathrooms: 2, tenant: "Lisa Anderson", rent: 2000, status: "occupied" as const },
-      { id: "303", number: "303", floor: 3, bedrooms: 1, bathrooms: 1, tenant: "David Lee", rent: 1500, status: "occupied" as const },
-      { id: "401", number: "401", floor: 4, bedrooms: 2, bathrooms: 2, tenant: "Jennifer Taylor", rent: 2100, status: "occupied" as const },
-      { id: "402", number: "402", floor: 4, bedrooms: 1, bathrooms: 1, tenant: null, rent: 1600, status: "vacant" as const },
-      { id: "403", number: "403", floor: 4, bedrooms: 2, bathrooms: 1, tenant: "Chris Martin", rent: 1900, status: "occupied" as const },
-    ],
-  },
-  {
-    id: "2",
-    name: "Oak Street House",
-    address: "456 Oak St, Vancouver, BC V6H 2M4",
-    type: "single",
-    status: "occupied" as const,
-    monthlyRent: 2800,
-    tenant: {
-      name: "Amanda Wilson",
-      email: "amanda.wilson@email.com",
-      phone: "(604) 555-0123",
-    },
-    lease: {
-      startDate: "2025-09-01",
-      endDate: "2026-08-31",
-      rent: 2800,
-      deposit: 2800,
-      status: "active" as const,
-    },
-    payments: [
-      { id: "p1", tenant: "Amanda Wilson", amount: 2800, date: "2026-05-01", method: "e-Transfer", status: "completed" as const },
-      { id: "p2", tenant: "Amanda Wilson", amount: 2800, date: "2026-04-01", method: "e-Transfer", status: "completed" as const },
-      { id: "p3", tenant: "Amanda Wilson", amount: 2800, date: "2026-03-01", method: "e-Transfer", status: "completed" as const },
-    ],
-    maintenanceRequests: [
-      { id: "m1", title: "Leaky faucet in kitchen", priority: "medium" as const, status: "completed" as const, date: "2026-04-15" },
-    ],
-    openRequests: 0,
-  },
-  {
-    id: "3",
-    name: "Maple Condo",
-    address: "789 Maple Ave, Toronto, ON M5V 1A1",
-    type: "single",
-    status: "vacant" as const,
-    monthlyRent: 2200,
-    tenant: null,
-    lease: null,
-    payments: [],
-    maintenanceRequests: [],
-    openRequests: 0,
-  },
-]
-
-const maintenanceRequests = [
-  { id: "m1", title: "Broken window latch", property: "Viceroy", unit: "201", priority: "high" as const, status: "open" as const, date: "2026-05-28" },
-  { id: "m2", title: "HVAC not cooling", property: "Viceroy", unit: "303", priority: "urgent" as const, status: "in-progress" as const, date: "2026-05-25" },
-  { id: "m3", title: "Dishwasher leak", property: "Viceroy", unit: "102", priority: "medium" as const, status: "open" as const, date: "2026-05-20" },
-]
+// Live data is fetched from Supabase inside the component
 
 export default function PropertiesPage() {
   const router = useRouter()
@@ -140,6 +66,12 @@ export default function PropertiesPage() {
     vacant: 0,
     monthlyRevenue: 0,
   })
+
+  // Per-property tab data (lease / tenant / payments / maintenance)
+  const [activeLease, setActiveLease] = useState<any | null>(null)
+  const [tenantProfile, setTenantProfile] = useState<any | null>(null)
+  const [propertyPayments, setPropertyPayments] = useState<any[]>([])
+  const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
 
   useEffect(() => {
     let isMounted = true
@@ -212,6 +144,72 @@ export default function PropertiesPage() {
     }
   }, [selectedPropertyId])
 
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadPropertyTabs() {
+      // Reset so missing data shows empty states
+      if (isMounted) {
+        setActiveLease(null)
+        setTenantProfile(null)
+        setPropertyPayments([])
+        setPropertyMaintenance([])
+      }
+
+      if (!selectedPropertyId) return
+
+      const supabase = createClient()
+
+      // Lease tab: active lease for this property
+      const { data: leaseRow } = await supabase
+        .from("leases")
+        .select("*")
+        .eq("property_id", selectedPropertyId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle()
+
+      // Tenant tab: profile referenced by the active lease
+      let tenant: any | null = null
+      if (leaseRow?.tenant_id) {
+        const { data: tenantRow } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", leaseRow.tenant_id)
+          .maybeSingle()
+        tenant = tenantRow ?? null
+      }
+
+      // Payments tab: recent payments for this property
+      const { data: payments } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("property_id", selectedPropertyId)
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      // Maintenance tab: requests for this property
+      const { data: maintenance } = await supabase
+        .from("maintenance_requests")
+        .select("*")
+        .eq("property_id", selectedPropertyId)
+        .order("created_at", { ascending: false })
+
+      if (!isMounted) return
+
+      setActiveLease(leaseRow ?? null)
+      setTenantProfile(tenant)
+      setPropertyPayments(payments ?? [])
+      setPropertyMaintenance(maintenance ?? [])
+    }
+
+    loadPropertyTabs()
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedPropertyId])
+
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = selectedProperty?.type === "apartment" ?? false
 const selectedUnit = isApartment && selectedUnitId
@@ -234,8 +232,17 @@ const selectedUnit = isApartment && selectedUnitId
 
   // Single unit property view
   const SingleUnitView = () => {
-    const property = selectedProperty as typeof properties[1]
-    
+    const property = selectedProperty as any
+    const lease = activeLease
+    const tenant = tenantProfile
+    const payments = propertyPayments
+    const maintenance = propertyMaintenance
+    const tenantName =
+      [tenant?.first_name, tenant?.last_name].filter(Boolean).join(" ").trim() ||
+      lease?.tenant_name ||
+      ""
+    const openRequestsCount = maintenance.filter((m: any) => m.status === "open").length
+
     return (
       <div className="space-y-6">
         {/* Property Header Card */}
@@ -266,20 +273,20 @@ const selectedUnit = isApartment && selectedUnitId
         <div className="grid grid-cols-4 gap-4">
           <StatCard
             label="Monthly Rent"
-            value={formatCurrency(property.monthlyRent || 0)}
+            value={formatCurrency(lease?.monthly_rent ?? property.rent_amount ?? 0)}
           />
           <StatCard
             label="Lease Status"
-            value={property.lease ? "Active" : "No Lease"}
-            sublabel={property.lease ? `Ends ${formatDate(property.lease.endDate)}` : undefined}
+            value={lease ? "Active" : "No Lease"}
+            sublabel={lease ? `Ends ${formatDate(lease.end_date)}` : undefined}
           />
           <StatCard
             label="Open Requests"
-            value={property.openRequests || 0}
+            value={openRequestsCount}
           />
           <StatCard
             label="Last Payment"
-            value={property.payments?.[0] ? formatDate(property.payments?.[0].date) : "N/A"}
+            value={payments[0] ? formatDate(payments[0].payment_date) : "N/A"}
           />
         </div>
 
@@ -294,33 +301,33 @@ const selectedUnit = isApartment && selectedUnitId
           </TabsList>
 
           <TabsContent value="lease" className="mt-6">
-            {property.lease ? (
+            {lease ? (
               <Card className="border-sage/50">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Current Lease</CardTitle>
-                    <StatusBadge status={property.lease.status} />
+                    <StatusBadge status={lease.status} />
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-text-muted">Tenant</p>
-                      <p className="text-sm font-medium text-navy">{property.tenant?.name}</p>
+                      <p className="text-sm font-medium text-navy">{tenantName}</p>
                     </div>
                     <div>
                       <p className="text-sm text-text-muted">Lease Period</p>
                       <p className="text-sm font-medium text-navy">
-                        {formatDate(property.lease.startDate)} - {formatDate(property.lease.endDate)}
+                        {formatDate(lease.start_date)} - {formatDate(lease.end_date)}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm text-text-muted">Monthly Rent</p>
-                      <p className="text-sm font-medium text-navy">{formatCurrency(property.lease.rent)}</p>
+                      <p className="text-sm font-medium text-navy">{formatCurrency(lease.monthly_rent)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-text-muted">Security Deposit</p>
-                      <p className="text-sm font-medium text-navy">{formatCurrency(property.lease.deposit)}</p>
+                      <p className="text-sm font-medium text-navy">{formatCurrency(lease.security_deposit ?? 0)}</p>
                     </div>
                   </div>
                   <div className="pt-4">
@@ -342,7 +349,7 @@ const selectedUnit = isApartment && selectedUnitId
           </TabsContent>
 
           <TabsContent value="tenant" className="mt-6">
-            {property.tenant ? (
+            {tenant ? (
               <Card className="border-sage/50">
                 <CardHeader>
                   <CardTitle className="text-lg font-medium text-navy">Tenant Information</CardTitle>
@@ -350,19 +357,19 @@ const selectedUnit = isApartment && selectedUnitId
                 <CardContent className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-16 h-16 rounded-full bg-navy flex items-center justify-center text-white text-xl font-medium">
-                      {property.tenant.name.split(" ").map((n) => n[0]).join("")}
+                      {tenantName.split(" ").map((n: string) => n[0]).join("")}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-medium text-navy">{property.tenant.name}</h3>
-                      <p className="text-sm text-text-muted">{property.tenant.email}</p>
-                      <p className="text-sm text-text-muted">{property.tenant.phone}</p>
+                      <h3 className="text-lg font-medium text-navy">{tenantName}</h3>
+                      <p className="text-sm text-text-muted">{tenant.email}</p>
+                      <p className="text-sm text-text-muted">{tenant.phone}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
                     <div>
                       <p className="text-sm text-text-muted">Lease Period</p>
                       <p className="text-sm font-medium text-navy">
-                        {property.lease && `${formatDate(property.lease.startDate)} - ${formatDate(property.lease.endDate)}`}
+                        {lease && `${formatDate(lease.start_date)} - ${formatDate(lease.end_date)}`}
                       </p>
                     </div>
                     <div>
@@ -401,7 +408,7 @@ const selectedUnit = isApartment && selectedUnitId
                 </div>
               </CardHeader>
               <CardContent>
-                {(property.payments ?? []).length > 0 ? (
+                {payments.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -413,12 +420,12 @@ const selectedUnit = isApartment && selectedUnitId
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(property.payments ?? []).map((payment) => (
+                      {payments.map((payment: any) => (
                         <TableRow key={payment.id}>
-                          <TableCell className="font-medium text-navy">{payment.tenant}</TableCell>
+                          <TableCell className="font-medium text-navy">{tenantName || "—"}</TableCell>
                           <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                          <TableCell>{formatDate(payment.date)}</TableCell>
-                          <TableCell>{payment.method}</TableCell>
+                          <TableCell>{formatDate(payment.payment_date)}</TableCell>
+                          <TableCell>{payment.payment_method ?? "—"}</TableCell>
                           <TableCell><StatusBadge status={payment.status} /></TableCell>
                         </TableRow>
                       ))}
@@ -474,7 +481,7 @@ const selectedUnit = isApartment && selectedUnitId
                     </SelectContent>
                   </Select>
                 </div>
-                {(property.maintenanceRequests ?? []).length > 0 ? (
+                {maintenance.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -485,12 +492,12 @@ const selectedUnit = isApartment && selectedUnitId
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(property.maintenanceRequests ?? []).map((request) => (
+                      {maintenance.map((request: any) => (
                         <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
                           <TableCell className="font-medium text-navy">{request.title}</TableCell>
                           <TableCell><PriorityBadge priority={request.priority} /></TableCell>
                           <TableCell><StatusBadge status={request.status} /></TableCell>
-                          <TableCell>{formatDate(request.date)}</TableCell>
+                          <TableCell>{formatDate(request.created_at)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -509,14 +516,14 @@ const selectedUnit = isApartment && selectedUnitId
           <TabsContent value="messages" className="mt-6">
             <Card className="border-sage/50">
               <CardContent className="p-6">
-                {property.tenant ? (
+                {tenant ? (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 pb-4 border-b border-sage/30">
                       <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium">
-                        {property.tenant.name.split(" ").map((n) => n[0]).join("")}
+                        {tenantName.split(" ").map((n: string) => n[0]).join("")}
                       </div>
                       <div>
-                        <p className="font-medium text-navy">{property.tenant.name}</p>
+                        <p className="font-medium text-navy">{tenantName}</p>
                         <p className="text-sm text-text-muted">{property.name}</p>
                       </div>
                     </div>
@@ -558,7 +565,7 @@ const selectedUnit = isApartment && selectedUnitId
 
   // Multi-unit building view
   const MultiUnitBuildingView = () => {
-    const property = selectedProperty as typeof properties[0]
+    const property = selectedProperty as any
     const occupiedCount = property.units?.filter((u) => u.status === "occupied").length || 0
     const vacantCount = property.units?.filter((u) => u.status === "vacant").length || 0
     const maintenanceCount = property.units?.filter((u) => u.status === "maintenance").length || 0
@@ -959,28 +966,36 @@ const selectedUnit = isApartment && selectedUnitId
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {maintenanceRequests.map((request) => (
-                      <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
-                        <TableCell className="font-medium text-navy">{request.title}</TableCell>
-                        <TableCell>{request.unit}</TableCell>
-                        <TableCell><PriorityBadge priority={request.priority} /></TableCell>
-                        <TableCell><StatusBadge status={request.status} /></TableCell>
-                        <TableCell>{formatDate(request.date)}</TableCell>
+                {propertyMaintenance.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Unit</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {propertyMaintenance.map((request: any) => (
+                        <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
+                          <TableCell className="font-medium text-navy">{request.title}</TableCell>
+                          <TableCell>{request.unit_id ?? "—"}</TableCell>
+                          <TableCell><PriorityBadge priority={request.priority} /></TableCell>
+                          <TableCell><StatusBadge status={request.status} /></TableCell>
+                          <TableCell>{formatDate(request.created_at)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <EmptyState
+                    icon={Wrench}
+                    title="No Maintenance Requests"
+                    description="Maintenance requests for this property will appear here."
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
