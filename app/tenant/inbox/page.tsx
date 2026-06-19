@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import {
   Send,
   Wrench,
@@ -35,106 +36,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { createClient } from "@/lib/supabase/client"
 
-// Mock data
-const mockMessages = [
-  {
-    id: "1",
-    sender: "landlord",
-    senderName: "John Smith",
-    content:
-      "Hi Sarah, just wanted to let you know that there will be maintenance work in the building lobby tomorrow between 9 AM and 12 PM.",
-    timestamp: "May 28, 2026 at 10:30 AM",
-  },
-  {
-    id: "2",
-    sender: "tenant",
-    senderName: "Sarah Chen",
-    content: "Thanks for letting me know! Will this affect access to the parking garage?",
-    timestamp: "May 28, 2026 at 10:45 AM",
-  },
-  {
-    id: "3",
-    sender: "landlord",
-    senderName: "John Smith",
-    content:
-      "No, the parking garage entrance will remain accessible. Only the main lobby will have limited access during that time.",
-    timestamp: "May 28, 2026 at 11:00 AM",
-  },
-]
-
-const mockMaintenanceRequests = [
-  {
-    id: "1",
-    title: "Kitchen faucet leaking",
-    description:
-      "The kitchen faucet has been dripping constantly for the past few days. It's getting worse and wasting water.",
-    category: "Plumbing",
-    priority: "medium" as const,
-    status: "in-progress" as const,
-    createdAt: "May 25, 2026",
-    timeline: [
-      { date: "May 25, 2026", event: "Request submitted", by: "Sarah Chen" },
-      { date: "May 26, 2026", event: "Request reviewed", by: "John Smith" },
-      {
-        date: "May 27, 2026",
-        event: "Contractor assigned - Mike's Plumbing",
-        by: "John Smith",
-      },
-    ],
-    landlordNotes: "Contractor will arrive on June 2nd at 2:00 PM. Please ensure someone is home.",
-    contractor: "Mike's Plumbing",
-    scheduledDate: "June 2, 2026 at 2:00 PM",
-  },
-  {
-    id: "2",
-    title: "Bathroom exhaust fan not working",
-    description: "The exhaust fan in the main bathroom stopped working last week.",
-    category: "Electrical",
-    priority: "low" as const,
-    status: "completed" as const,
-    createdAt: "March 10, 2026",
-    timeline: [
-      { date: "March 10, 2026", event: "Request submitted", by: "Sarah Chen" },
-      { date: "March 11, 2026", event: "Request reviewed", by: "John Smith" },
-      {
-        date: "March 12, 2026",
-        event: "Contractor assigned - ABC Electric",
-        by: "John Smith",
-      },
-      { date: "March 15, 2026", event: "Repair completed", by: "ABC Electric" },
-    ],
-    landlordNotes: "Fan replaced with new energy-efficient model.",
-    contractor: "ABC Electric",
-    scheduledDate: "March 15, 2026",
-  },
-]
-
-const mockDocuments = [
-  {
-    id: "1",
-    name: "Lease Agreement - 2025-2026.pdf",
-    uploadedAt: "August 15, 2025",
-    size: "245 KB",
-  },
-  {
-    id: "2",
-    name: "Building Rules and Regulations.pdf",
-    uploadedAt: "August 15, 2025",
-    size: "128 KB",
-  },
-  {
-    id: "3",
-    name: "Move-in Inspection Report.pdf",
-    uploadedAt: "September 1, 2025",
-    size: "1.2 MB",
-  },
-]
+// Live data is fetched from Supabase inside the component
 
 export default function TenantInbox() {
   const [activeTab, setActiveTab] = useState("messages")
   const [newMessage, setNewMessage] = useState("")
-  const [selectedRequest, setSelectedRequest] = useState(mockMaintenanceRequests[0])
   const [maintenanceFilter, setMaintenanceFilter] = useState<"all" | "open" | "closed">("all")
   const [showNewRequestModal, setShowNewRequestModal] = useState(false)
   const [newRequest, setNewRequest] = useState({
@@ -144,22 +52,166 @@ export default function TenantInbox() {
     priority: "",
   })
 
-  const filteredRequests = mockMaintenanceRequests.filter((req) => {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [landlord, setLandlord] = useState<any | null>(null)
+  const [propertyId, setPropertyId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<any[]>([])
+  const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
+  // No documents table exists yet; render an empty list
+  const documents: any[] = []
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return ""
+    return new Date(value).toLocaleString("en-CA", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  }
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return ""
+    return new Date(value).toLocaleDateString("en-CA", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  }
+
+  const loadInbox = async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    setUserId(user.id)
+
+    // Tenant's lease -> landlord + property
+    const { data: lease } = await supabase
+      .from("leases")
+      .select("landlord_id, property_id")
+      .eq("tenant_id", user.id)
+      .limit(1)
+      .maybeSingle()
+
+    let landlordProfile: any = null
+    if (lease?.landlord_id) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .eq("id", lease.landlord_id)
+        .maybeSingle()
+      landlordProfile = data ?? null
+    }
+
+    // Messages involving this tenant (messages table uses sender_id / recipient_id)
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("*")
+      .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+      .order("created_at", { ascending: true })
+
+    const mappedMessages = (msgs ?? []).map((m: any) => ({
+      id: m.id,
+      sender: m.sender_id === user.id ? "tenant" : "landlord",
+      content: m.content,
+      timestamp: formatDateTime(m.created_at),
+    }))
+
+    // Maintenance requests submitted by this tenant
+    const { data: requests } = await supabase
+      .from("maintenance_requests")
+      .select("*")
+      .eq("tenant_id", user.id)
+      .order("created_at", { ascending: false })
+
+    const mappedRequests = (requests ?? []).map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description ?? "",
+      category: r.category ?? "—",
+      priority: r.priority ?? "medium",
+      status: r.status ?? "open",
+      createdAt: formatDate(r.created_at),
+      timeline: [],
+      landlordNotes: r.landlord_notes ?? "",
+      contractor: "",
+      scheduledDate: r.scheduled_date ? formatDate(r.scheduled_date) : "",
+    }))
+
+    setLandlord(landlordProfile)
+    setPropertyId(lease?.property_id ?? null)
+    setMessages(mappedMessages)
+    setMaintenanceRequests(mappedRequests)
+    setSelectedRequest(mappedRequests[0] ?? null)
+  }
+
+  useEffect(() => {
+    loadInbox()
+  }, [])
+
+  const landlordName =
+    [landlord?.first_name, landlord?.last_name].filter(Boolean).join(" ").trim() ||
+    landlord?.email ||
+    "Landlord"
+  const landlordInitials =
+    landlordName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "—"
+
+  const filteredRequests = maintenanceRequests.filter((req) => {
     if (maintenanceFilter === "open") return req.status !== "completed"
     if (maintenanceFilter === "closed") return req.status === "completed"
     return true
   })
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim()) return
-    // Handle sending message
+    if (!userId || !landlord?.id) {
+      toast.error("Unable to send message. No landlord is associated with your account yet.")
+      return
+    }
+    const supabase = createClient()
+    const content = newMessage.trim()
+    const { error } = await supabase.from("messages").insert({
+      sender_id: userId,
+      recipient_id: landlord.id,
+      content,
+    })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     setNewMessage("")
+    toast.success("Message sent")
+    loadInbox()
   }
 
-  const handleSubmitRequest = () => {
-    // Handle submitting maintenance request
+  const handleSubmitRequest = async () => {
+    if (!userId) {
+      toast.error("You must be signed in to submit a request.")
+      return
+    }
+    const supabase = createClient()
+    const { error } = await supabase.from("maintenance_requests").insert({
+      tenant_id: userId,
+      landlord_id: landlord?.id ?? null,
+      property_id: propertyId,
+      title: newRequest.title,
+      description: newRequest.description,
+      category: newRequest.category || null,
+      priority: newRequest.priority || "medium",
+      status: "open",
+    })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     setShowNewRequestModal(false)
     setNewRequest({ title: "", description: "", category: "", priority: "" })
+    toast.success("Maintenance request submitted")
+    loadInbox()
   }
 
   return (
@@ -185,18 +237,21 @@ export default function TenantInbox() {
             <div className="p-4 border-b border-sage/30 flex items-center gap-3">
               <Avatar className="h-10 w-10 bg-sage-light">
                 <AvatarFallback className="bg-sage-light text-navy text-sm">
-                  JS
+                  {landlordInitials}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-sm font-medium text-navy">John Smith</p>
+                <p className="text-sm font-medium text-navy">{landlordName}</p>
                 <p className="text-xs text-text-muted">Landlord</p>
               </div>
             </div>
 
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
-                {mockMessages.map((message) => (
+                {messages.length === 0 && (
+                  <p className="text-sm text-text-muted text-center py-6">No data yet</p>
+                )}
+                {messages.map((message) => (
                   <div
                     key={message.id}
                     className={`flex ${
@@ -519,7 +574,7 @@ export default function TenantInbox() {
         <TabsContent value="documents">
           <Card className="border-sage/50">
             <CardContent className="p-6">
-              {mockDocuments.length === 0 ? (
+              {documents.length === 0 ? (
                 <EmptyState
                   icon={FileText}
                   title="No documents"
@@ -527,7 +582,7 @@ export default function TenantInbox() {
                 />
               ) : (
                 <div className="space-y-3">
-                  {mockDocuments.map((doc) => (
+                  {documents.map((doc) => (
                     <div
                       key={doc.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-cream"
