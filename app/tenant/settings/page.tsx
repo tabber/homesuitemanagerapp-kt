@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { User, Phone, Bell, Shield, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,19 +8,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
 
 export default function TenantSettings() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [savingProfile, setSavingProfile] = useState(false)
   const [profile, setProfile] = useState({
-    firstName: "Sarah",
-    lastName: "Chen",
-    email: "sarah.chen@email.com",
-    phone: "(416) 555-0456",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   })
 
   const [emergencyContact, setEmergencyContact] = useState({
-    name: "Michael Chen",
-    relationship: "Spouse",
-    phone: "(416) 555-0789",
+    name: "",
+    relationship: "",
+    phone: "",
   })
 
   const [notifications, setNotifications] = useState({
@@ -36,8 +40,60 @@ export default function TenantSettings() {
     confirm: "",
   })
 
-  const handleProfileUpdate = () => {
-    // Handle profile update
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadProfile() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email, phone")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      if (!isMounted) return
+      setUserId(user.id)
+      setProfile({
+        firstName: data?.first_name ?? "",
+        lastName: data?.last_name ?? "",
+        email: data?.email ?? user.email ?? "",
+        phone: data?.phone ?? "",
+      })
+    }
+
+    loadProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const handleProfileUpdate = async () => {
+    if (!userId) {
+      toast.error("You must be signed in to update your profile.")
+      return
+    }
+    setSavingProfile(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        first_name: profile.firstName,
+        last_name: profile.lastName,
+        phone: profile.phone,
+      })
+      .eq("id", userId)
+    setSavingProfile(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Profile updated")
   }
 
   const handleEmergencyContactUpdate = () => {
@@ -116,6 +172,7 @@ export default function TenantSettings() {
             </div>
             <Button
               onClick={handleProfileUpdate}
+              disabled={savingProfile}
               className="bg-teal hover:bg-teal-dark text-white"
             >
               Save Changes
