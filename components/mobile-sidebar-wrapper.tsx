@@ -33,7 +33,7 @@ export function MobileSidebarWrapper({ children }: MobileSidebarWrapperProps) {
           this wrapper and slides it off-screen on mobile. md: resets to no transform
           so the sidebar sits at the viewport edge on desktop. */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 md:[transform:none] ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 md:static md:inset-auto md:z-auto md:w-auto md:[transform:none] ${
           isOpen ? "[transform:translateX(0)]" : "[transform:translateX(-100%)]"
         }`}
         onClick={() => setIsOpen(false)}
