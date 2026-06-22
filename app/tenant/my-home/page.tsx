@@ -14,6 +14,7 @@ import {
   Printer,
 } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
+import { useUser } from "@/lib/context/UserContext"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +40,7 @@ import { createClient } from "@/lib/supabase/client"
 export default function TenantMyHome() {
   const [showLeaseModal, setShowLeaseModal] = useState(false)
   const [showETransferModal, setShowETransferModal] = useState(false)
+  const { firstName, lastName, email } = useUser()
 
   const [loading, setLoading] = useState(true)
   const [leaseRow, setLeaseRow] = useState<any | null>(null)
