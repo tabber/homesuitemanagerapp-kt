@@ -89,7 +89,7 @@ export default function TenantDashboard() {
 
       const { data: leaseRows } = await supabase
         .from("leases")
-        .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email")
+        .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
         .eq("tenant_id", user.id)
         .limit(1)
       const leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
@@ -108,7 +108,7 @@ export default function TenantDashboard() {
       let landlordRow: LandlordData | null = null
       if (leaseRow?.landlord_id) {
         const { data } = await supabase
-          .from("profiles")
+          .from("leases")
           .select("first_name, last_name, email, phone")
           .eq("id", leaseRow.landlord_id)
           .maybeSingle()
