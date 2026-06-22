@@ -104,16 +104,13 @@ export default function TenantDashboard() {
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", user.id)
 
-      let landlordRow: LandlordData | null = null
-      if (leaseRow?.landlord_id) {
-        const { data } = await supabase
-          .from("leases")
-          .select("landlord_name, landlord_email, landlord_phone")
-          .eq("id", leaseRow.landlord_id)
-          .maybeSingle()
-        landlordRow = (data as LandlordData | null) ?? null
-      }
-
+     const landlordRow: LandlordData | null = leaseRow
+        ? {
+            landlord_name: (leaseRow as any).landlord_name ?? null,
+            landlord_email: (leaseRow as any).landlord_email ?? null,
+            landlord_phone: (leaseRow as any).landlord_phone ?? null,
+          }
+        : null
       let propertyRow: PropertyData | null = null
       if (leaseRow?.property_id) {
         const { data } = await supabase
@@ -312,11 +309,11 @@ export default function TenantDashboard() {
               <>
                 <h3 className="font-medium text-navy">{landlordName}</h3>
                 <div className="mt-2 space-y-1 text-sm text-text-muted">
-                  <p>{landlord.email}</p>
-                  {landlord.phone && (
+                  <p>{landlord.landlord_email}</p>
+                  {landlord.landlord_phone && (
                     <div className="flex items-center gap-1">
                       <Phone className="h-3.5 w-3.5" />
-                      <span>{landlord.phone}</span>
+                      <span>{landlord.landlord_phone}</span>
                     </div>
                   )}
                 </div>
