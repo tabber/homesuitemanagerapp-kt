@@ -771,8 +771,8 @@ export default function TenantMyHome() {
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
                  {lease.landlordSigned && (
-  <span className="text-navy italic">{landlord.name}</span>
-)}
+                  <span className="text-navy italic">{landlord.name}</span>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted">Landlord Signature</p>
                 {lease.landlordSignedDate && (
@@ -784,8 +784,7 @@ export default function TenantMyHome() {
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
                   {lease.tenantSigned && (
-  <span className="text-navy italic">{firstName} {lastName}</span>
-)}
+                  <span className="text-navy italic">{firstName} {lastName}</span>
                   )}
                 </div>
                 <p className="text-xs text-text-muted">Tenant Signature</p>
