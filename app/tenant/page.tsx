@@ -111,7 +111,7 @@ export default function TenantDashboard() {
           .from("profiles")
           .select("first_name, last_name, email, phone")
           .eq("id", leaseRow.landlord_id)
-          .single()
+          .maybeSingle()
         landlordRow = (data as LandlordData | null) ?? null
       }
 
@@ -121,7 +121,7 @@ export default function TenantDashboard() {
           .from("properties")
           .select("name, address, city, province, postal_code")
           .eq("id", leaseRow.property_id)
-          .single()
+          .maybeSingle()
         propertyRow = (data as PropertyData | null) ?? null
       }
 
