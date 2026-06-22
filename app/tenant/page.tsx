@@ -108,8 +108,8 @@ export default function TenantDashboard() {
       let landlordRow: LandlordData | null = null
       if (leaseRow?.landlord_id) {
         const { data } = await supabase
-          .from("profiles")
-          .select("first_name, last_name, email, phone")
+          .from("leases")
+          .select("landlord_name, landlord_email, landlord_phone")
           .eq("id", leaseRow.landlord_id)
           .maybeSingle()
         landlordRow = (data as LandlordData | null) ?? null
