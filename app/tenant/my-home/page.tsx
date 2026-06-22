@@ -255,7 +255,7 @@ export default function TenantMyHome() {
       {/* Property Overview Card */}
       <Card className="border-sage/50">
         <CardContent className="p-6">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-lg bg-teal/10 flex items-center justify-center">
                 <FileText className="h-6 w-6 text-teal-dark" />
