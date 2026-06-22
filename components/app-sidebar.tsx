@@ -87,7 +87,7 @@ export function AppSidebar({
   }
 
   return (
-   <aside className="w-64 h-screen overflow-y-auto bg-[var(--sidebar-bg)] flex flex-col fixed left-0 top-0">
+   <aside className="w-64 h-dvh overflow-y-auto bg-[var(--sidebar-bg)] flex flex-col fixed left-0 top-0">
       {/* Logo */}
       <div className="p-4 border-b border-white/10">
         <Logo portalName={portalNames[portal]} />
