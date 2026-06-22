@@ -49,6 +49,7 @@ export default function TenantMyHome() {
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
 
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
       style: "currency",
