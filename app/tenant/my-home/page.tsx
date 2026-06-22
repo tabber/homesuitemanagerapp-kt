@@ -667,8 +667,8 @@ export default function TenantMyHome() {
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
                   Tenant
                 </p>
-                <p className="text-sm font-medium text-navy">Sarah Chen</p>
-                <p className="text-sm text-text-muted">sarah.chen@email.com</p>
+               <p className="text-sm font-medium text-navy">{firstName} {lastName}</p>
+<p className="text-sm text-text-muted">{email}</p>
               </div>
             </div>
 
@@ -767,9 +767,9 @@ export default function TenantMyHome() {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
-                  {lease.landlordSigned && (
-                    <span className="text-navy italic">John Smith</span>
-                  )}
+                 {lease.landlordSigned && (
+  <span className="text-navy italic">{landlord.name}</span>
+)}
                 </div>
                 <p className="text-xs text-text-muted">Landlord Signature</p>
                 {lease.landlordSignedDate && (
@@ -781,7 +781,8 @@ export default function TenantMyHome() {
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
                   {lease.tenantSigned && (
-                    <span className="text-navy italic">Sarah Chen</span>
+  <span className="text-navy italic">{firstName} {lastName}</span>
+)}
                   )}
                 </div>
                 <p className="text-xs text-text-muted">Tenant Signature</p>
