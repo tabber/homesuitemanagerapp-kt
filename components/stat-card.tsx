@@ -18,7 +18,7 @@ export function StatCard({ label, value, sublabel, trend, className }: StatCardP
   return (
     <div
       className={cn(
-        "w-full bg-card rounded-lg p-6 border-[0.5px] border-sage",
+        "w-full min-w-0 bg-card rounded-lg p-6 border-[0.5px] border-sage",
         className
       )}
     >
