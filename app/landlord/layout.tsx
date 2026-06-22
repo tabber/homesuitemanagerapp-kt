@@ -28,7 +28,11 @@ function LandlordLayoutInner({ children }: { children: ReactNode }) {
           onSignOut={handleSignOut}
         />
       </MobileSidebarWrapper>
-      <main className="md:ml-64 p-8 pt-14 md:pt-8 w-full">{children}</main>
+      <main className="md:ml-64 w-full min-w-0">
+        <div className="mx-auto w-full min-w-0 max-w-7xl px-4 pt-14 pb-8 sm:px-6 md:px-8 md:pt-8">
+          {children}
+        </div>
+      </main>
     </div>
   )
 }
