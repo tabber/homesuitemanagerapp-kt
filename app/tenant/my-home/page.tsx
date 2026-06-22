@@ -671,7 +671,7 @@ export default function TenantMyHome() {
                   Tenant
                 </p>
                <p className="text-sm font-medium text-navy">{firstName} {lastName}</p>
-<p className="text-sm text-text-muted">{email}</p>
+              <p className="text-sm text-text-muted">{email}</p>
               </div>
             </div>
 
@@ -681,9 +681,9 @@ export default function TenantMyHome() {
                 Property
               </p>
               <p className="text-sm font-medium text-navy">
-                {lease.address}
+                {property.address}
               </p>
-              <p className="text-sm text-text-muted">{lease.city}</p>
+              <p className="text-sm text-text-muted">{property.city}</p>
             </div>
 
             {/* Lease Terms */}
