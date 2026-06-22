@@ -45,10 +45,9 @@ interface PropertyData {
 }
 
 interface LandlordData {
-  first_name: string | null
-  last_name: string | null
-  email: string | null
-  phone: string | null
+  landlord_name: string | null
+  landlord_email: string | null
+  landlord_phone: string | null
 }
 
 interface ActivityItem {
@@ -205,9 +204,7 @@ export default function TenantDashboard() {
     return due
   })()
 
-  const landlordName = landlord
-    ? `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()
-    : ""
+  const landlordName = landlord?.landlord_name ?? ""
   const propertyCityLine = property
     ? [property.city, property.province, property.postal_code].filter(Boolean).join(", ")
     : ""
