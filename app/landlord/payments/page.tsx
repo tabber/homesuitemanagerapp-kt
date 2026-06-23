@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Search,
   Filter,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
+import { createClient } from "@/lib/supabase/client"
 import {
   BarChart,
   Bar,
@@ -57,19 +58,6 @@ const revenueData = [
   { month: "Jun", collected: 15200, expected: 18500 },
 ]
 
-const payments = [
-  { id: "1", tenant: "Amanda Wilson", unit: "Main", property: "Oak Street House", amount: 2800, method: "e-Transfer", date: "2026-05-01", status: "completed" as const },
-  { id: "2", tenant: "John Smith", unit: "101", property: "Viceroy", amount: 1500, method: "e-Transfer", date: "2026-05-01", status: "completed" as const },
-  { id: "3", tenant: "Sarah Johnson", unit: "102", property: "Viceroy", amount: 1800, method: "e-Transfer", date: "2026-05-02", status: "completed" as const },
-  { id: "4", tenant: "Mike Brown", unit: "201", property: "Viceroy", amount: 2000, method: "e-Transfer", date: "2026-05-01", status: "completed" as const },
-  { id: "5", tenant: "Emily Davis", unit: "203", property: "Viceroy", amount: 1800, method: "e-Transfer", date: "2026-05-03", status: "completed" as const },
-  { id: "6", tenant: "Robert Wilson", unit: "301", property: "Viceroy", amount: 2500, method: "Cheque", date: "2026-05-05", status: "pending" as const },
-  { id: "7", tenant: "Lisa Anderson", unit: "302", property: "Viceroy", amount: 2000, method: "e-Transfer", date: "2026-05-01", status: "completed" as const },
-  { id: "8", tenant: "David Lee", unit: "303", property: "Viceroy", amount: 1500, method: "e-Transfer", date: "2026-05-08", status: "pending" as const },
-  { id: "9", tenant: "Jennifer Taylor", unit: "401", property: "Viceroy", amount: 2100, method: "e-Transfer", date: "2026-05-01", status: "completed" as const },
-  { id: "10", tenant: "Chris Martin", unit: "403", property: "Viceroy", amount: 1900, method: "e-Transfer", date: "2026-04-30", status: "failed" as const },
-]
-
 const properties = [
   { id: "all", name: "All Properties" },
   { id: "1", name: "Viceroy" },
@@ -83,6 +71,98 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
+  const [payments, setPayments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadPayments() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        if (isMounted) setLoading(false)
+        return
+      }
+
+      const { data: paymentRows } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("landlord_id", user.id)
+        .order("payment_date", { ascending: false })
+
+      const rows = paymentRows ?? []
+
+      // Resolve property names
+      const propertyIds = Array.from(
+        new Set(rows.map((p: any) => p.property_id).filter(Boolean))
+      )
+      const propertyNameMap = new Map<string, string>()
+      if (propertyIds.length > 0) {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("id, name")
+          .in("id", propertyIds)
+        ;(props ?? []).forEach((p: any) => propertyNameMap.set(p.id, p.name))
+      }
+
+      // Resolve tenant names: prefer the lease's tenant_name, fall back to the profile
+      const leaseIds = Array.from(
+        new Set(rows.map((p: any) => p.lease_id).filter(Boolean))
+      )
+      const leaseTenantMap = new Map<string, string>()
+      if (leaseIds.length > 0) {
+        const { data: leases } = await supabase
+          .from("leases")
+          .select("id, tenant_name")
+          .in("id", leaseIds)
+        ;(leases ?? []).forEach((l: any) => {
+          if (l.tenant_name) leaseTenantMap.set(l.id, l.tenant_name)
+        })
+      }
+
+      const tenantIds = Array.from(
+        new Set(rows.map((p: any) => p.tenant_id).filter(Boolean))
+      )
+      const profileNameMap = new Map<string, string>()
+      if (tenantIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", tenantIds)
+        ;(profiles ?? []).forEach((pr: any) => {
+          const name = [pr.first_name, pr.last_name].filter(Boolean).join(" ").trim()
+          if (name) profileNameMap.set(pr.id, name)
+        })
+      }
+
+      const mapped = rows.map((p: any) => ({
+        id: p.id,
+        tenant:
+          (p.lease_id && leaseTenantMap.get(p.lease_id)) ||
+          (p.tenant_id && profileNameMap.get(p.tenant_id)) ||
+          "—",
+        unit: "",
+        property: (p.property_id && propertyNameMap.get(p.property_id)) || "—",
+        amount: p.amount ?? 0,
+        method: p.method ?? "—",
+        date: p.payment_date,
+        status: p.status ?? "pending",
+      }))
+
+      if (!isMounted) return
+      setPayments(mapped)
+      setLoading(false)
+    }
+
+    loadPayments()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
@@ -286,27 +366,35 @@ export default function PaymentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayments.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell className="font-medium text-navy">{payment.tenant}</TableCell>
-                  <TableCell>{payment.unit}</TableCell>
-                  <TableCell>{payment.property}</TableCell>
-                  <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                  <TableCell>{payment.method}</TableCell>
-                  <TableCell>{formatDate(payment.date)}</TableCell>
-                  <TableCell><StatusBadge status={payment.status} /></TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-navy hover:bg-navy/5"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Receipt
-                    </Button>
+              {filteredPayments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-text-muted py-12">
+                    {loading ? "Loading payments..." : "No payments yet"}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredPayments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell className="font-medium text-navy">{payment.tenant}</TableCell>
+                    <TableCell>{payment.unit}</TableCell>
+                    <TableCell>{payment.property}</TableCell>
+                    <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{payment.method}</TableCell>
+                    <TableCell>{payment.date ? formatDate(payment.date) : "—"}</TableCell>
+                    <TableCell><StatusBadge status={payment.status} /></TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-navy hover:bg-navy/5"
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Receipt
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
