@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import {
   Send,
   Plus,
@@ -123,6 +124,8 @@ export default function InboxPage() {
   const [showCreateRequestModal, setShowCreateRequestModal] = useState(false)
   const [showUploadDocModal, setShowUploadDocModal] = useState(false)
   const [selectedProvince, setSelectedProvince] = useState("ON")
+  const [userId, setUserId] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
@@ -132,122 +135,150 @@ export default function InboxPage() {
     })
   }
 
-  useEffect(() => {
-    let isMounted = true
+  const loadInbox = useCallback(async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    setUserId(user.id)
 
-    async function loadInbox() {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
+    // Properties owned by this landlord (for the filter + name lookups)
+    const { data: props } = await supabase
+      .from("properties")
+      .select("id, name")
+      .eq("landlord_id", user.id)
+    const propertyNameMap = new Map<string, string>((props ?? []).map((p: any) => [p.id, p.name]))
 
-      // Properties owned by this landlord (for the filter + name lookups)
-      const { data: props } = await supabase
-        .from("properties")
-        .select("id, name")
-        .eq("landlord_id", user.id)
-      const propertyNameMap = new Map<string, string>((props ?? []).map((p: any) => [p.id, p.name]))
+    // Messages involving this user (messages table uses sender_id / recipient_id)
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("*")
+      .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+      .order("created_at", { ascending: true })
 
-      // Messages involving this user (messages table uses sender_id / recipient_id)
-      const { data: msgs } = await supabase
-        .from("messages")
-        .select("*")
-        .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
-        .order("created_at", { ascending: true })
+    // Maintenance requests for this landlord
+    const { data: requests } = await supabase
+      .from("maintenance_requests")
+      .select("*")
+      .eq("landlord_id", user.id)
+      .order("created_at", { ascending: false })
 
-      // Maintenance requests for this landlord
-      const { data: requests } = await supabase
-        .from("maintenance_requests")
-        .select("*")
-        .eq("landlord_id", user.id)
-        .order("created_at", { ascending: false })
+    // Collect every other-party / tenant id so we can resolve names in one query
+    const profileIds = new Set<string>()
+    ;(msgs ?? []).forEach((m: any) => {
+      const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
+      if (otherId) profileIds.add(otherId)
+    })
+    ;(requests ?? []).forEach((r: any) => {
+      if (r.tenant_id) profileIds.add(r.tenant_id)
+    })
 
-      // Collect every other-party / tenant id so we can resolve names in one query
-      const profileIds = new Set<string>()
-      ;(msgs ?? []).forEach((m: any) => {
-        const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
-        if (otherId) profileIds.add(otherId)
+    const profileNameMap = new Map<string, string>()
+    if (profileIds.size > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .in("id", Array.from(profileIds))
+      ;(profiles ?? []).forEach((p: any) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Unknown"
+        profileNameMap.set(p.id, name)
       })
-      ;(requests ?? []).forEach((r: any) => {
-        if (r.tenant_id) profileIds.add(r.tenant_id)
-      })
+    }
 
-      const profileNameMap = new Map<string, string>()
-      if (profileIds.size > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, first_name, last_name, email")
-          .in("id", Array.from(profileIds))
-        ;(profiles ?? []).forEach((p: any) => {
-          const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Unknown"
-          profileNameMap.set(p.id, name)
+    // Group messages into conversations keyed by the other participant
+    const convoMap = new Map<string, any>()
+    ;(msgs ?? []).forEach((m: any) => {
+      const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
+      if (!otherId) return
+      if (!convoMap.has(otherId)) {
+        convoMap.set(otherId, {
+          id: otherId,
+          recipientId: otherId,
+          propertyId: null,
+          tenant: profileNameMap.get(otherId) || "Unknown",
+          property: "",
+          unit: null,
+          lastMessage: "",
+          timestamp: "",
+          unread: false,
+          messages: [],
         })
       }
-
-      // Group messages into conversations keyed by the other participant
-      const convoMap = new Map<string, any>()
-      ;(msgs ?? []).forEach((m: any) => {
-        const otherId = m.sender_id === user.id ? m.recipient_id : m.sender_id
-        if (!otherId) return
-        if (!convoMap.has(otherId)) {
-          convoMap.set(otherId, {
-            id: otherId,
-            tenant: profileNameMap.get(otherId) || "Unknown",
-            property: "",
-            unit: null,
-            lastMessage: "",
-            timestamp: "",
-            unread: false,
-            messages: [],
-          })
-        }
-        const convo = convoMap.get(otherId)
-        convo.messages.push({
-          id: m.id,
-          sender: m.sender_id === user.id ? "landlord" : "tenant",
-          text: m.content,
-          timestamp: m.created_at ? formatDate(m.created_at) : "",
-        })
-        convo.lastMessage = m.content
-        convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
-        if (m.recipient_id === user.id && !m.read) convo.unread = true
+      const convo = convoMap.get(otherId)
+      const text = m.body ?? m.content ?? ""
+      convo.messages.push({
+        id: m.id,
+        sender: m.sender_id === user.id ? "landlord" : "tenant",
+        text,
+        timestamp: m.created_at ? formatDate(m.created_at) : "",
       })
-      const convos = Array.from(convoMap.values())
+      convo.lastMessage = text
+      convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
+      if (m.property_id) convo.propertyId = m.property_id
+      if (m.recipient_id === user.id && !m.read) convo.unread = true
+    })
+    const convos = Array.from(convoMap.values())
 
-      // Reshape maintenance requests for the existing UI
-      const mappedRequests = (requests ?? []).map((r: any) => ({
-        id: r.id,
-        title: r.title,
-        description: r.description ?? "",
-        category: r.category ?? "—",
-        priority: r.priority ?? "medium",
-        status: r.status ?? "open",
-        property_id: r.property_id,
-        property: r.property_id ? propertyNameMap.get(r.property_id) ?? "—" : "—",
-        unit: r.unit_id ?? null,
-        tenant: r.tenant_id ? profileNameMap.get(r.tenant_id) ?? "—" : "—",
-        submittedDate: r.created_at,
-        scheduledDate: r.scheduled_date ?? "",
-        scheduledTime: r.scheduled_time ?? "",
-        contractor: "",
-        notes: r.landlord_notes ?? "",
-      }))
+    // Reshape maintenance requests for the existing UI
+    const mappedRequests = (requests ?? []).map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description ?? "",
+      category: r.category ?? "—",
+      priority: r.priority ?? "medium",
+      status: r.status ?? "open",
+      property_id: r.property_id,
+      property: r.property_id ? propertyNameMap.get(r.property_id) ?? "—" : "—",
+      unit: r.unit_id ?? null,
+      tenant: r.tenant_id ? profileNameMap.get(r.tenant_id) ?? "—" : "—",
+      submittedDate: r.created_at,
+      scheduledDate: r.scheduled_date ?? "",
+      scheduledTime: r.scheduled_time ?? "",
+      contractor: "",
+      notes: r.landlord_notes ?? "",
+    }))
 
-      if (!isMounted) return
-      setDbProperties(props ?? [])
-      setConversations(convos)
-      setMaintenanceRequests(mappedRequests)
-      setSelectedConversation(convos[0] ?? null)
-      setSelectedRequest(mappedRequests[0] ?? null)
-    }
-
-    loadInbox()
-
-    return () => {
-      isMounted = false
-    }
+    setDbProperties(props ?? [])
+    setConversations(convos)
+    setMaintenanceRequests(mappedRequests)
+    // Preserve the currently selected conversation across refreshes
+    setSelectedConversation((prev: any) =>
+      prev ? convos.find((c) => c.id === prev.id) ?? convos[0] ?? null : convos[0] ?? null
+    )
+    setSelectedRequest((prev: any) =>
+      prev ? mappedRequests.find((r) => r.id === prev.id) ?? mappedRequests[0] ?? null : mappedRequests[0] ?? null
+    )
   }, [])
+
+  useEffect(() => {
+    loadInbox()
+  }, [loadInbox])
+
+  const handleSendMessage = async () => {
+    const text = messageInput.trim()
+    if (!text || sending) return
+    if (!userId || !selectedConversation?.recipientId) {
+      toast.error("Unable to send message: no recipient selected.")
+      return
+    }
+    setSending(true)
+    const supabase = createClient()
+    const { error } = await supabase.from("messages").insert({
+      sender_id: userId,
+      recipient_id: selectedConversation.recipientId,
+      body: text,
+      ...(selectedConversation.propertyId ? { property_id: selectedConversation.propertyId } : {}),
+    })
+    setSending(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setMessageInput("")
+    toast.success("Message sent")
+    loadInbox()
+  }
 
   const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
 
@@ -406,6 +437,12 @@ export default function InboxPage() {
                       placeholder="Type a message..."
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSendMessage()
+                        }
+                      }}
                       className="flex-1 border-sage"
                     />
                     <DropdownMenu>
@@ -424,7 +461,11 @@ export default function InboxPage() {
                         ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={sending || !messageInput.trim()}
+                      className="bg-teal hover:bg-teal-dark text-white"
+                    >
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
