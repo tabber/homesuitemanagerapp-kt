@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import {
   Home,
   Building2,
@@ -73,6 +74,12 @@ export default function PropertiesPage() {
   const [propertyPayments, setPropertyPayments] = useState<any[]>([])
   const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
 
+  // Messages tab data
+  const [userId, setUserId] = useState<string | null>(null)
+  const [propertyMessages, setPropertyMessages] = useState<any[]>([])
+  const [messageInput, setMessageInput] = useState("")
+  const [sendingMessage, setSendingMessage] = useState(false)
+
   useEffect(() => {
     let isMounted = true
 
@@ -83,6 +90,8 @@ export default function PropertiesPage() {
       } = await supabase.auth.getUser()
 
       if (!user) return
+
+      if (isMounted) setUserId(user.id)
 
       const { data } = await supabase
         .from("properties")
@@ -209,6 +218,69 @@ export default function PropertiesPage() {
       isMounted = false
     }
   }, [selectedPropertyId])
+
+  const loadPropertyMessages = useCallback(async () => {
+    if (!selectedPropertyId) {
+      setPropertyMessages([])
+      return
+    }
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("property_id", selectedPropertyId)
+      .order("created_at", { ascending: true })
+    setPropertyMessages(data ?? [])
+  }, [selectedPropertyId])
+
+  useEffect(() => {
+    setPropertyMessages([])
+    loadPropertyMessages()
+  }, [loadPropertyMessages])
+
+  const handleSendMessage = async () => {
+    const text = messageInput.trim()
+    if (!text || sendingMessage) return
+    if (!userId) {
+      toast.error("You must be signed in to send a message.")
+      return
+    }
+    setSendingMessage(true)
+    const supabase = createClient()
+
+    // Recipient is the tenant on the active lease for this property
+    const { data: lease } = await supabase
+      .from("leases")
+      .select("tenant_id")
+      .eq("property_id", selectedPropertyId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle()
+
+    if (!lease?.tenant_id) {
+      setSendingMessage(false)
+      toast.error("No active tenant found for this property.")
+      return
+    }
+
+    const { error } = await supabase.from("messages").insert({
+      sender_id: userId,
+      recipient_id: lease.tenant_id,
+      property_id: selectedPropertyId,
+      body: text,
+    })
+
+    setSendingMessage(false)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setMessageInput("")
+    toast.success("Message sent")
+    loadPropertyMessages()
+  }
 
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = selectedProperty?.type === "apartment" ?? false
@@ -527,11 +599,59 @@ const selectedUnit = isApartment && selectedUnitId
                         <p className="text-sm text-text-muted">{property.name}</p>
                       </div>
                     </div>
-                    <div className="h-64 flex items-center justify-center text-text-muted">
-                      <p>No messages yet. Start a conversation with your tenant.</p>
+                    <div className="h-64 overflow-y-auto">
+                      {propertyMessages.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-text-muted">
+                          <p>No messages yet. Start a conversation with your tenant.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 py-2">
+                          {propertyMessages.map((msg: any) => {
+                            const isLandlord = msg.sender_id === userId
+                            return (
+                              <div
+                                key={msg.id}
+                                className={cn("flex", isLandlord ? "justify-end" : "justify-start")}
+                              >
+                                <div
+                                  className={cn(
+                                    "max-w-[75%] rounded-lg px-4 py-2 text-sm",
+                                    isLandlord
+                                      ? "bg-teal text-white"
+                                      : "bg-sage/30 text-navy"
+                                  )}
+                                >
+                                  <p>{msg.body}</p>
+                                  {msg.created_at && (
+                                    <p
+                                      className={cn(
+                                        "text-xs mt-1",
+                                        isLandlord ? "text-white/70" : "text-text-muted"
+                                      )}
+                                    >
+                                      {formatDate(msg.created_at)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 pt-4 border-t border-sage/30">
-                      <Input placeholder="Type a message..." className="flex-1 border-sage" />
+                      <Input
+                        placeholder="Type a message..."
+                        className="flex-1 border-sage"
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault()
+                            handleSendMessage()
+                          }
+                        }}
+                      />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" className="border-navy/20 text-navy" disabled>
@@ -545,7 +665,13 @@ const selectedUnit = isApartment && selectedUnitId
                           <DropdownMenuItem>Lease Renewal Notice</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <Button className="bg-teal hover:bg-teal-dark text-white">Send</Button>
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={sendingMessage || !messageInput.trim()}
+                        className="bg-teal hover:bg-teal-dark text-white"
+                      >
+                        Send
+                      </Button>
                     </div>
                   </div>
                 ) : (
