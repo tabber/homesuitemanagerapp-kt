@@ -302,20 +302,21 @@ const selectedUnit = isApartment && selectedUnitId
     }).format(amount)
   }
 
-  // Single unit property view
-  const SingleUnitView = () => {
-    const property = selectedProperty as any
-    const lease = activeLease
-    const tenant = tenantProfile
-    const payments = propertyPayments
-    const maintenance = propertyMaintenance
-    const tenantName =
-      [tenant?.first_name, tenant?.last_name].filter(Boolean).join(" ").trim() ||
-      lease?.tenant_name ||
-      ""
-    const openRequestsCount = maintenance.filter((m: any) => m.status === "open").length
+  // Single unit property view — JSX built inline (not a nested component) so it
+  // is not redefined on each render and uses the parent's state/hooks directly.
+  const property = selectedProperty as any
+  const lease = activeLease
+  const tenant = tenantProfile
+  const payments = propertyPayments
+  const maintenance = propertyMaintenance
+  const tenantName =
+    [tenant?.first_name, tenant?.last_name].filter(Boolean).join(" ").trim() ||
+    lease?.tenant_name ||
+    ""
+  const openRequestsCount = maintenance.filter((m: any) => m.status === "open").length
 
-    return (
+  const singleUnitView =
+    selectedProperty && !isApartment ? (
       <div className="space-y-6">
         {/* Property Header Card */}
         <Card className="border-sage/50">
@@ -686,8 +687,7 @@ const selectedUnit = isApartment && selectedUnitId
           </TabsContent>
         </Tabs>
       </div>
-    )
-  }
+    ) : null
 
   // Multi-unit building view
   const MultiUnitBuildingView = () => {
@@ -1207,7 +1207,7 @@ const selectedUnit = isApartment && selectedUnitId
       </div>
 
       {/* Content */}
-     {selectedProperty ? (isApartment ? <MultiUnitBuildingView /> : <SingleUnitView />) : <div className="p-6 text-text-muted">Loading properties...</div>}
+     {selectedProperty ? (isApartment ? <MultiUnitBuildingView /> : singleUnitView) : <div className="p-6 text-text-muted">Loading properties...</div>}
     </div>
   )
 }
