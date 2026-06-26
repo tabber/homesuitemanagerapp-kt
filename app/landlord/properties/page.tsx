@@ -492,7 +492,7 @@ const selectedUnit = isApartment && selectedUnitId
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <Table>
                       {payments.map((payment: any) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium text-navy">{tenantName || "—"}</TableCell>
@@ -502,7 +502,7 @@ const selectedUnit = isApartment && selectedUnitId
                           <TableCell><StatusBadge status={payment.status} /></TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
+                    </Table>
                   </Table>
                 ) : (
                   <EmptyState
@@ -564,7 +564,7 @@ const selectedUnit = isApartment && selectedUnitId
                         <TableHead>Date</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <Table>
                       {maintenance.map((request: any) => (
                         <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
                           <TableCell className="font-medium text-navy">{request.title}</TableCell>
@@ -573,7 +573,7 @@ const selectedUnit = isApartment && selectedUnitId
                           <TableCell>{formatDate(request.created_at)}</TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>
+                    </Table>
                   </Table>
                 ) : (
                   <EmptyState
@@ -622,7 +622,7 @@ const selectedUnit = isApartment && selectedUnitId
                                       : "bg-sage/30 text-navy"
                                   )}
                                 >
-                                  <p>{msg.body}</p>
+                                  <p>{msg.content}/p>
                                   {msg.created_at && (
                                     <p
                                       className={cn(
