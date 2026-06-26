@@ -718,7 +718,7 @@ const selectedUnit = isApartment && selectedUnitId
                                       : "bg-sage/30 text-navy"
                                   )}
                                 >
-                                  <p>{msg.content}</p>
+                                  <p>{msg.content} </p>
                                   {msg.created_at && (
                                     <p
                                       className={cn(
