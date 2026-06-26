@@ -40,6 +40,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
@@ -50,6 +59,36 @@ import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
 
 // Live data is fetched from Supabase inside the component
+
+const CANADIAN_PROVINCES = [
+  { value: "AB", label: "Alberta" },
+  { value: "BC", label: "British Columbia" },
+  { value: "MB", label: "Manitoba" },
+  { value: "NB", label: "New Brunswick" },
+  { value: "NL", label: "Newfoundland and Labrador" },
+  { value: "NS", label: "Nova Scotia" },
+  { value: "NT", label: "Northwest Territories" },
+  { value: "NU", label: "Nunavut" },
+  { value: "ON", label: "Ontario" },
+  { value: "PE", label: "Prince Edward Island" },
+  { value: "QC", label: "Quebec" },
+  { value: "SK", label: "Saskatchewan" },
+  { value: "YT", label: "Yukon" },
+]
+
+const PROPERTY_TYPES = [
+  { value: "house", label: "House" },
+  { value: "condo", label: "Condo" },
+  { value: "townhouse", label: "Townhouse" },
+  { value: "studio", label: "Studio" },
+  { value: "building", label: "Building" },
+]
+
+const PROPERTY_STATUSES = [
+  { value: "vacant", label: "Vacant" },
+  { value: "occupied", label: "Occupied" },
+  { value: "maintenance", label: "Maintenance" },
+]
 
 export default function PropertiesPage() {
   const router = useRouter()
@@ -80,39 +119,46 @@ export default function PropertiesPage() {
   const [messageInput, setMessageInput] = useState("")
   const [sendingMessage, setSendingMessage] = useState(false)
 
-  useEffect(() => {
-    let isMounted = true
+  // Edit Property/Building modal
+  const [editOpen, setEditOpen] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    property_type: "",
+    address: "",
+    city: "",
+    province: "",
+    postal_code: "",
+    status: "",
+  })
 
-    async function loadProperties() {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+  const loadProperties = useCallback(async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-      if (!user) return
+    if (!user) return
 
-      if (isMounted) setUserId(user.id)
+    setUserId(user.id)
 
-      const { data } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("landlord_id", user.id)
-        .order("created_at", { ascending: true })
+    const { data } = await supabase
+      .from("properties")
+      .select("*")
+      .eq("landlord_id", user.id)
+      .order("created_at", { ascending: true })
 
-      if (isMounted && data) {
-        setDbProperties(data as Property[])
-        if (data.length > 0) {
-          setSelectedPropertyId(data[0].id)
-        }
-      }
-    }
-
-    loadProperties()
-
-    return () => {
-      isMounted = false
+    if (data) {
+      setDbProperties(data as Property[])
+      // Keep the current selection on refresh; only default on first load
+      setSelectedPropertyId((prev) => prev || (data.length > 0 ? data[0].id : ""))
     }
   }, [])
+
+  useEffect(() => {
+    loadProperties()
+  }, [loadProperties])
 
   useEffect(() => {
     let isMounted = true
@@ -302,6 +348,49 @@ const selectedUnit = isApartment && selectedUnitId
     }).format(amount)
   }
 
+  const openEditModal = () => {
+    const p = selectedProperty as any
+    if (!p) return
+    setEditForm({
+      name: p.name ?? "",
+      description: p.description ?? "",
+      property_type: p.property_type ?? "",
+      address: p.address ?? "",
+      city: p.city ?? "",
+      province: p.province ?? "",
+      postal_code: p.postal_code ?? "",
+      status: p.status ?? "",
+    })
+    setEditOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selectedPropertyId || savingEdit) return
+    setSavingEdit(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("properties")
+      .update({
+        name: editForm.name,
+        description: editForm.description,
+        property_type: editForm.property_type,
+        address: editForm.address,
+        city: editForm.city,
+        province: editForm.province,
+        postal_code: editForm.postal_code,
+        status: editForm.status,
+      })
+      .eq("id", selectedPropertyId)
+    setSavingEdit(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Property updated")
+    setEditOpen(false)
+    loadProperties()
+  }
+
   // Single unit property view — JSX built inline (not a nested component) so it
   // is not redefined on each render and uses the parent's state/hooks directly.
   const property = selectedProperty as any
@@ -314,6 +403,9 @@ const selectedUnit = isApartment && selectedUnitId
     lease?.tenant_name ||
     ""
   const openRequestsCount = maintenance.filter((m: any) => m.status === "open").length
+  // Occupancy is derived: an active lease means the property is occupied,
+  // otherwise fall back to the stored status.
+  const derivedStatus = activeLease ? "occupied" : (selectedProperty as any)?.status
 
   const singleUnitView =
     selectedProperty && !isApartment ? (
@@ -329,12 +421,16 @@ const selectedUnit = isApartment && selectedUnitId
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-xl font-medium text-navy">{property.name}</h2>
-                    <StatusBadge status={property.status} />
+                    <StatusBadge status={derivedStatus} />
                   </div>
                   <p className="text-sm text-text-muted mt-1">{property.address}</p>
                 </div>
               </div>
-              <Button variant="outline" className="border-navy/20 text-navy hover:bg-navy/5">
+              <Button
+                variant="outline"
+                className="border-navy/20 text-navy hover:bg-navy/5"
+                onClick={openEditModal}
+              >
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit Property
               </Button>
@@ -915,12 +1011,16 @@ const selectedUnit = isApartment && selectedUnitId
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-xl font-medium text-navy">{property.name}</h2>
-                    <StatusBadge status={property.status} />
+                    <StatusBadge status={derivedStatus} />
                   </div>
                   <p className="text-sm text-text-muted mt-1">{property.address}</p>
                 </div>
               </div>
-              <Button variant="outline" className="border-navy/20 text-navy hover:bg-navy/5">
+              <Button
+                variant="outline"
+                className="border-navy/20 text-navy hover:bg-navy/5"
+                onClick={openEditModal}
+              >
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit Building
               </Button>
@@ -1208,6 +1308,137 @@ const selectedUnit = isApartment && selectedUnitId
 
       {/* Content */}
      {selectedProperty ? (isApartment ? <MultiUnitBuildingView /> : singleUnitView) : <div className="p-6 text-text-muted">Loading properties...</div>}
+
+      {/* Edit Property / Building Modal */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Edit Property</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-navy">Name</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                className="border-sage"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description" className="text-navy">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                className="border-sage"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-navy">Property Type</Label>
+              <Select
+                value={editForm.property_type}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, property_type: v }))}
+              >
+                <SelectTrigger className="border-sage">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROPERTY_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-address" className="text-navy">Address</Label>
+              <Input
+                id="edit-address"
+                value={editForm.address}
+                onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                className="border-sage"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-city" className="text-navy">City</Label>
+                <Input
+                  id="edit-city"
+                  value={editForm.city}
+                  onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+                  className="border-sage"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-postal" className="text-navy">Postal Code</Label>
+                <Input
+                  id="edit-postal"
+                  value={editForm.postal_code}
+                  onChange={(e) => setEditForm((f) => ({ ...f, postal_code: e.target.value }))}
+                  className="border-sage"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-navy">Province</Label>
+                <Select
+                  value={editForm.province}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, province: v }))}
+                >
+                  <SelectTrigger className="border-sage">
+                    <SelectValue placeholder="Select province" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CANADIAN_PROVINCES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-navy">Status</Label>
+                <Select
+                  value={editForm.status}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}
+                >
+                  <SelectTrigger className="border-sage">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROPERTY_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-navy/20 text-navy hover:bg-navy/5"
+              onClick={() => setEditOpen(false)}
+              disabled={savingEdit}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-teal hover:bg-teal-dark text-white"
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+            >
+              {savingEdit ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
