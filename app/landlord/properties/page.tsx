@@ -267,7 +267,7 @@ export default function PropertiesPage() {
       sender_id: userId,
       recipient_id: lease.tenant_id,
       property_id: selectedPropertyId,
-      body: text,
+      content: text,
     })
 
     setSendingMessage(false)
