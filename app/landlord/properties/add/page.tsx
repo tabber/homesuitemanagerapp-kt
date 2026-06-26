@@ -309,7 +309,6 @@ const handleSubmit = async () => {
           for (let i = 0; i < floorUnit.count; i++) {
             unitRows.push({
               property_id: newProperty.id,
-              landlord_id: user.id,
               unit_number: `${floor.number}${String(unitNum).padStart(2, "0")}`,
               floor: floor.number,
               bedrooms: unitType ? unitType.bedrooms : null,
