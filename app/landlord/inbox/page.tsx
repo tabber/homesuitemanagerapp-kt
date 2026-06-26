@@ -267,7 +267,7 @@ export default function InboxPage() {
     const { error } = await supabase.from("messages").insert({
       sender_id: userId,
       recipient_id: selectedConversation.recipientId,
-      body: text,
+     content: text,
       ...(selectedConversation.propertyId ? { property_id: selectedConversation.propertyId } : {}),
     })
     setSending(false)
