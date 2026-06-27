@@ -43,6 +43,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog"
