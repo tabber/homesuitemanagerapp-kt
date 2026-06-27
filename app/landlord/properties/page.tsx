@@ -426,6 +426,7 @@ const selectedUnit = isApartment && selectedUnitId
                   <p className="text-sm text-text-muted mt-1">{property.address}</p>
                 </div>
               </div>
+               <div className="flex gap-2">          
               <Button
                 variant="outline"
                 className="border-navy/20 text-navy hover:bg-navy/5"
@@ -444,7 +445,7 @@ const selectedUnit = isApartment && selectedUnitId
             </div>
           </CardContent>
         </Card>
-
+</div> 
         {/* Stats Row */}
         <div className="grid grid-cols-4 gap-4">
           <StatCard
