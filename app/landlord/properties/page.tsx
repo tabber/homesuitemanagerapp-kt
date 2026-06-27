@@ -44,7 +44,7 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
-  DialogHeader,
+  Dialog,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
@@ -410,7 +410,7 @@ const selectedUnit = isApartment && selectedUnitId
   const singleUnitView =
     selectedProperty && !isApartment ? (
       <div className="space-y-6">
-        {/* Property Header Card */}
+        {/* Property  Card */}
         <Card className="border-sage/50">
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
@@ -433,6 +433,13 @@ const selectedUnit = isApartment && selectedUnitId
               >
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit Property
+              </Button>
+              <Button
+                onClick={() => router.push("/landlord/leases/create")}
+                className="bg-teal hover:bg-teal-dark text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Lease
               </Button>
             </div>
           </CardContent>
