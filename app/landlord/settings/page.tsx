@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
 import {
   Plus,
   Pencil,
@@ -82,12 +84,72 @@ export default function SettingsPage() {
   
   // Account Information
   const [accountForm, setAccountForm] = useState({
-    firstName: "John",
-    lastName: "Smith",
-    email: "john.smith@email.com",
-    phone: "(604) 555-1234",
-    company: "Smith Properties",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    company: "",
   })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [savingAccount, setSavingAccount] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadAccount() {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email, phone, company_name")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      if (!isMounted) return
+      setUserId(user.id)
+      setAccountForm({
+        firstName: data?.first_name ?? "",
+        lastName: data?.last_name ?? "",
+        email: data?.email ?? user.email ?? "",
+        phone: data?.phone ?? "",
+        company: data?.company_name ?? "",
+      })
+    }
+
+    loadAccount()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const handleSaveAccount = async () => {
+    if (!userId) {
+      toast.error("You must be signed in to update your account.")
+      return
+    }
+    setSavingAccount(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        first_name: accountForm.firstName,
+        last_name: accountForm.lastName,
+        phone: accountForm.phone,
+        company_name: accountForm.company,
+      })
+      .eq("id", userId)
+    setSavingAccount(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Account information updated")
+  }
 
   // Payment Settings
   const [paymentForm, setPaymentForm] = useState({
@@ -253,8 +315,12 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            <Button className="bg-teal hover:bg-teal-dark text-white">
-              Save Changes
+            <Button
+              onClick={handleSaveAccount}
+              disabled={savingAccount}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {savingAccount ? "Saving..." : "Save Changes"}
             </Button>
           </CardContent>
         </Card>
