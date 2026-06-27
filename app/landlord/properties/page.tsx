@@ -113,11 +113,7 @@ export default function PropertiesPage() {
   const [propertyPayments, setPropertyPayments] = useState<any[]>([])
   const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
 
-  // Messages tab data
   const [userId, setUserId] = useState<string | null>(null)
-  const [propertyMessages, setPropertyMessages] = useState<any[]>([])
-  const [messageInput, setMessageInput] = useState("")
-  const [sendingMessage, setSendingMessage] = useState(false)
 
   // Edit Property/Building modal
   const [editOpen, setEditOpen] = useState(false)
@@ -265,69 +261,6 @@ export default function PropertiesPage() {
     }
   }, [selectedPropertyId])
 
-  const loadPropertyMessages = useCallback(async () => {
-    if (!selectedPropertyId) {
-      setPropertyMessages([])
-      return
-    }
-    const supabase = createClient()
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("property_id", selectedPropertyId)
-      .order("created_at", { ascending: true })
-    setPropertyMessages(data ?? [])
-  }, [selectedPropertyId])
-
-  useEffect(() => {
-    setPropertyMessages([])
-    loadPropertyMessages()
-  }, [loadPropertyMessages])
-
-  const handleSendMessage = async () => {
-    const text = messageInput.trim()
-    if (!text || sendingMessage) return
-    if (!userId) {
-      toast.error("You must be signed in to send a message.")
-      return
-    }
-    setSendingMessage(true)
-    const supabase = createClient()
-
-    // Recipient is the tenant on the active lease for this property
-    const { data: lease } = await supabase
-      .from("leases")
-      .select("tenant_id")
-      .eq("property_id", selectedPropertyId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle()
-
-    if (!lease?.tenant_id) {
-      setSendingMessage(false)
-      toast.error("No active tenant found for this property.")
-      return
-    }
-
-    const { error } = await supabase.from("messages").insert({
-      sender_id: userId,
-      recipient_id: lease.tenant_id,
-      property_id: selectedPropertyId,
-      content: text,
-    })
-
-    setSendingMessage(false)
-
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    setMessageInput("")
-    toast.success("Message sent")
-    loadPropertyMessages()
-  }
-
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = selectedProperty?.type === "apartment" ?? false
 const selectedUnit = isApartment && selectedUnitId
@@ -474,7 +407,6 @@ const selectedUnit = isApartment && selectedUnitId
             <TabsTrigger value="tenant" className="data-[state=active]:bg-white data-[state=active]:text-navy">Tenant</TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
             <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
-            <TabsTrigger value="messages" className="data-[state=active]:bg-white data-[state=active]:text-navy">Messages</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lease" className="mt-6">
