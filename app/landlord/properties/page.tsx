@@ -378,7 +378,7 @@ const selectedUnit = isApartment && selectedUnitId
             </div>
           </CardContent>
         </Card>
-</div> 
+
         {/* Stats Row */}
         <div className="grid grid-cols-4 gap-4">
           <StatCard
