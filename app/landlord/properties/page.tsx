@@ -376,6 +376,7 @@ const selectedUnit = isApartment && selectedUnitId
                 Create Lease
               </Button>
             </div>
+            </div>
           </CardContent>
         </Card>
 
