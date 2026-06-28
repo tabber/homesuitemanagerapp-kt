@@ -220,7 +220,8 @@ export default function AddPropertyPage() {
       handleSubmit()
     }
   }
-const handleSubmit = async () => {
+
+  const handleSubmit = async () => {
     const supabase = createClient()
     const {
       data: { user },
@@ -268,66 +269,29 @@ const handleSubmit = async () => {
             total_floors: String(multiForm.totalFloors),
           }
 
-    // Insert the property and get the new row's id back
-    const { data: newProperty, error } = await supabase
-      .from("properties")
-      .insert({
-        landlord_id: user.id,
-        name: formData.name,
-        property_type: formData.property_type,
-        status: formData.status || "vacant",
-        address: formData.address,
-        city: formData.city,
-        province: formData.province,
-        postal_code: formData.postal_code,
-        country: "Canada",
-        description: formData.description,
-        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
-        bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
-        square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
-        rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
-        deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
-        total_units: formData.total_units ? parseInt(formData.total_units) : null,
-        total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
-      })
-      .select()
-      .single()
+    const { error } = await supabase.from("properties").insert({
+      landlord_id: user.id,
+      name: formData.name,
+      property_type: formData.property_type,
+      status: formData.status || "vacant",
+      address: formData.address,
+      city: formData.city,
+      province: formData.province,
+      postal_code: formData.postal_code,
+      country: "Canada",
+      description: formData.description,
+      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
+      square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
+      rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
+      deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
+      total_units: formData.total_units ? parseInt(formData.total_units) : null,
+      total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
+    })
 
     if (error) {
       toast.error(error.message)
       return
-    }
-
-    // For multi-unit buildings, also create the individual unit rows
-    if (propertyType === "multi" && newProperty) {
-      const unitRows: any[] = []
-
-      multiForm.floors.forEach((floor) => {
-        let unitNum = 1
-        floor.units.forEach((floorUnit) => {
-          const unitType = multiForm.unitTypes.find((ut) => ut.id === floorUnit.unitTypeId)
-          for (let i = 0; i < floorUnit.count; i++) {
-            unitRows.push({
-              property_id: newProperty.id,
-              unit_number: `${floor.number}${String(unitNum).padStart(2, "0")}`,
-              floor: floor.number,
-              bedrooms: unitType ? unitType.bedrooms : null,
-              bathrooms: unitType ? unitType.bathrooms : null,
-              rent_amount: unitType ? unitType.rent : null,
-              status: "vacant",
-            })
-            unitNum++
-          }
-        })
-      })
-
-      if (unitRows.length > 0) {
-        const { error: unitsError } = await supabase.from("units").insert(unitRows)
-        if (unitsError) {
-          toast.error(`Property created, but units failed: ${unitsError.message}`)
-          return
-        }
-      }
     }
 
     router.push("/landlord/properties")
