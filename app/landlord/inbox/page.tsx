@@ -127,6 +127,15 @@ export default function InboxPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
 
+  // Compose (new message) modal
+  const [showComposeModal, setShowComposeModal] = useState(false)
+  const [composeMode, setComposeMode] = useState<"tenant" | "property" | "all">("tenant")
+  const [composeTenantId, setComposeTenantId] = useState("")
+  const [composePropertyId, setComposePropertyId] = useState("")
+  const [composeText, setComposeText] = useState("")
+  const [composeSending, setComposeSending] = useState(false)
+  const [activeLeases, setActiveLeases] = useState<any[]>([])
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
       year: "numeric",
@@ -280,6 +289,115 @@ export default function InboxPage() {
     loadInbox()
   }
 
+  // Load this landlord's active leases (tenant + property + lease id) for the compose modal
+  const loadActiveLeases = async () => {
+    if (!userId) return
+    const supabase = createClient()
+    const { data: leases } = await supabase
+      .from("leases")
+      .select("id, tenant_id, tenant_name, property_id")
+      .eq("landlord_id", userId)
+      .eq("status", "active")
+    const rows = (leases ?? []).filter((l: any) => l.tenant_id)
+
+    // Resolve names for leases that don't carry a tenant_name
+    const missing = rows.filter((r: any) => !r.tenant_name).map((r: any) => r.tenant_id)
+    const nameMap = new Map<string, string>()
+    if (missing.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .in("id", missing)
+      ;(profs ?? []).forEach((p: any) => {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || "Tenant"
+        nameMap.set(p.id, name)
+      })
+    }
+
+    setActiveLeases(
+      rows.map((r: any) => ({
+        leaseId: r.id,
+        tenantId: r.tenant_id,
+        tenantName: r.tenant_name || nameMap.get(r.tenant_id) || "Tenant",
+        propertyId: r.property_id,
+      }))
+    )
+  }
+
+  const openCompose = () => {
+    setComposeMode("tenant")
+    setComposeTenantId("")
+    setComposePropertyId("")
+    setComposeText("")
+    loadActiveLeases()
+    setShowComposeModal(true)
+  }
+
+  const handleComposeSend = async () => {
+    const text = composeText.trim()
+    if (!text || composeSending) return
+    if (!userId) {
+      toast.error("You must be signed in to send a message.")
+      return
+    }
+
+    // Resolve recipients based on the selected mode
+    let targets: { tenantId: string; leaseId: string }[] = []
+    if (composeMode === "tenant") {
+      if (!composeTenantId) {
+        toast.error("Please select a tenant.")
+        return
+      }
+      const lease = activeLeases.find((l) => l.tenantId === composeTenantId)
+      if (lease) targets = [{ tenantId: lease.tenantId, leaseId: lease.leaseId }]
+    } else if (composeMode === "property") {
+      if (!composePropertyId) {
+        toast.error("Please select a property.")
+        return
+      }
+      targets = activeLeases
+        .filter((l) => l.propertyId === composePropertyId)
+        .map((l) => ({ tenantId: l.tenantId, leaseId: l.leaseId }))
+    } else {
+      targets = activeLeases.map((l) => ({ tenantId: l.tenantId, leaseId: l.leaseId }))
+    }
+
+    // Skip duplicate recipients
+    const seen = new Set<string>()
+    targets = targets.filter((t) => {
+      if (!t.tenantId || seen.has(t.tenantId)) return false
+      seen.add(t.tenantId)
+      return true
+    })
+
+    if (targets.length === 0) {
+      toast.error("No active tenants found for this selection.")
+      return
+    }
+
+    setComposeSending(true)
+    const supabase = createClient()
+    const { error } = await supabase.from("messages").insert(
+      targets.map((t) => ({
+        sender_id: userId,
+        recipient_id: t.tenantId,
+        content: text,
+        lease_id: t.leaseId,
+      }))
+    )
+    setComposeSending(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`Message sent to ${targets.length} tenant(s)`)
+    setShowComposeModal(false)
+    setComposeText("")
+    setComposeTenantId("")
+    setComposePropertyId("")
+    loadInbox()
+  }
+
   const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
 
   const unreadMessages = conversations.filter((c) => c.unread).length
@@ -336,9 +454,112 @@ export default function InboxPage() {
 
         {/* Messages Tab */}
         <TabsContent value="messages" className="h-[calc(100%-3rem)] mt-0">
+          <Dialog open={showComposeModal} onOpenChange={setShowComposeModal}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-navy">New Message</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label className="text-navy">To</Label>
+                  <Select
+                    value={composeMode}
+                    onValueChange={(v) => setComposeMode(v as "tenant" | "property" | "all")}
+                  >
+                    <SelectTrigger className="border-sage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tenant">Specific tenant</SelectItem>
+                      <SelectItem value="property">Property / building</SelectItem>
+                      <SelectItem value="all">All tenants</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {composeMode === "tenant" && (
+                  <div className="space-y-2">
+                    <Label className="text-navy">Tenant</Label>
+                    <Select value={composeTenantId} onValueChange={setComposeTenantId}>
+                      <SelectTrigger className="border-sage">
+                        <SelectValue placeholder="Select a tenant" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeLeases.length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-text-muted">No active tenants</div>
+                        )}
+                        {activeLeases.map((l) => (
+                          <SelectItem key={l.leaseId} value={l.tenantId}>
+                            {l.tenantName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {composeMode === "property" && (
+                  <div className="space-y-2">
+                    <Label className="text-navy">Property</Label>
+                    <Select value={composePropertyId} onValueChange={setComposePropertyId}>
+                      <SelectTrigger className="border-sage">
+                        <SelectValue placeholder="Select a property" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dbProperties.length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-text-muted">No properties</div>
+                        )}
+                        {dbProperties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label className="text-navy">Message</Label>
+                  <Textarea
+                    value={composeText}
+                    onChange={(e) => setComposeText(e.target.value)}
+                    placeholder="Type your message..."
+                    className="border-sage min-h-28"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  className="border-navy/20 text-navy hover:bg-navy/5"
+                  onClick={() => setShowComposeModal(false)}
+                  disabled={composeSending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleComposeSend}
+                  disabled={composeSending || !composeText.trim()}
+                  className="bg-teal hover:bg-teal-dark text-white"
+                >
+                  {composeSending ? "Sending..." : "Send"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <div className="flex gap-4 h-full">
             {/* Conversation List */}
             <Card className="w-80 border-sage/50 flex flex-col">
+              <div className="p-3 border-b border-sage/20">
+                <Button
+                  onClick={openCompose}
+                  className="w-full bg-teal hover:bg-teal-dark text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Compose
+                </Button>
+              </div>
               <CardContent className="p-0 flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
                   {conversations.length === 0 && (
