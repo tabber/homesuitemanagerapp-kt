@@ -71,14 +71,6 @@ interface Contractor {
   preferred: boolean
 }
 
-const initialContractors: Contractor[] = [
-  { id: "1", name: "Joe's Plumbing", category: "Plumbing", phone: "(604) 555-0101", email: "joe@joesplumbing.com", website: "", notes: "Available 24/7 for emergencies", preferred: true },
-  { id: "2", name: "Cool Air HVAC Services", category: "HVAC", phone: "(604) 555-0201", email: "service@coolair.ca", website: "coolair.ca", notes: "", preferred: true },
-  { id: "3", name: "Bright Spark Electric", category: "Electrical", phone: "(604) 555-0301", email: "", website: "", notes: "", preferred: false },
-  { id: "4", name: "Appliance Pros", category: "Appliance", phone: "(604) 555-0401", email: "info@appliancepros.ca", website: "", notes: "Good rates for multiple units", preferred: true },
-  { id: "5", name: "Handy Dan's Services", category: "General Handyman", phone: "(604) 555-0501", email: "", website: "", notes: "", preferred: false },
-]
-
 export default function SettingsPage() {
   const router = useRouter()
   
@@ -158,9 +150,10 @@ export default function SettingsPage() {
   })
 
   // Contractors
-  const [contractors, setContractors] = useState<Contractor[]>(initialContractors)
+  const [contractors, setContractors] = useState<Contractor[]>([])
   const [showContractorModal, setShowContractorModal] = useState(false)
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null)
+  const [savingContractor, setSavingContractor] = useState(false)
   const [contractorForm, setContractorForm] = useState({
     name: "",
     category: "",
@@ -170,6 +163,40 @@ export default function SettingsPage() {
     notes: "",
     preferred: false,
   })
+
+  const loadContractors = async (uid?: string) => {
+    const supabase = createClient()
+    let ownerId = uid ?? userId
+    if (!ownerId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      ownerId = user.id
+    }
+    const { data } = await supabase
+      .from("contractors")
+      .select("id, name, category, phone, email, website, notes, preferred")
+      .eq("landlord_id", ownerId)
+      .order("name", { ascending: true })
+    setContractors(
+      (data ?? []).map((c: any) => ({
+        id: c.id,
+        name: c.name ?? "",
+        category: c.category ?? "",
+        phone: c.phone ?? "",
+        email: c.email ?? "",
+        website: c.website ?? "",
+        notes: c.notes ?? "",
+        preferred: c.preferred ?? false,
+      }))
+    )
+  }
+
+  useEffect(() => {
+    loadContractors()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Notifications
   const [notifications, setNotifications] = useState({
@@ -227,30 +254,74 @@ export default function SettingsPage() {
     setShowContractorModal(true)
   }
 
-  const handleSaveContractor = () => {
-    if (editingContractor) {
-      setContractors(contractors.map(c => 
-        c.id === editingContractor.id 
-          ? { ...c, ...contractorForm }
-          : c
-      ))
-    } else {
-      setContractors([...contractors, { 
-        id: String(Date.now()), 
-        ...contractorForm 
-      }])
+  const handleSaveContractor = async () => {
+    if (savingContractor) return
+    if (!contractorForm.name.trim() || !contractorForm.category || !contractorForm.phone.trim()) {
+      toast.error("Name, category, and phone are required.")
+      return
     }
+    if (!userId) {
+      toast.error("You must be signed in to manage contractors.")
+      return
+    }
+    setSavingContractor(true)
+    const supabase = createClient()
+    const fields = {
+      name: contractorForm.name,
+      category: contractorForm.category,
+      phone: contractorForm.phone,
+      email: contractorForm.email,
+      website: contractorForm.website,
+      notes: contractorForm.notes,
+      preferred: contractorForm.preferred,
+    }
+
+    let error
+    if (editingContractor) {
+      ;({ error } = await supabase
+        .from("contractors")
+        .update(fields)
+        .eq("id", editingContractor.id))
+    } else {
+      ;({ error } = await supabase
+        .from("contractors")
+        .insert({ landlord_id: userId, ...fields }))
+    }
+    setSavingContractor(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(editingContractor ? "Contractor updated" : "Contractor added")
     setShowContractorModal(false)
+    loadContractors()
   }
 
-  const handleDeleteContractor = (id: string) => {
-    setContractors(contractors.filter(c => c.id !== id))
+  const handleDeleteContractor = async (id: string) => {
+    if (!window.confirm("Delete this contractor? This cannot be undone.")) return
+    const supabase = createClient()
+    const { error } = await supabase.from("contractors").delete().eq("id", id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Contractor deleted")
+    loadContractors()
   }
 
-  const handleTogglePreferred = (id: string) => {
-    setContractors(contractors.map(c =>
-      c.id === id ? { ...c, preferred: !c.preferred } : c
-    ))
+  const handleTogglePreferred = async (id: string) => {
+    const current = contractors.find((c) => c.id === id)
+    if (!current) return
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("contractors")
+      .update({ preferred: !current.preferred })
+      .eq("id", id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    loadContractors()
   }
 
   return (
@@ -704,9 +775,13 @@ export default function SettingsPage() {
             <Button 
               onClick={handleSaveContractor}
               className="bg-teal hover:bg-teal-dark text-white"
-              disabled={!contractorForm.name || !contractorForm.category || !contractorForm.phone}
+              disabled={savingContractor || !contractorForm.name || !contractorForm.category || !contractorForm.phone}
             >
-              {editingContractor ? "Save Changes" : "Add Contractor"}
+              {savingContractor
+                ? "Saving..."
+                : editingContractor
+                ? "Save Changes"
+                : "Add Contractor"}
             </Button>
           </DialogFooter>
         </DialogContent>
