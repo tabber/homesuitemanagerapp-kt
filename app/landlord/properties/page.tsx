@@ -812,10 +812,8 @@ const selectedUnit = isApartment && selectedUnitId
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
                   <Button
-                    onClick={() => router.push("/landlord/inbox?tab=maintenance")}
-                     className="bg-teal hover:bg-teal-dark text-white" > 
+                    onClick={() => router.push("/landlord/inbox?tab=maintenance")}> 
                      Create Request
-  
                     </Button>
                   </div>
                 </CardHeader>
