@@ -811,11 +811,11 @@ const selectedUnit = isApartment && selectedUnitId
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
-                    <Button
+                  <Button
                     onClick={() => router.push("/landlord/inbox?tab=maintenance")}
-  className="bg-teal hover:bg-teal-dark text-white" >
-    Create Request
-                  
+                     className="bg-teal hover:bg-teal-dark text-white" > 
+                     Create Request
+  
                     </Button>
                   </div>
                 </CardHeader>
