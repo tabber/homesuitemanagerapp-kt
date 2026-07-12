@@ -812,7 +812,11 @@ const selectedUnit = isApartment && selectedUnitId
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
                     <Button className="bg-teal hover:bg-teal-dark text-white">
-                      Create Request
+                      size="sm"
+                    onClick={() => setShowCreateRequestModal(true)}
+                    className="bg-teal hover:bg-teal-dark text-white h-8"
+                  >
+                    <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardHeader>
