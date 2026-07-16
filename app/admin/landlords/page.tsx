@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import {
   Search,
   Eye,
@@ -138,36 +139,131 @@ const mockLandlords = [
     supportNotes: "Trial expired - did not convert. Follow up scheduled.",
   },
   {
-    id: "5",
-    firstName: "Michael",
-    lastName: "Brown",
-    email: "michael.brown@email.com",
-    phone: "(416) 555-0654",
-    status: "active" as const,
-    plan: "Essential",
-    properties: 8,
-    tenants: 15,
-    joinedAt: "March 5, 2026",
-    billingDate: "June 5, 2026",
-    monthlyAmount: 169.99,
-    activityLog: [
-      { date: "May 29, 2026", action: "Added new property" },
-      { date: "May 25, 2026", action: "Created 2 new leases" },
-      { date: "May 20, 2026", action: "Recorded 3 payments" },
-    ],
-    supportNotes: "",
-  },
-]
+interface Landlord {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  status: "active" | "pending" | "expired"
+  plan: string
+  properties: number
+  tenants: number
+  joinedAt: string
+  billingDate: string
+  monthlyAmount: number
+  activityLog: { date: string; action: string }[]
+  supportNotes: string
+}
+
+// Map a raw subscription_status to the UI status/plan used by this page
+function deriveStatus(subscriptionStatus: string | null): "active" | "pending" | "expired" {
+  const s = (subscriptionStatus ?? "").toLowerCase()
+  if (s === "active") return "active"
+  if (s === "trial" || s === "trialing") return "pending"
+  return "expired"
+}
+
+function derivePlan(status: "active" | "pending" | "expired"): string {
+  if (status === "active") return "Essential"
+  if (status === "pending") return "Trial"
+  return "Expired"
+}
 
 export default function AdminLandlords() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [selectedLandlord, setSelectedLandlord] = useState<typeof mockLandlords[0] | null>(null)
+  const [landlords, setLandlords] = useState<Landlord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null)
   const [supportNotes, setSupportNotes] = useState("")
   const [showSuspendDialog, setShowSuspendDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  const filteredLandlords = mockLandlords.filter((landlord) => {
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadLandlords() {
+      const supabase = createClient()
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select(
+          "id, email, first_name, last_name, phone, subscription_status, trial_end_date, created_at"
+        )
+        .eq("role", "landlord")
+        .order("created_at", { ascending: false })
+
+      const profileRows = profiles ?? []
+      const landlordIds = profileRows.map((p: any) => p.id)
+
+      // Count properties and tenants per landlord
+      const propertyCounts = new Map<string, number>()
+      const tenantSets = new Map<string, Set<string>>()
+
+      if (landlordIds.length > 0) {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("landlord_id")
+          .in("landlord_id", landlordIds)
+        ;(props ?? []).forEach((row: any) => {
+          if (!row.landlord_id) return
+          propertyCounts.set(row.landlord_id, (propertyCounts.get(row.landlord_id) ?? 0) + 1)
+        })
+
+        const { data: leases } = await supabase
+          .from("leases")
+          .select("landlord_id, tenant_id")
+          .in("landlord_id", landlordIds)
+        ;(leases ?? []).forEach((row: any) => {
+          if (!row.landlord_id || !row.tenant_id) return
+          if (!tenantSets.has(row.landlord_id)) tenantSets.set(row.landlord_id, new Set())
+          tenantSets.get(row.landlord_id)!.add(row.tenant_id)
+        })
+      }
+
+      const formatDate = (value: string | null) =>
+        value
+          ? new Date(value).toLocaleDateString("en-CA", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          : "N/A"
+
+      const mapped: Landlord[] = profileRows.map((p: any) => {
+        const status = deriveStatus(p.subscription_status)
+        return {
+          id: p.id,
+          firstName: p.first_name ?? "",
+          lastName: p.last_name ?? "",
+          email: p.email ?? "",
+          phone: p.phone ?? "—",
+          status,
+          plan: derivePlan(status),
+          properties: propertyCounts.get(p.id) ?? 0,
+          tenants: tenantSets.get(p.id)?.size ?? 0,
+          joinedAt: formatDate(p.created_at),
+          billingDate: formatDate(p.trial_end_date),
+          monthlyAmount: 0,
+          activityLog: [],
+          supportNotes: "",
+        }
+      })
+
+      if (!isMounted) return
+      setLandlords(mapped)
+      setLoading(false)
+    }
+
+    loadLandlords()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const filteredLandlords = landlords.filter((landlord) => {
     const matchesSearch =
       landlord.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       landlord.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -208,14 +304,15 @@ export default function AdminLandlords() {
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16 bg-sage-light">
               <AvatarFallback className="bg-sage-light text-navy text-xl">
-                {selectedLandlord.firstName[0]}
-                {selectedLandlord.lastName[0]}
+                {(selectedLandlord.firstName[0] ?? "") + (selectedLandlord.lastName[0] ?? "") ||
+                  selectedLandlord.email[0]?.toUpperCase() ||
+                  "?"}
               </AvatarFallback>
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-medium text-navy">
-                  {selectedLandlord.firstName} {selectedLandlord.lastName}
+                  {`${selectedLandlord.firstName} ${selectedLandlord.lastName}`.trim() || "Unnamed"}
                 </h1>
                 <StatusBadge status={getStatusBadgeStatus(selectedLandlord.status)} />
               </div>
@@ -504,18 +601,33 @@ export default function AdminLandlords() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLandlords.map((landlord) => (
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-sm text-text-muted py-8">
+                    Loading landlords...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && filteredLandlords.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-sm text-text-muted py-8">
+                    No landlords found.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && filteredLandlords.map((landlord) => (
                 <TableRow key={landlord.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8 bg-sage-light">
                         <AvatarFallback className="bg-sage-light text-navy text-xs">
-                          {landlord.firstName[0]}
-                          {landlord.lastName[0]}
+                          {(landlord.firstName[0] ?? "") + (landlord.lastName[0] ?? "") ||
+                            landlord.email[0]?.toUpperCase() ||
+                            "?"}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm font-medium text-navy">
-                        {landlord.firstName} {landlord.lastName}
+                        {`${landlord.firstName} ${landlord.lastName}`.trim() || "Unnamed"}
                       </span>
                     </div>
                   </TableCell>
