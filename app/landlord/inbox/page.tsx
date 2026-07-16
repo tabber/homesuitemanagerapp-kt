@@ -1106,8 +1106,7 @@ export default function InboxPage() {
               Cancel
             </Button>
             <Button className="bg-teal hover:bg-teal-dark text-white">
-              Create Request
-            </Button>
++            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
