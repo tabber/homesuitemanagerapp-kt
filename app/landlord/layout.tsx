@@ -1,20 +1,20 @@
 "use client"
 
 import { ReactNode } from "react"
-import { useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { createClient } from "@/lib/supabase/client"
 import { UserProvider, useUser } from "@/lib/context/UserContext"
 
 function LandlordLayoutInner({ children }: { children: ReactNode }) {
-  const router = useRouter()
   const { firstName, lastName, email } = useUser()
 
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push("/login")
+    // Hard-navigate to the landing page so all client state/cache is cleared
+    // and the user gets a clear signed-out indication.
+    window.location.href = "/"
   }
 
   return (
