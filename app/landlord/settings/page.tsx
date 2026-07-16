@@ -69,6 +69,7 @@ interface Contractor {
   website: string
   notes: string
   preferred: boolean
+  type: "internal" | "external"
 }
 
 export default function SettingsPage() {
@@ -154,7 +155,16 @@ export default function SettingsPage() {
   const [showContractorModal, setShowContractorModal] = useState(false)
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null)
   const [savingContractor, setSavingContractor] = useState(false)
-  const [contractorForm, setContractorForm] = useState({
+  const [contractorForm, setContractorForm] = useState<{
+    name: string
+    category: string
+    phone: string
+    email: string
+    website: string
+    notes: string
+    preferred: boolean
+    type: "internal" | "external"
+  }>({
     name: "",
     category: "",
     phone: "",
@@ -162,6 +172,7 @@ export default function SettingsPage() {
     website: "",
     notes: "",
     preferred: false,
+    type: "external",
   })
 
   const loadContractors = async (uid?: string) => {
@@ -176,7 +187,7 @@ export default function SettingsPage() {
     }
     const { data } = await supabase
       .from("contractors")
-      .select("id, name, category, phone, email, website, notes, preferred")
+      .select("id, name, category, phone, email, website, notes, preferred, type")
       .eq("landlord_id", ownerId)
       .order("name", { ascending: true })
     setContractors(
@@ -189,6 +200,7 @@ export default function SettingsPage() {
         website: c.website ?? "",
         notes: c.notes ?? "",
         preferred: c.preferred ?? false,
+        type: c.type === "internal" ? "internal" : "external",
       }))
     )
   }
@@ -236,6 +248,7 @@ export default function SettingsPage() {
       website: "",
       notes: "",
       preferred: false,
+      type: "external",
     })
     setShowContractorModal(true)
   }
@@ -250,6 +263,7 @@ export default function SettingsPage() {
       website: contractor.website,
       notes: contractor.notes,
       preferred: contractor.preferred,
+      type: contractor.type,
     })
     setShowContractorModal(true)
   }
@@ -274,6 +288,7 @@ export default function SettingsPage() {
       website: contractorForm.website,
       notes: contractorForm.notes,
       preferred: contractorForm.preferred,
+      type: contractorForm.type,
     }
 
     let error
@@ -472,7 +487,20 @@ export default function SettingsPage() {
                               <Star className={cn("h-4 w-4", contractor.preferred && "fill-current")} />
                             </button>
                             <div>
-                              <p className="font-medium text-navy">{contractor.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-navy">{contractor.name}</p>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-xs capitalize",
+                                    contractor.type === "internal"
+                                      ? "border-teal text-teal"
+                                      : "border-navy/30 text-navy"
+                                  )}
+                                >
+                                  {contractor.type}
+                                </Badge>
+                              </div>
                               <p className="text-sm text-text-muted">{contractor.phone}</p>
                               {contractor.email && (
                                 <p className="text-sm text-text-muted">{contractor.email}</p>
@@ -716,6 +744,23 @@ export default function SettingsPage() {
                       {category}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="contractorType" className="text-navy">Type</Label>
+              <Select
+                value={contractorForm.type}
+                onValueChange={(value) =>
+                  setContractorForm({ ...contractorForm, type: value as "internal" | "external" })
+                }
+              >
+                <SelectTrigger className="mt-1.5 border-sage">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="internal">Internal (in-house staff)</SelectItem>
+                  <SelectItem value="external">External (hired contractor)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
