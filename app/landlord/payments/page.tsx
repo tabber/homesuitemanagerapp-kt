@@ -58,13 +58,6 @@ const revenueData = [
   { month: "Jun", collected: 15200, expected: 18500 },
 ]
 
-const properties = [
-  { id: "all", name: "All Properties" },
-  { id: "1", name: "Viceroy" },
-  { id: "2", name: "Oak Street House" },
-  { id: "3", name: "Maple Condo" },
-]
-
 export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
@@ -72,6 +65,7 @@ export default function PaymentsPage() {
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
   const [payments, setPayments] = useState<any[]>([])
+  const [dbProperties, setDbProperties] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -95,17 +89,26 @@ export default function PaymentsPage() {
 
       const rows = paymentRows ?? []
 
-      // Resolve property names
-      const propertyIds = Array.from(
-        new Set(rows.map((p: any) => p.property_id).filter(Boolean))
-      )
+      // Load all of this landlord's properties for the filter dropdown
+      const { data: allProps } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("landlord_id", user.id)
+        .order("name", { ascending: true })
       const propertyNameMap = new Map<string, string>()
-      if (propertyIds.length > 0) {
-        const { data: props } = await supabase
-          .from("properties")
-          .select("id, name")
-          .in("id", propertyIds)
-        ;(props ?? []).forEach((p: any) => propertyNameMap.set(p.id, p.name))
+      ;(allProps ?? []).forEach((p: any) => propertyNameMap.set(p.id, p.name))
+
+      // Resolve unit numbers referenced by the payments
+      const unitIds = Array.from(
+        new Set(rows.map((p: any) => p.unit_id).filter(Boolean))
+      )
+      const unitNumberMap = new Map<string, string>()
+      if (unitIds.length > 0) {
+        const { data: units } = await supabase
+          .from("units")
+          .select("id, unit_number")
+          .in("id", unitIds)
+        ;(units ?? []).forEach((u: any) => unitNumberMap.set(u.id, u.unit_number))
       }
 
       // Resolve tenant names: prefer the lease's tenant_name, fall back to the profile
@@ -144,16 +147,18 @@ export default function PaymentsPage() {
           (p.lease_id && leaseTenantMap.get(p.lease_id)) ||
           (p.tenant_id && profileNameMap.get(p.tenant_id)) ||
           "—",
-        unit: "",
+        unit: (p.unit_id && unitNumberMap.get(p.unit_id)) || "—",
+        propertyId: p.property_id ?? null,
         property: (p.property_id && propertyNameMap.get(p.property_id)) || "—",
         amount: p.amount ?? 0,
-        method: p.method ?? "—",
+        method: p.payment_method ?? "—",
         date: p.payment_date,
         status: p.status ?? "pending",
       }))
 
       if (!isMounted) return
       setPayments(mapped)
+      setDbProperties(allProps ?? [])
       setLoading(false)
     }
 
@@ -179,16 +184,35 @@ export default function PaymentsPage() {
     }).format(amount)
   }
 
+  // Property dropdown: real properties for this landlord, plus an "all" option
+  const propertyOptions = [{ id: "all", name: "All Properties" }, ...dbProperties]
+
+  // Status dropdown: live statuses present in the payments for the selected property
+  const statusOptions = Array.from(
+    new Set(
+      payments
+        .filter((p) => propertyFilter === "all" || p.propertyId === propertyFilter)
+        .map((p) => p.status)
+        .filter(Boolean)
+    )
+  ).sort()
+
+  // Reset the status filter to "all" whenever the selected property changes
+  const handlePropertyChange = (value: string) => {
+    setPropertyFilter(value)
+    setStatusFilter("all")
+  }
+
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch = payment.tenant.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesProperty = propertyFilter === "all" || payment.property === properties.find(p => p.id === propertyFilter)?.name
+    const matchesProperty = propertyFilter === "all" || payment.propertyId === propertyFilter
     const matchesStatus = statusFilter === "all" || payment.status === statusFilter
     return matchesSearch && matchesProperty && matchesStatus
   })
 
   const totalExpected = 21300
-  const totalCollected = payments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0)
-  const totalPending = payments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
+  const totalCollected = filteredPayments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0)
+  const totalPending = filteredPayments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
   const avgDaysToPay = 2.3
 
   const handleCopyInstructions = () => {
@@ -322,12 +346,12 @@ export default function PaymentsPage() {
                 className="pl-9 border-sage"
               />
             </div>
-            <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+            <Select value={propertyFilter} onValueChange={handlePropertyChange}>
               <SelectTrigger className="w-48 border-sage">
                 <SelectValue placeholder="Filter by property" />
               </SelectTrigger>
               <SelectContent>
-                {properties.map((property) => (
+                {propertyOptions.map((property) => (
                   <SelectItem key={property.id} value={property.id}>
                     {property.name}
                   </SelectItem>
@@ -340,9 +364,11 @@ export default function PaymentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
+                {statusOptions.map((status) => (
+                  <SelectItem key={status} value={status} className="capitalize">
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
