@@ -508,7 +508,7 @@ export default function InboxPage() {
             <SelectValue placeholder="Filter by property" />
           </SelectTrigger>
           <SelectContent>
-            {properties.map((property) => (
+            {dbProperties.map((property) => (
               <SelectItem key={property.id} value={property.id}>
                 {property.name}
               </SelectItem>
