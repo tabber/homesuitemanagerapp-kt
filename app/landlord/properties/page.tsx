@@ -54,6 +54,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
 import { EmptyState } from "@/components/empty-state"
 import { LockedFeature } from "@/components/locked-feature"
+import { CreateRequestModal } from "@/components/create-request-modal"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
@@ -114,6 +115,10 @@ export default function PropertiesPage() {
   const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
 
   const [userId, setUserId] = useState<string | null>(null)
+
+  // Create Maintenance Request modal (shared component)
+  const [showCreateRequest, setShowCreateRequest] = useState(false)
+  const [tabsRefreshTick, setTabsRefreshTick] = useState(0)
 
   // Edit Property/Building modal
   const [editOpen, setEditOpen] = useState(false)
@@ -259,7 +264,7 @@ export default function PropertiesPage() {
     return () => {
       isMounted = false
     }
-  }, [selectedPropertyId])
+  }, [selectedPropertyId, tabsRefreshTick])
 
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = selectedProperty?.type === "apartment" ?? false
@@ -552,7 +557,7 @@ const selectedUnit = isApartment && selectedUnitId
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
                  <Button 
-  onClick={() => router.push("/landlord/inbox")}
+  onClick={() => setShowCreateRequest(true)}
   className="bg-teal hover:bg-teal-dark text-white"
 >
   Create Request
@@ -815,7 +820,9 @@ const selectedUnit = isApartment && selectedUnitId
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
                   <Button
-                    onClick={() => router.push("/landlord/inbox?tab=maintenance")}> 
+                    onClick={() => setShowCreateRequest(true)}
+                    className="bg-teal hover:bg-teal-dark text-white"
+                  >
                      Create Request
                     </Button>
                   </div>
@@ -1022,7 +1029,10 @@ const selectedUnit = isApartment && selectedUnitId
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-medium text-navy">Maintenance Requests</CardTitle>
-                  <Button className="bg-teal hover:bg-teal-dark text-white">
+                  <Button
+                    onClick={() => setShowCreateRequest(true)}
+                    className="bg-teal hover:bg-teal-dark text-white"
+                  >
                     Create Request
                   </Button>
                 </div>
@@ -1133,6 +1143,15 @@ const selectedUnit = isApartment && selectedUnitId
 
       {/* Content */}
      {selectedProperty ? (isApartment ? <MultiUnitBuildingView /> : singleUnitView) : <div className="p-6 text-text-muted">Loading properties...</div>}
+
+      <CreateRequestModal
+        open={showCreateRequest}
+        onOpenChange={setShowCreateRequest}
+        landlordId={userId ?? ""}
+        presetPropertyId={selectedPropertyId}
+        presetPropertyName={(selectedProperty as any)?.name}
+        onCreated={() => setTabsRefreshTick((t) => t + 1)}
+      />
 
       {/* Edit Property / Building Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

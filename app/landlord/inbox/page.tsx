@@ -50,6 +50,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
+import { CreateRequestModal } from "@/components/create-request-modal"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 
@@ -135,18 +136,6 @@ export default function InboxPage() {
   const [composeText, setComposeText] = useState("")
   const [composeSending, setComposeSending] = useState(false)
   const [activeLeases, setActiveLeases] = useState<any[]>([])
-
-  // Create Maintenance Request modal
-  const [requestForm, setRequestForm] = useState({
-    title: "",
-    description: "",
-    propertyId: "",
-    unitId: "",
-    category: "",
-    priority: "",
-  })
-  const [requestUnits, setRequestUnits] = useState<any[]>([])
-  const [creatingRequest, setCreatingRequest] = useState(false)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
@@ -276,81 +265,6 @@ export default function InboxPage() {
     loadInbox()
   }, [loadInbox])
 
-  // Load units for the property selected in the Create Maintenance Request modal
-  useEffect(() => {
-    let isMounted = true
-    async function loadUnits() {
-      if (!requestForm.propertyId) {
-        setRequestUnits([])
-        return
-      }
-      const supabase = createClient()
-      const { data } = await supabase
-        .from("units")
-        .select("id, unit_number")
-        .eq("property_id", requestForm.propertyId)
-        .order("unit_number", { ascending: true })
-      if (isMounted) setRequestUnits(data ?? [])
-    }
-    loadUnits()
-    return () => {
-      isMounted = false
-    }
-  }, [requestForm.propertyId])
-
-  const handleCreateRequest = async () => {
-    if (creatingRequest) return
-    if (!requestForm.title.trim() || !requestForm.description.trim() || !requestForm.propertyId) {
-      toast.error("Title, description, and property are required.")
-      return
-    }
-    if (!userId) {
-      toast.error("You must be signed in to create a request.")
-      return
-    }
-    setCreatingRequest(true)
-    const supabase = createClient()
-
-    // Best-effort: tie the request to the active lease (and its tenant) for the
-    // selected property/unit so it shows up against the right tenant.
-    let leaseQuery = supabase
-      .from("leases")
-      .select("id, tenant_id, unit_id")
-      .eq("property_id", requestForm.propertyId)
-      .eq("status", "active")
-    if (requestForm.unitId) leaseQuery = leaseQuery.eq("unit_id", requestForm.unitId)
-    const { data: lease } = await leaseQuery.limit(1).maybeSingle()
-
-    const { error } = await supabase.from("maintenance_requests").insert({
-      landlord_id: userId,
-      property_id: requestForm.propertyId,
-      unit_id: requestForm.unitId || null,
-      lease_id: lease?.id ?? null,
-      tenant_id: lease?.tenant_id ?? null,
-      title: requestForm.title,
-      description: requestForm.description,
-      category: requestForm.category || null,
-      priority: requestForm.priority || "medium",
-      status: "open",
-    })
-    setCreatingRequest(false)
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-    toast.success("Maintenance request created")
-    setShowCreateRequestModal(false)
-    setRequestForm({
-      title: "",
-      description: "",
-      propertyId: "",
-      unitId: "",
-      category: "",
-      priority: "",
-    })
-    setRequestUnits([])
-    loadInbox()
-  }
 
   const handleSendMessage = async () => {
     const text = messageInput.trim()
@@ -1116,134 +1030,13 @@ export default function InboxPage() {
       </Tabs>
 
       {/* Create Maintenance Request Modal */}
-      <Dialog open={showCreateRequestModal} onOpenChange={setShowCreateRequestModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-navy font-medium">Create Maintenance Request</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="title" className="text-navy">Title *</Label>
-              <Input
-                id="title"
-                placeholder="Brief description of the issue"
-                className="mt-1.5 border-sage"
-                value={requestForm.title}
-                onChange={(e) => setRequestForm({ ...requestForm, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="description" className="text-navy">Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Detailed description..."
-                className="mt-1.5 border-sage min-h-[80px]"
-                value={requestForm.description}
-                onChange={(e) => setRequestForm({ ...requestForm, description: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-navy">Property *</Label>
-                <Select
-                  value={requestForm.propertyId}
-                  onValueChange={(value) =>
-                    setRequestForm({ ...requestForm, propertyId: value, unitId: "" })
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 border-sage">
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dbProperties.length === 0 && (
-                      <div className="px-2 py-1.5 text-sm text-text-muted">No properties</div>
-                    )}
-                    {dbProperties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-navy">Unit</Label>
-                <Select
-                  value={requestForm.unitId}
-                  onValueChange={(value) => setRequestForm({ ...requestForm, unitId: value })}
-                  disabled={!requestForm.propertyId || requestUnits.length === 0}
-                >
-                  <SelectTrigger className="mt-1.5 border-sage">
-                    <SelectValue placeholder={requestUnits.length === 0 ? "No units" : "Select unit"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {requestUnits.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.unit_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-navy">Category</Label>
-                <Select
-                  value={requestForm.category}
-                  onValueChange={(value) => setRequestForm({ ...requestForm, category: value })}
-                >
-                  <SelectTrigger className="mt-1.5 border-sage">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="plumbing">Plumbing</SelectItem>
-                    <SelectItem value="electrical">Electrical</SelectItem>
-                    <SelectItem value="hvac">HVAC</SelectItem>
-                    <SelectItem value="appliance">Appliance</SelectItem>
-                    <SelectItem value="structural">Structural</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-navy">Priority</Label>
-                <Select
-                  value={requestForm.priority}
-                  onValueChange={(value) => setRequestForm({ ...requestForm, priority: value })}
-                >
-                  <SelectTrigger className="mt-1.5 border-sage">
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateRequestModal(false)} className="border-navy/20 text-navy">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateRequest}
-              disabled={
-                creatingRequest ||
-                !requestForm.title.trim() ||
-                !requestForm.description.trim() ||
-                !requestForm.propertyId
-              }
-              className="bg-teal hover:bg-teal-dark text-white"
-            >
-              {creatingRequest ? "Creating..." : "Create Request"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateRequestModal
+        open={showCreateRequestModal}
+        onOpenChange={setShowCreateRequestModal}
+        landlordId={userId ?? ""}
+        properties={dbProperties}
+        onCreated={loadInbox}
+      />
 
       {/* Upload Document Modal */}
       <Dialog open={showUploadDocModal} onOpenChange={setShowUploadDocModal}>
