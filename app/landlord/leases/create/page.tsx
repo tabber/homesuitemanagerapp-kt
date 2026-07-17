@@ -284,7 +284,7 @@ export default function CreateLeasePage() {
       payment_due_day: form.paymentDueDay ? parseInt(form.paymentDueDay) : null,
       terms: form.additionalTerms || null,
       notes: form.internalNotes || null,
-      status: "active",
+      status: "pending",
     })
 
     if (error) {
