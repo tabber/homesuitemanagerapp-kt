@@ -137,6 +137,12 @@ export default function InboxPage() {
   const [composeSending, setComposeSending] = useState(false)
   const [activeLeases, setActiveLeases] = useState<any[]>([])
 
+  // Upload Document modal
+  const [uploadLeaseId, setUploadLeaseId] = useState("")
+  const [uploadDocType, setUploadDocType] = useState("")
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
       year: "numeric",
@@ -398,6 +404,79 @@ export default function InboxPage() {
     setComposeTenantId("")
     setComposePropertyId("")
     loadInbox()
+  }
+
+  const openUploadDoc = () => {
+    setUploadLeaseId("")
+    setUploadDocType("")
+    setUploadFile(null)
+    loadActiveLeases()
+    setShowUploadDocModal(true)
+  }
+
+  const handleUploadDocument = async () => {
+    if (uploading) return
+    if (!userId) {
+      toast.error("You must be signed in to upload a document.")
+      return
+    }
+    if (!uploadFile) {
+      toast.error("Please choose a file to upload.")
+      return
+    }
+    if (!uploadLeaseId) {
+      toast.error("Please select a lease/tenant.")
+      return
+    }
+
+    setUploading(true)
+    const supabase = createClient()
+
+    // Resolve the property for the selected lease
+    const { data: lease } = await supabase
+      .from("leases")
+      .select("id, property_id")
+      .eq("id", uploadLeaseId)
+      .maybeSingle()
+
+    if (!lease) {
+      setUploading(false)
+      toast.error("Selected lease could not be found.")
+      return
+    }
+
+    const filePath = `${uploadLeaseId}/${uploadFile.name}`
+    const { error: uploadError } = await supabase.storage
+      .from("documents")
+      .upload(filePath, uploadFile, { upsert: true })
+
+    if (uploadError) {
+      setUploading(false)
+      toast.error(uploadError.message)
+      return
+    }
+
+    const { error: insertError } = await supabase.from("documents").insert({
+      lease_id: uploadLeaseId,
+      property_id: lease.property_id,
+      uploaded_by: userId,
+      document_type: uploadDocType || "other",
+      file_url: filePath,
+      file_name: uploadFile.name,
+      file_size: uploadFile.size,
+    })
+
+    setUploading(false)
+    if (insertError) {
+      toast.error(insertError.message)
+      return
+    }
+
+    toast.success("Document uploaded")
+    setShowUploadDocModal(false)
+    setUploadLeaseId("")
+    setUploadDocType("")
+    setUploadFile(null)
   }
 
   const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
@@ -932,7 +1011,7 @@ export default function InboxPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg font-medium text-navy">Documents</CardTitle>
                   <Button
-                    onClick={() => setShowUploadDocModal(true)}
+                    onClick={openUploadDoc}
                     className="bg-teal hover:bg-teal-dark text-white"
                   >
                     <Upload className="h-4 w-4 mr-2" />
@@ -1047,19 +1126,25 @@ export default function InboxPage() {
           <div className="space-y-4 py-4">
             <div className="border-2 border-dashed border-sage rounded-lg p-8 text-center">
               <Upload className="h-10 w-10 text-text-muted mx-auto mb-3" />
-              <p className="text-sm text-text-muted mb-2">Drag and drop your file here, or click to browse</p>
-              <Button variant="outline" className="border-navy/20 text-navy">
-                Choose File
+              <p className="text-sm text-text-muted mb-2">
+                {uploadFile ? uploadFile.name : "Choose a file to upload"}
+              </p>
+              <input
+                id="docFile"
+                type="file"
+                className="sr-only"
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+              />
+              <Button asChild variant="outline" className="border-navy/20 text-navy">
+                <label htmlFor="docFile" className="cursor-pointer">
+                  Choose File
+                </label>
               </Button>
-            </div>
-            <div>
-              <Label htmlFor="docName" className="text-navy">Document Name</Label>
-              <Input id="docName" placeholder="e.g., Lease Agreement" className="mt-1.5 border-sage" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-navy">Type</Label>
-                <Select>
+                <Select value={uploadDocType} onValueChange={setUploadDocType}>
                   <SelectTrigger className="mt-1.5 border-sage">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -1068,34 +1153,41 @@ export default function InboxPage() {
                     <SelectItem value="inspection">Inspection</SelectItem>
                     <SelectItem value="insurance">Insurance</SelectItem>
                     <SelectItem value="receipt">Receipt</SelectItem>
+                    <SelectItem value="notice">Notice</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-navy">Property</Label>
-                <Select>
+                <Label className="text-navy">Lease / Tenant</Label>
+                <Select value={uploadLeaseId} onValueChange={setUploadLeaseId}>
                   <SelectTrigger className="mt-1.5 border-sage">
-                    <SelectValue placeholder="Select property" />
+                    <SelectValue placeholder="Select tenant" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Viceroy</SelectItem>
-                    <SelectItem value="2">Oak Street House</SelectItem>
+                    {activeLeases.length === 0 && (
+                      <div className="px-2 py-1.5 text-sm text-text-muted">No active leases</div>
+                    )}
+                    {activeLeases.map((l) => (
+                      <SelectItem key={l.leaseId} value={l.leaseId}>
+                        {l.tenantName}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div>
-              <Label htmlFor="notes" className="text-navy">Notes (Optional)</Label>
-              <Textarea id="notes" placeholder="Add any notes about this document..." className="mt-1.5 border-sage min-h-[60px]" />
-            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUploadDocModal(false)} className="border-navy/20 text-navy">
+            <Button variant="outline" onClick={() => setShowUploadDocModal(false)} disabled={uploading} className="border-navy/20 text-navy">
               Cancel
             </Button>
-            <Button className="bg-teal hover:bg-teal-dark text-white">
-              Upload Document
+            <Button
+              onClick={handleUploadDocument}
+              disabled={uploading || !uploadFile || !uploadLeaseId}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {uploading ? "Uploading..." : "Upload Document"}
             </Button>
           </DialogFooter>
         </DialogContent>
