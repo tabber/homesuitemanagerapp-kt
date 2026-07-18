@@ -256,7 +256,7 @@ export default function CreateLeasePage() {
       (t) => t.email && t.email.toLowerCase() === form.tenantEmail.trim().toLowerCase()
     )
 
-    const { error } = await supabase.from("leases").insert({
+   const { data: newLease, error } = await supabase.from("leases").insert({
       property_id: form.propertyId,
       unit_id: form.unitId || null,
       tenant_id: matchedTenant?.id ?? null,
@@ -285,14 +285,29 @@ export default function CreateLeasePage() {
       terms: form.additionalTerms || null,
       notes: form.internalNotes || null,
       status: "pending",
-    })
-
+    }).select("id").single()
     if (error) {
       toast.error(error.message)
       setIsSubmitting(false)
       return
     }
-
+    // Send the tenant invite (best-effort)
+    if (form.tenantEmail) {
+      try {
+        const res = await fetch("/api/landlord/invite-tenant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leaseId: newLease.id }),
+        })
+        if (res.ok) {
+          toast.success("Lease created and tenant invited")
+        } else {
+          toast.success("Lease created (invite could not be sent)")
+        }
+      } catch {
+        toast.success("Lease created (invite could not be sent)")
+      }
+    }
     router.push("/landlord/properties")
   }
 
