@@ -60,7 +60,19 @@ export default function ResetPasswordPage() {
       return
     }
 
-    toast.success("Your password has been reset. Please sign in.")
+     toast.success("Password set successfully.")
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle()
+      const role = profile?.role
+      if (role === "tenant") { router.push("/tenant/lease/accept"); return }
+      if (role === "landlord") { router.push("/landlord"); return }
+      if (role === "admin") { router.push("/admin"); return }
+    }
     router.push("/login")
   }
 
