@@ -1,74 +1,56 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  const token_hash = searchParams.get('token_hash')
-  const type = searchParams.get('type')
-  const next = searchParams.get('next') ?? '/'
+  const code = searchParams.get("code")
+  const token_hash = searchParams.get("token_hash")
+  const type = searchParams.get("type")
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-        },
-      },
-    }
-  )
+  // Use the project's server client, which manages session cookies via
+  // next/headers. In a Route Handler any cookies it sets during
+  // exchangeCodeForSession/verifyOtp are automatically written onto the
+  // redirect response, so the user stays logged in.
+  const supabase = await createClient()
 
-  // Handle token_hash (email links)
-  if (token_hash && type) {
+  let verified = false
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    verified = !error
+  } else if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({
       type: type as any,
       token_hash,
     })
-
-    if (!error) {
-      if (type === 'recovery') {
-        const response = NextResponse.redirect(`${origin}/reset-password`)
-        // Copy cookies to response
-        const newResponse = NextResponse.redirect(`${origin}/reset-password`)
-        supabase.auth.getSession() // ensures session is set
-        return newResponse
-      }
-      return NextResponse.redirect(`${origin}${next}`)
-    }
+    verified = !error
   }
 
-  // Handle code exchange (OAuth, magic links)
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+  if (!verified) {
+    return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
+  }
 
-    if (!error) {
-      if (type === 'recovery') {
-        return NextResponse.redirect(`${origin}/reset-password`)
-      }
+  // Password recovery and freshly invited/signed-up users must set a password.
+  if (type === "recovery" || type === "invite" || type === "signup") {
+    return NextResponse.redirect(`${origin}/reset-password`)
+  }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
+  // Otherwise route based on the user's role.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-        const role = profile?.role
-        if (role === 'landlord') return NextResponse.redirect(`${origin}/landlord`)
-        if (role === 'tenant') return NextResponse.redirect(`${origin}/tenant`)
-        if (role === 'admin') return NextResponse.redirect(`${origin}/admin`)
-      }
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle()
 
-      return NextResponse.redirect(`${origin}${next}`)
-    }
+    const role = profile?.role
+    if (role === "tenant") return NextResponse.redirect(`${origin}/tenant/lease/accept`)
+    if (role === "landlord") return NextResponse.redirect(`${origin}/landlord`)
+    if (role === "admin") return NextResponse.redirect(`${origin}/admin`)
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
