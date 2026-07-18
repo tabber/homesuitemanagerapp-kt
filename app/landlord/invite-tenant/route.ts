@@ -52,8 +52,7 @@ export async function POST(request: Request) {
     }
 
     const email = lease.tenant_email.trim().toLowerCase()
-    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || "https://homesuitemanager.com"}/tenant/lease/accept`
-
+const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || "https://homesuitemanager.com"}/auth/callback`
     // 2. Check whether an auth user already exists for this email.
     //    If they do, we don't re-invite (they can just log in and accept);
     //    we still record that an invitation was attempted.
