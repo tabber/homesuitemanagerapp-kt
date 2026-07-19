@@ -133,58 +133,7 @@ export default function SignupPage() {
                 <p className="text-xs text-text-muted mt-1">Minimum 8 characters</p>
               </div>
 
-              <div>
-                <Label className="text-text-primary mb-2 block">I am a...</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole("landlord")}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-lg border transition-colors text-left",
-                      role === "landlord"
-                        ? "border-teal bg-teal/5"
-                        : "border-sage hover:border-sage-light"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "w-10 h-10 rounded-lg flex items-center justify-center",
-                        role === "landlord" ? "bg-teal/10" : "bg-sage/30"
-                      )}
-                    >
-                      <User className="h-5 w-5 text-navy" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-navy">Landlord</p>
-                      <p className="text-xs text-text-muted">I manage properties</p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRole("tenant")}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-lg border transition-colors text-left",
-                      role === "tenant"
-                        ? "border-teal bg-teal/5"
-                        : "border-sage hover:border-sage-light"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "w-10 h-10 rounded-lg flex items-center justify-center",
-                        role === "tenant" ? "bg-teal/10" : "bg-sage/30"
-                      )}
-                    >
-                      <Home className="h-5 w-5 text-navy" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-navy">Tenant</p>
-                      <p className="text-xs text-text-muted">I rent a property</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
+            
 
               <Button
                 type="submit"
