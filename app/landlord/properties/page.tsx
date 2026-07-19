@@ -484,7 +484,9 @@ const selectedUnit = isApartment && selectedUnitId
                     </div>
                   </div>
                   <div className="pt-4">
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
+                    <Button 
+                      onClick={() => router.push("/landlord/inbox")}
+                      className="bg-teal hover:bg-teal-dark text-white">
                       <MessageSquare className="h-4 w-4 mr-2" />
                       Message Tenant
                     </Button>
