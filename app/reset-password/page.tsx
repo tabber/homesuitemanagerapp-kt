@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Building2, AlertCircle } from "lucide-react"
@@ -29,6 +29,19 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [hasSession, setHasSession] = useState<boolean | null>(null)
+
+  // Confirm a valid session exists (established by /auth/callback)
+  useEffect(() => {
+    const check = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setHasSession(!!user)
+    }
+    check()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,8 +62,21 @@ export default function ResetPasswordPage() {
     }
 
     setIsLoading(true)
-
     const supabase = createClient()
+
+    // Guard: must have a valid session to set a password
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      const message = "Your link has expired. Please request a new one."
+      setError(message)
+      toast.error(message)
+      setIsLoading(false)
+      return
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({ password })
 
     if (updateError) {
@@ -60,6 +86,7 @@ export default function ResetPasswordPage() {
       return
     }
 
+<<<<<<< HEAD
     // The session was established at the callback, so the update applied to the
     // correct user and they remain logged in. Route them by role.
     const {
@@ -82,25 +109,53 @@ export default function ResetPasswordPage() {
 
     toast.success("Your password has been set.")
     router.push(destination)
+=======
+    toast.success("Password set successfully.")
+
+    // Route by role
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const role = profile?.role
+    if (role === "tenant") {
+      router.push("/tenant/lease/accept")
+    } else if (role === "landlord") {
+      router.push("/landlord")
+    } else if (role === "admin") {
+      router.push("/admin")
+    } else {
+      router.push("/login")
+    }
+>>>>>>> 0b9ec521c18a64d7f7dabee53395d6fa458c8f0a
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-sage/50">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <Logo />
         </div>
       </header>
 
-      {/* Form */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         <Card className="w-full max-w-md border-[0.5px] border-sage">
           <CardContent className="p-6">
-            <h1 className="text-2xl font-medium text-navy mb-2">Reset your password</h1>
+            <h1 className="text-2xl font-medium text-navy mb-2">Set your password</h1>
             <p className="text-sm text-text-muted mb-6">
-              Enter a new password for your account.
+              Choose a password for your account.
             </p>
+
+            {hasSession === false && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Your link is invalid or has expired. Please request a new one.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {error && (
               <Alert variant="destructive" className="mb-4">
@@ -137,9 +192,9 @@ export default function ResetPasswordPage() {
               <Button
                 type="submit"
                 className="w-full bg-teal hover:bg-teal-dark text-white"
-                disabled={isLoading}
+                disabled={isLoading || hasSession === false}
               >
-                {isLoading ? "Resetting..." : "Reset Password"}
+                {isLoading ? "Saving..." : "Set Password"}
               </Button>
             </form>
 
