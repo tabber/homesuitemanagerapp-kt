@@ -60,8 +60,28 @@ export default function ResetPasswordPage() {
       return
     }
 
-    toast.success("Your password has been reset. Please sign in.")
-    router.push("/login")
+    // The session was established at the callback, so the update applied to the
+    // correct user and they remain logged in. Route them by role.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    let destination = "/login"
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      const role = profile?.role
+      if (role === "tenant") destination = "/tenant/lease/accept"
+      else if (role === "landlord") destination = "/landlord"
+      else if (role === "admin") destination = "/admin"
+    }
+
+    toast.success("Your password has been set.")
+    router.push(destination)
   }
 
   return (
