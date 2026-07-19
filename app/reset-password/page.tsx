@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
     setIsLoading(true)
     const supabase = createClient()
 
-    // Guard: must have a valid session to set a password
+    // Must have a valid session (established by the callback) to set a password
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -86,30 +86,6 @@ export default function ResetPasswordPage() {
       return
     }
 
-
-    // The session was established at the callback, so the update applied to the
-    // correct user and they remain logged in. Route them by role.
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    let destination = "/login"
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle()
-
-      const role = profile?.role
-      if (role === "tenant") destination = "/tenant/lease/accept"
-      else if (role === "landlord") destination = "/landlord"
-      else if (role === "admin") destination = "/admin"
-    }
-
-    toast.success("Your password has been set.")
-    router.push(destination)
-
     toast.success("Password set successfully.")
 
     // Route by role
@@ -129,7 +105,6 @@ export default function ResetPasswordPage() {
     } else {
       router.push("/login")
     }
-
   }
 
   return (
