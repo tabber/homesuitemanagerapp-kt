@@ -93,7 +93,7 @@ const PROPERTY_STATUSES = [
 
 export default function PropertiesPage() {
   const router = useRouter()
-  const [selectedPropertyId, setSelectedPropertyId] = <string>("")
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("")
   const [showLeaseSummary, setShowLeaseSummary] = useState(false)
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("all")
