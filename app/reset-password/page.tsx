@@ -86,7 +86,7 @@ export default function ResetPasswordPage() {
       return
     }
 
-<<<<<<< HEAD
+
     // The session was established at the callback, so the update applied to the
     // correct user and they remain logged in. Route them by role.
     const {
@@ -109,7 +109,7 @@ export default function ResetPasswordPage() {
 
     toast.success("Your password has been set.")
     router.push(destination)
-=======
+
     toast.success("Password set successfully.")
 
     // Route by role
@@ -129,7 +129,7 @@ export default function ResetPasswordPage() {
     } else {
       router.push("/login")
     }
->>>>>>> 0b9ec521c18a64d7f7dabee53395d6fa458c8f0a
+
   }
 
   return (
