@@ -93,7 +93,8 @@ const PROPERTY_STATUSES = [
 
 export default function PropertiesPage() {
   const router = useRouter()
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("")
+  const [selectedPropertyId, setSelectedPropertyId] = <string>("")
+  const [showLeaseSummary, setShowLeaseSummary] = useState(false)
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
@@ -437,7 +438,10 @@ const selectedUnit = isApartment && selectedUnitId
                     </div>
                   </div>
                   <div className="pt-4">
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
+                    <Button
+                      onClick={() => setShowLeaseSummary(true)}
+                      className="bg-teal hover:bg-teal-dark text-white"
+                    >
                       View Lease Summary
                     </Button>
                   </div>
@@ -760,6 +764,123 @@ const selectedUnit = isApartment && selectedUnitId
                   onAction={() => router.push("/landlord/leases/create")}
                 />
               )}
+           <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-navy font-medium">Lease Summary</DialogTitle>
+                </DialogHeader>
+                {lease && (
+                  <div className="space-y-5 py-2 text-sm">
+                    {/* Tenant */}
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-text-muted mb-1">Tenant</p>
+                      <p className="font-medium text-navy">{tenantName}</p>
+                      {lease.tenant_email && <p className="text-text-muted">{lease.tenant_email}</p>}
+                      {lease.tenant_phone && <p className="text-text-muted">{lease.tenant_phone}</p>}
+                    </div>
+
+                    {/* Lease terms */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-text-muted">Start Date</p>
+                        <p className="font-medium text-navy">{formatDate(lease.start_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-text-muted">End Date</p>
+                        <p className="font-medium text-navy">{formatDate(lease.end_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-text-muted">Monthly Rent</p>
+                        <p className="font-medium text-navy">{formatCurrency(lease.monthly_rent)}</p>
+                      </div>
+                      <div>
+                        <p className="text-text-muted">Security Deposit</p>
+                        <p className="font-medium text-navy">{formatCurrency(lease.security_deposit ?? 0)}</p>
+                      </div>
+                      {lease.payment_due_day && (
+                        <div>
+                          <p className="text-text-muted">Rent Due</p>
+                          <p className="font-medium text-navy">Day {lease.payment_due_day} of each month</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Policies */}
+                    <div className="border-t border-sage/40 pt-4 grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-text-muted">Pets</p>
+                        <p className="font-medium text-navy">
+                          {lease.pets_allowed ? "Allowed" : "Not allowed"}
+                        </p>
+                        {lease.pets_allowed && lease.pet_details && (
+                          <p className="text-text-muted whitespace-pre-line">{lease.pet_details}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-text-muted">Smoking</p>
+                        <p className="font-medium text-navy">
+                          {lease.smoking_allowed ? "Allowed" : "Not allowed"}
+                        </p>
+                      </div>
+                      {lease.num_vehicles != null && (
+                        <div>
+                          <p className="text-text-muted">Vehicles</p>
+                          <p className="font-medium text-navy">{lease.num_vehicles}</p>
+                          {lease.vehicle_details && (
+                            <p className="text-text-muted whitespace-pre-line">{lease.vehicle_details}</p>
+                          )}
+                        </div>
+                      )}
+                      {lease.parking_details && (
+                        <div>
+                          <p className="text-text-muted">Parking</p>
+                          <p className="font-medium text-navy">{lease.parking_details}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Utilities */}
+                    {lease.utilities_included &&
+                      Object.keys(lease.utilities_included).some((k) => lease.utilities_included[k]) && (
+                        <div className="border-t border-sage/40 pt-4">
+                          <p className="text-text-muted mb-1">Utilities Covered by Tenant</p>
+                          <p className="font-medium text-navy capitalize">
+                            {Object.keys(lease.utilities_included)
+                              .filter((k) => lease.utilities_included[k])
+                              .join(", ")}
+                          </p>
+                        </div>
+                      )}
+
+                    {/* Occupants */}
+                    {(lease.additional_tenants || lease.additional_occupants) && (
+                      <div className="border-t border-sage/40 pt-4 space-y-2">
+                        {lease.additional_tenants && (
+                          <div>
+                            <p className="text-text-muted">Additional Tenants</p>
+                            <p className="font-medium text-navy whitespace-pre-line">{lease.additional_tenants}</p>
+                          </div>
+                        )}
+                        {lease.additional_occupants && (
+                          <div>
+                            <p className="text-text-muted">Additional Occupants</p>
+                            <p className="font-medium text-navy whitespace-pre-line">{lease.additional_occupants}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Terms */}
+                    {lease.terms && (
+                      <div className="border-t border-sage/40 pt-4">
+                        <p className="text-text-muted mb-1">Additional Terms</p>
+                        <p className="text-navy whitespace-pre-line">{lease.terms}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
             </TabsContent>
 
             <TabsContent value="tenant" className="mt-6">
