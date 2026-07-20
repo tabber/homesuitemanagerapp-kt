@@ -178,7 +178,7 @@ export default function PropertiesPage() {
         .select("status, rent_amount")
         .eq("property_id", selectedPropertyId)
 
-      // If the units table doesn't exist or has no rows, keep zeros
+      // If the units  doesn't exist or has no rows, keep zeros
       if (error || !data || !isMounted) return
 
       const occupied = data.filter((u) => u.status === "occupied").length
@@ -525,7 +525,7 @@ const selectedUnit = isApartment && selectedUnitId
               </CardHeader>
               <CardContent>
                 {payments.length > 0 ? (
-                  <Table>
+                  <>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Tenant</TableHead>
@@ -535,7 +535,7 @@ const selectedUnit = isApartment && selectedUnitId
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <Table>
+                    <TableBody>
                       {payments.map((payment: any) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium text-navy">{tenantName || "—"}</TableCell>
