@@ -441,7 +441,7 @@ const selectedUnit = isApartment && selectedUnitId
                   <div className="pt-4">
             
                     <Button
-                      onClick={() => setShowLeaseSummary(true)}
+                      onClick={() => { alert("clicked"); setShowLeaseSummary(true) }}
                       className="bg-teal hover:bg-teal-dark text-white"
                     >
                       View Lease Summary
