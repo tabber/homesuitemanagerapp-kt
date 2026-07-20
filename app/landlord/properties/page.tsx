@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -94,6 +95,7 @@ const PROPERTY_STATUSES = [
 export default function PropertiesPage() {
   const router = useRouter()
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("")
+  const [showLeaseSummary, setShowLeaseSummary] = useState(false)
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [priorityFilter, setPriorityFilter] = useState<string>("all")
@@ -437,9 +439,14 @@ const selectedUnit = isApartment && selectedUnitId
                     </div>
                   </div>
                   <div className="pt-4">
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
+                    <div className="pt-4">
+                    <Button
+                      onClick={() => setShowLeaseSummary(true)}
+                      className="bg-teal hover:bg-teal-dark text-white"
+                    >
                       View Lease Summary
                     </Button>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
