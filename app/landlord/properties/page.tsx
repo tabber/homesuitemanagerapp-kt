@@ -1411,5 +1411,11 @@ const selectedUnit = isApartment && selectedUnitId
                     )}
                   </div>
                 )}
-              </DialogContent>
+        </DialogContent>
             </Dialog>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
