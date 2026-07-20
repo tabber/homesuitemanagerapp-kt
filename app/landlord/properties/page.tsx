@@ -675,7 +675,7 @@ const selectedUnit = isApartment && selectedUnitId
             onClick={() => setSelectedUnitId(null)}
             className="border-navy/20 text-navy hover:bg-navy/5"
           >
-            Back to Building Overview
+        Back to Building Overview
           </Button>
 
           {/* Unit Header */}
@@ -727,7 +727,6 @@ const selectedUnit = isApartment && selectedUnitId
               <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
             </TabsList>
-
             <TabsContent value="lease" className="mt-6">
               {selectedUnit.tenant ? (
                 <Card className="border-sage/50">
@@ -752,7 +751,7 @@ const selectedUnit = isApartment && selectedUnitId
                       <Button
                       onClick={() => setShowLeaseSummary(true)}
                       className="bg-teal hover:bg-teal-dark text-white"
-                    >
+                      >
                         View Lease Summary
                       </Button>
                     </div>
@@ -1296,7 +1295,7 @@ const selectedUnit = isApartment && selectedUnitId
     </div>
   )
 }
-  <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
+          <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-navy font-medium">Lease Summary</DialogTitle>
@@ -1411,7 +1410,7 @@ const selectedUnit = isApartment && selectedUnitId
                     )}
                   </div>
                 )}
-        </DialogContent>
+              </DialogContent>
             </Dialog>
           </div>
         </div>
