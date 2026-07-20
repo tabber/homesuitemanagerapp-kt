@@ -1290,6 +1290,75 @@ const selectedUnit = isApartment && selectedUnitId
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    
+
+      <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy font-medium">Lease Summary</DialogTitle>
+          </DialogHeader>
+          {activeLease ? (
+            <div className="space-y-5 py-2 text-sm">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-text-muted mb-1">Tenant</p>
+                <p className="font-medium text-navy">{tenantName || activeLease.tenant_name}</p>
+                {activeLease.tenant_email && <p className="text-text-muted">{activeLease.tenant_email}</p>}
+                {activeLease.tenant_phone && <p className="text-text-muted">{activeLease.tenant_phone}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-text-muted">Start Date</p><p className="font-medium text-navy">{formatDate(activeLease.start_date)}</p></div>
+                <div><p className="text-text-muted">End Date</p><p className="font-medium text-navy">{formatDate(activeLease.end_date)}</p></div>
+                <div><p className="text-text-muted">Monthly Rent</p><p className="font-medium text-navy">{formatCurrency(activeLease.monthly_rent)}</p></div>
+                <div><p className="text-text-muted">Security Deposit</p><p className="font-medium text-navy">{formatCurrency(activeLease.security_deposit ?? 0)}</p></div>
+                {activeLease.payment_due_day && (
+                  <div><p className="text-text-muted">Rent Due</p><p className="font-medium text-navy">Day {activeLease.payment_due_day} of each month</p></div>
+                )}
+              </div>
+              <div className="border-t border-sage/40 pt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-text-muted">Pets</p>
+                  <p className="font-medium text-navy">{activeLease.pets_allowed ? "Allowed" : "Not allowed"}</p>
+                  {activeLease.pets_allowed && activeLease.pet_details && (
+                    <p className="text-text-muted whitespace-pre-line">{activeLease.pet_details}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-text-muted">Smoking</p>
+                  <p className="font-medium text-navy">{activeLease.smoking_allowed ? "Allowed" : "Not allowed"}</p>
+                </div>
+              </div>
+              {activeLease.utilities_included &&
+                Object.keys(activeLease.utilities_included).some((k) => activeLease.utilities_included[k]) && (
+                  <div className="border-t border-sage/40 pt-4">
+                    <p className="text-text-muted mb-1">Utilities Covered by Tenant</p>
+                    <p className="font-medium text-navy capitalize">
+                      {Object.keys(activeLease.utilities_included).filter((k) => activeLease.utilities_included[k]).join(", ")}
+                    </p>
+                  </div>
+                )}
+              {(activeLease.additional_tenants || activeLease.additional_occupants) && (
+                <div className="border-t border-sage/40 pt-4 space-y-2">
+                  {activeLease.additional_tenants && (
+                    <div><p className="text-text-muted">Additional Tenants</p><p className="font-medium text-navy whitespace-pre-line">{activeLease.additional_tenants}</p></div>
+                  )}
+                  {activeLease.additional_occupants && (
+                    <div><p className="text-text-muted">Additional Occupants</p><p className="font-medium text-navy whitespace-pre-line">{activeLease.additional_occupants}</p></div>
+                  )}
+                </div>
+              )}
+              {activeLease.terms && (
+                <div className="border-t border-sage/40 pt-4">
+                  <p className="text-text-muted mb-1">Additional Terms</p>
+                  <p className="text-navy whitespace-pre-line">{activeLease.terms}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted py-4">No active lease to display.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
