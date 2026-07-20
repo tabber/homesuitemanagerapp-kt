@@ -439,14 +439,14 @@ const selectedUnit = isApartment && selectedUnitId
                     </div>
                   </div>
                   <div className="pt-4">
-                    <div className="pt-4">
+            
                     <Button
                       onClick={() => setShowLeaseSummary(true)}
                       className="bg-teal hover:bg-teal-dark text-white"
                     >
                       View Lease Summary
                     </Button>
-                  </div>
+              
                   </div>
                 </CardContent>
               </Card>
