@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react" 
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -437,14 +437,6 @@ const selectedUnit = isApartment && selectedUnitId
                       <p className="text-sm font-medium text-navy">{formatCurrency(lease.security_deposit ?? 0)}</p>
                     </div>
                   </div>
-                  <div className="pt-4">
-                    <Button
-                      onClick={() => setShowLeaseSummary(true)}
-                      className="bg-teal hover:bg-teal-dark text-white"
-                    >
-                      View Lease Summary
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             ) : (
@@ -747,14 +739,7 @@ const selectedUnit = isApartment && selectedUnitId
                         <p className="text-sm font-medium text-navy">{formatCurrency(selectedUnit.rent)}</p>
                       </div>
                     </div>
-                    <div className="pt-4">
-                      <Button
-                      onClick={() => setShowLeaseSummary(true)}
-                      className="bg-teal hover:bg-teal-dark text-white"
-                      >
-                        View Lease Summary
-                      </Button>
-                    </div>
+                  
                   </CardContent>
                 </Card>
               ) : (
