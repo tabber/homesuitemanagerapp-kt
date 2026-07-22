@@ -1,13 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Phone, Bell, Shield, Clock } from "lucide-react"
+import { User, Phone, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
@@ -25,13 +23,6 @@ export default function TenantSettings() {
     name: "",
     relationship: "",
     phone: "",
-  })
-
-  const [notifications, setNotifications] = useState({
-    paymentReminders: true,
-    maintenanceUpdates: true,
-    messages: true,
-    propertyUpdates: false,
   })
 
   const [passwords, setPasswords] = useState({
@@ -100,20 +91,8 @@ export default function TenantSettings() {
     // Handle emergency contact update
   }
 
- const handlePasswordUpdate = async () => {
-    if (passwords.new.length < 8) {
-      toast.error("New password must be at least 8 characters.")
-      return
-    }
-    const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({
-      password: passwords.new,
-    })
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-    toast.success("Password updated")
+  const handlePasswordUpdate = () => {
+    // Handle password update
     setPasswords({ current: "", new: "", confirm: "" })
   }
 
@@ -249,97 +228,6 @@ export default function TenantSettings() {
             >
               Save Changes
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Notifications */}
-        <Card className="border-sage/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-medium text-navy flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              Notifications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-navy">Payment Reminders</p>
-                <p className="text-xs text-text-muted">
-                  Get notified before rent is due
-                </p>
-              </div>
-              <Switch
-                checked={notifications.paymentReminders}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, paymentReminders: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-navy">
-                  Maintenance Updates
-                </p>
-                <p className="text-xs text-text-muted">
-                  Updates on your maintenance requests
-                </p>
-              </div>
-              <Switch
-                checked={notifications.maintenanceUpdates}
-                onCheckedChange={(checked) =>
-                  setNotifications({
-                    ...notifications,
-                    maintenanceUpdates: checked,
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-navy">Messages</p>
-                <p className="text-xs text-text-muted">
-                  New messages from your landlord
-                </p>
-              </div>
-              <Switch
-                checked={notifications.messages}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, messages: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-navy">Property Updates</p>
-                <p className="text-xs text-text-muted">
-                  Building announcements and updates
-                </p>
-              </div>
-              <Switch
-                checked={notifications.propertyUpdates}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, propertyUpdates: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-sage/30">
-              <div>
-                <p className="text-sm font-medium text-navy flex items-center gap-2">
-                  SMS Notifications
-                  <Badge
-                    variant="secondary"
-                    className="bg-teal/10 text-teal-dark text-xs"
-                  >
-                    <Clock className="h-3 w-3 mr-1" />
-                    Coming Soon
-                  </Badge>
-                </p>
-                <p className="text-xs text-text-muted">
-                  Receive notifications via text message
-                </p>
-              </div>
-              <Switch disabled />
-            </div>
           </CardContent>
         </Card>
 
