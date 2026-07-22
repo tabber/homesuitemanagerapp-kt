@@ -47,7 +47,7 @@ export default function LandingPage() {
               Sign In
             </Link>
             <Button asChild className="bg-teal hover:bg-teal-dark text-white">
-              <Link href="/signup">Get Started</Link>
+              <a href="/api/stripe/checkout">Get Started</a>
             </Button>
           </nav>
         </div>
@@ -60,15 +60,15 @@ export default function LandingPage() {
             Stop paying 8% to a property manager
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mx-auto mb-8">
-            HomeSuite gives you everything they do for as little as $49.99/mo
+            Everything they do for $79.99/mo — early adopter pricing
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
             <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
-              <Link href="/pricing">Start Free Trial</Link>
+              <a href="/api/stripe/checkout">Start Free Trial</a>
             </Button>
           </div>
           <p className="text-sm text-text-muted mb-16">
-            Starting at $49.99/mo — no credit card required
+            7-day free trial. Lock in early adopter pricing before launch rates increase.
           </p>
         </div>
       </section>
@@ -99,10 +99,10 @@ export default function LandingPage() {
             Ready to take control of your properties?
           </h2>
           <p className="text-text-muted mb-8">
-            No credit card required. Start your 7-day free trial today.
+            Start your 7-day free trial today and lock in early adopter pricing.
           </p>
           <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
-            <Link href="/signup">Get Started Free</Link>
+            <a href="/api/stripe/checkout">Get Started</a>
           </Button>
         </div>
       </section>
