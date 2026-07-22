@@ -1277,9 +1277,6 @@ const selectedUnit = isApartment && selectedUnitId
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
           <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
@@ -1397,9 +1394,6 @@ const selectedUnit = isApartment && selectedUnitId
                 )}
               </DialogContent>
             </Dialog>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
