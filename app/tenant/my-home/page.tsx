@@ -436,9 +436,9 @@ export default function TenantMyHome() {
                     </p>
                   </div>
                 </div>
-                {!lease.tenantSigned && (
-                  <Button className="bg-teal hover:bg-teal-dark text-white">
-                    Sign Now
+               {!lease.tenantSigned && (
+                  <Button asChild className="bg-teal hover:bg-teal-dark text-white">
+                    <Link href="/tenant/lease/accept">Sign Now</Link>
                   </Button>
                 )}
               </div>
