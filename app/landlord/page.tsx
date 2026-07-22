@@ -505,9 +505,7 @@ export default function LandlordDashboard() {
         <Card className="border-[0.5px] border-sage">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-medium text-navy">Upcoming Events</CardTitle>
-            <Link href="/landlord/calendar" className="text-sm text-teal hover:underline">
-              View All
-            </Link>
+          
           </CardHeader>
           <CardContent>
             {!loading && upcomingEvents.length === 0 ? (
@@ -549,9 +547,7 @@ export default function LandlordDashboard() {
         <Card className="border-[0.5px] border-sage">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-medium text-navy">Recent Activity</CardTitle>
-            <Link href="/landlord/activity" className="text-sm text-teal hover:underline">
-              View All
-            </Link>
+           
           </CardHeader>
           <CardContent>
             {!loading && recentActivity.length === 0 ? (
