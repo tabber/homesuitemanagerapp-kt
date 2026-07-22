@@ -1397,7 +1397,6 @@ const selectedUnit = isApartment && selectedUnitId
                 )}
               </DialogContent>
             </Dialog>
-          </div>
         </div>
       </div>
     </div>
