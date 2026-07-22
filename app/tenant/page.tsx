@@ -227,7 +227,7 @@ export default function TenantDashboard() {
               You have a lease waiting for your review and signature
             </span>
           </div>
-          <Link href="/tenant/home">
+        <Link href="/tenant/lease/accept">
             <Button className="bg-teal hover:bg-teal-dark text-white">
               View & Sign Lease
             </Button>
