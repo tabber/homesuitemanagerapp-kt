@@ -36,9 +36,10 @@ export async function middleware(request: NextRequest) {
   // Public routes — no auth required
   const publicRoutes = ["/", "/login", "/signup", "/signup-success", "/pricing", "/forgot-password", "/reset-password"]
 
-  const isPublicRoute = publicRoutes.some(
-    (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith("/auth"),
-  )
+  const isPublicRoute =
+    publicRoutes.some((route) => request.nextUrl.pathname === route) ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/api/")
 
   if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url))
