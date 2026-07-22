@@ -100,8 +100,20 @@ export default function TenantSettings() {
     // Handle emergency contact update
   }
 
-  const handlePasswordUpdate = () => {
-    // Handle password update
+ const handlePasswordUpdate = async () => {
+    if (passwords.new.length < 8) {
+      toast.error("New password must be at least 8 characters.")
+      return
+    }
+    const supabase = createClient()
+    const { error } = await supabase.auth.updateUser({
+      password: passwords.new,
+    })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Password updated")
     setPasswords({ current: "", new: "", confirm: "" })
   }
 
