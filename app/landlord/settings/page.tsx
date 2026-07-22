@@ -98,7 +98,7 @@ export default function SettingsPage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, company_name")
+        .select("first_name, last_name, email, phone, company_name, notification_preferences")
         .eq("id", user.id)
         .maybeSingle()
 
@@ -111,6 +111,8 @@ export default function SettingsPage() {
         phone: data?.phone ?? "",
         company: data?.company_name ?? "",
       })
+      const prefs = ((data as any)?.notification_preferences ?? {}) as Record<string, boolean>
+      setNotifications((prev) => ({ ...prev, ...prefs }))
     }
 
     loadAccount()
@@ -587,7 +589,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.email}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("email", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -597,7 +599,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.maintenanceAlerts}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, maintenanceAlerts: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("maintenanceAlerts", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -607,7 +609,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.rentReceived}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, rentReceived: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("rentReceived", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -617,7 +619,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.leaseExpiry}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, leaseExpiry: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("leaseExpiry", checked)}
               />
             </div>
             <div className="flex items-center justify-between p-4 bg-sage/10 rounded-lg">
