@@ -1,40 +1,10 @@
-"use client"
+import { redirect } from "next/navigation"
 
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Building2, User, Home } from "lucide-react"
-import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
-import { createClient } from "@/lib/supabase/client"
-
-type RoleType = "landlord" | "tenant"
-
-function Logo() {
-  return (
-    <Link href="/" className="flex items-center gap-2">
-      <div className="w-8 h-8 rounded-lg bg-teal flex items-center justify-center">
-        <Building2 className="h-5 w-5 text-white" />
-      </div>
-      <span className="text-xl font-medium text-navy">HomeSuite</span>
-    </Link>
-  )
-}
-
+// Public signups are closed. Landlord accounts are created through
+// Stripe Checkout; tenants join by landlord invitation.
 export default function SignupPage() {
-  const router = useRouter()
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [role, setRole] = useState<RoleType>("landlord")
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  redirect("/pricing")
+}  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
