@@ -800,22 +800,16 @@ export default function TenantMyHome() {
             {/* Footer */}
             <div className="pt-4 border-t border-sage/30">
               <p className="text-xs text-text-muted text-center mb-4">
-                Generated on May 13, 2026
+               Generated on {new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}
               </p>
-              <div className="flex gap-3 justify-center">
+             <div className="flex gap-3 justify-center">
                 <Button
                   variant="outline"
+                  onClick={() => window.print()}
                   className="border-sage text-navy hover:bg-sage/20"
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-sage text-navy hover:bg-sage/20"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
                 </Button>
               </div>
             </div>
