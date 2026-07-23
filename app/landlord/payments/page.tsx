@@ -9,6 +9,7 @@ import {
   Copy,
   Mail,
   Lock,
+  CheckCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +37,8 @@ import {
 } from "@/components/ui/dialog"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import {
   BarChart,
@@ -67,6 +70,15 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [dbProperties, setDbProperties] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [leaseOptions, setLeaseOptions] = useState<any[]>([])
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [savingPayment, setSavingPayment] = useState(false)
+  const [form, setForm] = useState({
+    leaseId: "",
+    amount: "",
+    date: new Date().toISOString().slice(0, 10),
+    method: "e_transfer",
+  })
 
   useEffect(() => {
     let isMounted = true
@@ -156,7 +168,23 @@ export default function PaymentsPage() {
         status: p.status ?? "pending",
       }))
 
+      // Leases available for manual payment entry
+      const { data: leaseList } = await supabase
+        .from("leases")
+        .select("id, tenant_name, tenant_id, monthly_rent, property_id, unit_id, status")
+        .eq("landlord_id", user.id)
+        .in("status", ["active", "pending"])
+        .order("created_at", { ascending: false })
+
       if (!isMounted) return
+      setLeaseOptions(
+        (leaseList ?? []).map((l: any) => ({
+          ...l,
+          label:
+            `${l.tenant_name || "Tenant"}` +
+            (propertyNameMap.get(l.property_id) ? ` — ${propertyNameMap.get(l.property_id)}` : ""),
+        }))
+      )
       setPayments(mapped)
       setDbProperties(allProps ?? [])
       setLoading(false)
@@ -211,6 +239,94 @@ export default function PaymentsPage() {
   })
 
   const totalExpected = 21300
+  const refreshPayments = async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: rows } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("landlord_id", user.id)
+      .order("payment_date", { ascending: false })
+    setPayments((prev) =>
+      (rows ?? []).map((p: any) => {
+        const existing = prev.find((x) => x.id === p.id)
+        return {
+          id: p.id,
+          tenant: existing?.tenant ?? "—",
+          unit: existing?.unit ?? "—",
+          propertyId: p.property_id ?? null,
+          property: existing?.property ?? "—",
+          amount: p.amount ?? 0,
+          method: p.payment_method ?? "—",
+          date: p.payment_date,
+          status: p.status ?? "pending",
+        }
+      })
+    )
+  }
+
+  const handleConfirmReceived = async (paymentId: string) => {
+    setConfirmingId(paymentId)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("payments")
+      .update({ status: "completed" })
+      .eq("id", paymentId)
+    setConfirmingId(null)
+    if (error) {
+      toast.error(error.message || "Could not confirm payment")
+      return
+    }
+    setPayments((prev) =>
+      prev.map((p) => (p.id === paymentId ? { ...p, status: "completed" } : p))
+    )
+    toast.success("Payment confirmed")
+  }
+
+  const handleRecordPayment = async () => {
+    if (!form.leaseId || !form.amount || savingPayment) return
+    const lease = leaseOptions.find((l) => l.id === form.leaseId)
+    if (!lease) return
+    setSavingPayment(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSavingPayment(false)
+      return
+    }
+    const { error } = await supabase.from("payments").insert({
+      lease_id: lease.id,
+      property_id: lease.property_id ?? null,
+      unit_id: lease.unit_id ?? null,
+      tenant_id: lease.tenant_id ?? null,
+      landlord_id: user.id,
+      amount: Number(form.amount),
+      payment_date: form.date,
+      payment_method: form.method,
+      status: "completed",
+      description: "Recorded by landlord",
+    })
+    setSavingPayment(false)
+    if (error) {
+      toast.error(error.message || "Could not record payment")
+      return
+    }
+    toast.success("Payment recorded")
+    setShowRecordModal(false)
+    setForm({
+      leaseId: "",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      method: "e_transfer",
+    })
+    await refreshPayments()
+  }
+
   const totalCollected = filteredPayments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0)
   const totalPending = filteredPayments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
   const avgDaysToPay = 2.3
@@ -409,14 +525,20 @@ export default function PaymentsPage() {
                     <TableCell>{payment.date ? formatDate(payment.date) : "—"}</TableCell>
                     <TableCell><StatusBadge status={payment.status} /></TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-navy hover:bg-navy/5"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View Receipt
-                      </Button>
+                      {payment.status === "pending" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={confirmingId === payment.id}
+                          onClick={() => handleConfirmReceived(payment.id)}
+                          className="text-teal hover:bg-teal/10"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          {confirmingId === payment.id ? "Confirming..." : "Confirm received"}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-text-muted pr-2">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -426,19 +548,103 @@ export default function PaymentsPage() {
         </CardContent>
       </Card>
 
-      {/* Record Payment Modal (placeholder - Essential feature) */}
+      {/* Record Payment Modal */}
       <Dialog open={showRecordModal} onOpenChange={setShowRecordModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-navy font-medium">Record Payment</DialogTitle>
           </DialogHeader>
-          <div className="py-8 text-center">
-            <Lock className="h-12 w-12 text-text-muted mx-auto mb-4" />
-            <p className="text-text-muted">This feature is available with the Essential plan.</p>
-            <Button className="mt-4 bg-teal hover:bg-teal-dark text-white">
-              Upgrade to Essential
-            </Button>
-          </div>
+          {leaseOptions.length === 0 ? (
+            <p className="py-6 text-sm text-text-muted text-center">
+              You need an active lease before you can record a payment.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="lease">Lease</Label>
+                <Select
+                  value={form.leaseId}
+                  onValueChange={(v) => {
+                    const lease = leaseOptions.find((l) => l.id === v)
+                    setForm((f) => ({
+                      ...f,
+                      leaseId: v,
+                      amount: f.amount || String(lease?.monthly_rent ?? ""),
+                    }))
+                  }}
+                >
+                  <SelectTrigger id="lease">
+                    <SelectValue placeholder="Select a lease" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leaseOptions.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="amount">Amount (CAD)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="date">Payment date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="method">Method</Label>
+                <Select
+                  value={form.method}
+                  onValueChange={(v) => setForm((f) => ({ ...f, method: v }))}
+                >
+                  <SelectTrigger id="method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="e_transfer">e-Transfer</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="direct_deposit">Direct deposit</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRecordModal(false)}
+                  className="border-sage text-navy hover:bg-sage/20"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleRecordPayment}
+                  disabled={!form.leaseId || !form.amount || savingPayment}
+                  className="bg-teal hover:bg-teal-dark text-white"
+                >
+                  {savingPayment ? "Saving..." : "Record Payment"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
