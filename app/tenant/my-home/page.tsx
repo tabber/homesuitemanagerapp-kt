@@ -51,6 +51,8 @@ export default function TenantMyHome() {
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
   const [submittingPayment, setSubmittingPayment] = useState(false)
+  const [documents, setDocuments] = useState<any[]>([])
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null)
 
 
   const formatCurrency = (amount: number) => {
@@ -127,6 +129,16 @@ export default function TenantMyHome() {
       if (!isMounted) return
       setTenantRow(tenant ?? null)
       setLeaseRow(lease ?? null)
+
+      // Documents attached to this lease (RLS limits this to the tenant's own lease)
+      if (lease?.id) {
+        const { data: docRows } = await supabase
+          .from("documents")
+          .select("*")
+          .eq("lease_id", lease.id)
+          .order("created_at", { ascending: false })
+        if (isMounted) setDocuments(docRows ?? [])
+      }
       setLandlordRow(landlord)
       setPropertyRow(property)
       setPaymentRows(payments ?? [])
@@ -196,6 +208,24 @@ export default function TenantMyHome() {
         landlordSignedDate: formatLongDate(leaseRow.landlord_signed_at),
       }
     : null
+
+  const handleOpenDocument = async (doc: any) => {
+    if (!doc.file_url) {
+      toast.error("This document has no stored file")
+      return
+    }
+    setOpeningDocId(doc.id)
+    const supabase = createClient()
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(doc.file_url, 60)
+    setOpeningDocId(null)
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message || "Could not open this document")
+      return
+    }
+    window.open(data.signedUrl, "_blank")
+  }
 
   const handleConfirmSent = async () => {
     if (!leaseRow || !userId || submittingPayment) return
@@ -366,6 +396,7 @@ export default function TenantMyHome() {
           <TabsTrigger value="lease">Lease</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="utilities">Utilities</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
         {/* Lease Tab */}
@@ -694,6 +725,63 @@ export default function TenantMyHome() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* Documents Tab */}
+        <TabsContent value="documents" className="space-y-4">
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-medium text-navy">
+                Your documents
+              </CardTitle>
+              <p className="text-sm text-text-muted mt-1">
+                Lease agreements, notices and receipts your landlord has shared
+              </p>
+            </CardHeader>
+            <CardContent>
+              {documents.length === 0 ? (
+                <p className="text-sm text-text-muted py-6 text-center">
+                  No documents yet. Anything your landlord attaches to your lease
+                  will appear here.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-sage/40 hover:bg-sage/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded bg-teal/10 flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-4 w-4 text-teal" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-navy truncate">
+                            {doc.file_name ?? "Document"}
+                          </p>
+                          <p className="text-xs text-text-muted capitalize">
+                            {(doc.document_type ?? "document").replace(/_/g, " ")}
+                            {doc.created_at
+                              ? ` · ${formatLongDate(doc.created_at)}`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={openingDocId === doc.id}
+                        onClick={() => handleOpenDocument(doc)}
+                        className="border-sage text-navy hover:bg-sage/20 flex-shrink-0"
+                      >
+                        {openingDocId === doc.id ? "Opening..." : "Open"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
 
       {/* Lease Agreement Summary Modal */}
