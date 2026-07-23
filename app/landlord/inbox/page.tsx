@@ -55,32 +55,6 @@ import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 
 // Static reference content (no backing table)
-const provincialForms = {
-  ON: [
-    { name: "Standard Lease (OREA)", description: "Ontario Standard Form of Lease", category: "Lease", url: "#" },
-    { name: "N4 - Notice to End Tenancy", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "N11 - Agreement to End Tenancy", description: "Mutual agreement to terminate", category: "Notice", url: "#" },
-    { name: "N12 - Notice to End Tenancy", description: "Landlord's own use", category: "Notice", url: "#" },
-    { name: "N13 - Notice to End Tenancy", description: "Demolition or major repairs", category: "Notice", url: "#" },
-    { name: "N1 - Notice of Rent Increase", description: "Annual rent increase notice", category: "Notice", url: "#" },
-    { name: "N2 - Notice of Entry", description: "24-hour notice of entry", category: "Notice", url: "#" },
-    { name: "L1 - Application to Evict", description: "Non-payment of rent", category: "Application", url: "#" },
-    { name: "L2 - Application to End Tenancy", description: "Persistent late payment", category: "Application", url: "#" },
-  ],
-  BC: [
-    { name: "Standard Lease Agreement", description: "BC Residential Tenancy Agreement", category: "Lease", url: "#" },
-    { name: "RTB-33 - Ten Day Notice", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "RTB-32 - One Month Notice", description: "End of tenancy", category: "Notice", url: "#" },
-    { name: "Rent Increase Notice", description: "Annual rent increase", category: "Notice", url: "#" },
-    { name: "Notice of Entry", description: "24-hour entry notice", category: "Notice", url: "#" },
-  ],
-  AB: [
-    { name: "Residential Tenancy Agreement", description: "Alberta standard lease", category: "Lease", url: "#" },
-    { name: "14-Day Notice to Terminate", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "Rent Increase Notice", description: "Annual rent increase", category: "Notice", url: "#" },
-    { name: "Notice of Entry", description: "24-hour entry notice", category: "Notice", url: "#" },
-  ],
-}
 
 const messageTemplates = [
   { id: "1", icon: "DollarSign", name: "Late Rent Reminder", preview: "This is a reminder that your rent payment..." },
@@ -527,9 +501,6 @@ export default function InboxPage() {
                 {openRequests}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="data-[state=active]:bg-white data-[state=active]:text-navy">
-            Documents
           </TabsTrigger>
         </TabsList>
 
@@ -1002,110 +973,6 @@ export default function InboxPage() {
           </div>
         </TabsContent>
 
-        {/* Documents Tab */}
-        <TabsContent value="documents" className="h-[calc(100%-3rem)] mt-0">
-          <div className="space-y-6">
-            {/* Document List */}
-            <Card className="border-sage/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-medium text-navy">Documents</CardTitle>
-                  <Button
-                    onClick={openUploadDoc}
-                    className="bg-teal hover:bg-teal-dark text-white"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Document
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {documents.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
-                  )}
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 bg-sage/10 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded bg-white border border-sage/30 flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-navy" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-navy text-sm">{doc.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <Badge variant="outline" className="text-xs border-sage">
-                              {doc.type}
-                            </Badge>
-                            <span>{doc.property}</span>
-                            <span>{formatDate(doc.date)}</span>
-                            <span>{doc.size}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" className="text-navy hover:bg-navy/5">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Provincial Forms */}
-            <Card className="border-sage/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-medium text-navy">Provincial Rental Forms</CardTitle>
-                  <Select value={selectedProvince} onValueChange={setSelectedProvince}>
-                    <SelectTrigger className="w-48 border-sage">
-                      <SelectValue placeholder="Select province" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ON">Ontario</SelectItem>
-                      <SelectItem value="BC">British Columbia</SelectItem>
-                      <SelectItem value="AB">Alberta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {provincialForms[selectedProvince as keyof typeof provincialForms]?.map((form, index) => (
-                    <a
-                      key={index}
-                      href={form.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 p-4 bg-sage/10 rounded-lg hover:bg-sage/20 transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded bg-warning/10 flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-warning" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-navy text-sm">{form.name}</p>
-                          <ExternalLink className="h-3 w-3 text-text-muted" />
-                        </div>
-                        <p className="text-xs text-text-muted mt-1">{form.description}</p>
-                        <Badge variant="outline" className="mt-2 text-xs border-sage">
-                          {form.category}
-                        </Badge>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* Create Maintenance Request Modal */}
