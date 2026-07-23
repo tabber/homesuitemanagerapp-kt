@@ -588,22 +588,32 @@ const selectedUnitMaintenance = selectedUnitRow
     loadProperties()
   }
 
-  const handleAcknowledgeLease = async () => {
-    if (!activeLease || acknowledging) return
+  const confirmLeaseById = async (leaseId: string) => {
+    if (!leaseId || acknowledging) return
     setAcknowledging(true)
     const supabase = createClient()
     const now = new Date().toISOString()
     const { error } = await supabase
       .from("leases")
       .update({ landlord_signed_at: now })
-      .eq("id", activeLease.id)
+      .eq("id", leaseId)
     setAcknowledging(false)
     if (error) {
       toast.error(error.message || "Could not confirm the lease")
       return
     }
-    setActiveLease({ ...activeLease, landlord_signed_at: now })
+    setActiveLease((prev: any) =>
+      prev && prev.id === leaseId ? { ...prev, landlord_signed_at: now } : prev
+    )
+    setPropertyLeases((prev) =>
+      prev.map((l: any) => (l.id === leaseId ? { ...l, landlord_signed_at: now } : l))
+    )
     toast.success("Lease confirmed")
+  }
+
+  const handleAcknowledgeLease = async () => {
+    if (!activeLease) return
+    await confirmLeaseById(activeLease.id)
   }
 
   const lease = activeLease
@@ -1062,13 +1072,31 @@ const selectedUnitMaintenance = selectedUnitRow
               <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
             </TabsList>
-            <TabsContent value="lease" className="mt-6">
+            <TabsContent value="lease" className="mt-6 space-y-4">
+              {selectedUnitLease && selectedUnitLease.tenant_signed_at && !selectedUnitLease.landlord_signed_at && (
+                <div className="flex items-center justify-between gap-3 p-4 rounded-lg bg-warning/10 border border-warning/30">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-warning flex-shrink-0" />
+                    <p className="text-sm text-navy">
+                      Your tenant has accepted this lease — confirm it to complete the record.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => confirmLeaseById(selectedUnitLease.id)}
+                    disabled={acknowledging}
+                    className="bg-teal hover:bg-teal-dark text-white flex-shrink-0"
+                  >
+                    {acknowledging ? "Confirming..." : "Confirm lease"}
+                  </Button>
+                </div>
+              )}
               {selectedUnitLease ? (
                 <Card className="border-sage/50">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg font-medium text-navy">Current Lease</CardTitle>
-                      <StatusBadge status="active" />
+                      <StatusBadge status={selectedUnitLease.status === "active" ? "active" : "pending"} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1086,6 +1114,50 @@ const selectedUnitMaintenance = selectedUnitRow
                       <div>
                         <p className="text-sm text-text-muted">Monthly Rent</p>
                         <p className="text-sm font-medium text-navy">{formatCurrency(selectedUnit.rent)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-text-muted">Lease Period</p>
+                        <p className="text-sm font-medium text-navy">
+                          {formatDate(selectedUnitLease.start_date)} - {formatDate(selectedUnitLease.end_date)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-text-muted">Security Deposit</p>
+                        <p className="text-sm font-medium text-navy">
+                          {formatCurrency(Number(selectedUnitLease.security_deposit ?? 0))}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-sage/40 pt-4 space-y-3 text-sm">
+                      <p className="text-xs uppercase tracking-wide text-text-muted">Lease Status</p>
+                      <div>
+                        <p className="text-navy font-medium">Tenant acceptance</p>
+                        <p className="text-text-muted">
+                          {selectedUnitLease.tenant_signed_at
+                            ? `Accepted on ${formatDate(selectedUnitLease.tenant_signed_at)}`
+                            : "Awaiting tenant acceptance"}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-navy font-medium">Your confirmation</p>
+                          <p className="text-text-muted">
+                            {selectedUnitLease.landlord_signed_at
+                              ? `Confirmed on ${formatDate(selectedUnitLease.landlord_signed_at)}`
+                              : "Not yet confirmed"}
+                          </p>
+                        </div>
+                        {!selectedUnitLease.landlord_signed_at && (
+                          <Button
+                            size="sm"
+                            onClick={() => confirmLeaseById(selectedUnitLease.id)}
+                            disabled={acknowledging}
+                            className="bg-teal hover:bg-teal-dark text-white flex-shrink-0"
+                          >
+                            {acknowledging ? "Confirming..." : "Confirm lease"}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   
@@ -1427,6 +1499,9 @@ const selectedUnitMaintenance = selectedUnitRow
                                 {name}
                                 {l.status === "pending" && (
                                   <span className="ml-2 text-xs text-warning">pending</span>
+                                )}
+                                {l.tenant_signed_at && !l.landlord_signed_at && (
+                                  <span className="ml-2 text-xs text-warning">needs confirmation</span>
                                 )}
                               </span>
                             )
