@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import {
   FileText,
   CreditCard,
@@ -36,12 +35,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
 export default function TenantMyHome() {
   const [showLeaseModal, setShowLeaseModal] = useState(false)
   const [showETransferModal, setShowETransferModal] = useState(false)
-  const { firstName, lastName, email } = useUser()
+  const { id: userId, firstName, lastName, email } = useUser()
 
   const [loading, setLoading] = useState(true)
   const [leaseRow, setLeaseRow] = useState<any | null>(null)
@@ -49,6 +49,7 @@ export default function TenantMyHome() {
   const [propertyRow, setPropertyRow] = useState<any | null>(null)
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
+  const [submittingPayment, setSubmittingPayment] = useState(false)
 
 
   const formatCurrency = (amount: number) => {
@@ -194,6 +195,59 @@ export default function TenantMyHome() {
         landlordSignedDate: formatLongDate(leaseRow.landlord_signed_at),
       }
     : null
+
+  const handleConfirmSent = async () => {
+    if (!leaseRow || !userId || submittingPayment) return
+    setSubmittingPayment(true)
+    const supabase = createClient()
+    const amount = Number(leaseRow.monthly_rent ?? 0)
+
+    // Status is forced to "pending" by the database for tenant-created rows.
+    const { data: inserted, error } = await supabase
+      .from("payments")
+      .insert({
+        lease_id: leaseRow.id,
+        property_id: leaseRow.property_id ?? null,
+        unit_id: leaseRow.unit_id ?? null,
+        tenant_id: userId,
+        landlord_id: leaseRow.landlord_id ?? null,
+        amount,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: "e_transfer",
+        description: "Tenant-reported e-Transfer",
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setSubmittingPayment(false)
+      toast.error(error.message || "Could not record your payment")
+      return
+    }
+
+    // Notify the landlord in their inbox (best effort).
+    if (leaseRow.landlord_id) {
+      const tenantName =
+        [firstName, lastName].filter(Boolean).join(" ") ||
+        leaseRow.tenant_name ||
+        "Your tenant"
+      await supabase.from("messages").insert({
+        sender_id: userId,
+        recipient_id: leaseRow.landlord_id,
+        lease_id: leaseRow.id,
+        subject: "Rent payment sent",
+        content: `${tenantName} has sent a rent payment of ${new Intl.NumberFormat(
+          "en-CA",
+          { style: "currency", currency: "CAD" }
+        ).format(amount)} by e-Transfer. Please confirm receipt in your Payments page once it arrives.`,
+      })
+    }
+
+    if (inserted) setPaymentRows((prev) => [inserted, ...prev])
+    setSubmittingPayment(false)
+    setShowETransferModal(false)
+    toast.success("Payment reported — your landlord has been notified")
+  }
 
   const payments = paymentRows.map((p: any) => ({
     id: p.id,
@@ -437,9 +491,9 @@ export default function TenantMyHome() {
                     </p>
                   </div>
                 </div>
-               {!lease.tenantSigned && (
-                  <Button asChild className="bg-teal hover:bg-teal-dark text-white">
-                    <Link href="/tenant/lease/accept">Sign Now</Link>
+                {!lease.tenantSigned && (
+                  <Button className="bg-teal hover:bg-teal-dark text-white">
+                    Sign Now
                   </Button>
                 )}
               </div>
@@ -800,16 +854,22 @@ export default function TenantMyHome() {
             {/* Footer */}
             <div className="pt-4 border-t border-sage/30">
               <p className="text-xs text-text-muted text-center mb-4">
-               Generated on {new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}
+                Generated on May 13, 2026
               </p>
-             <div className="flex gap-3 justify-center">
+              <div className="flex gap-3 justify-center">
                 <Button
                   variant="outline"
-                  onClick={() => window.print()}
                   className="border-sage text-navy hover:bg-sage/20"
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-sage text-navy hover:bg-sage/20"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
                 </Button>
               </div>
             </div>
@@ -852,10 +912,11 @@ export default function TenantMyHome() {
                 Cancel
               </Button>
               <Button
-                onClick={() => setShowETransferModal(false)}
+                onClick={handleConfirmSent}
+                disabled={submittingPayment}
                 className="flex-1 bg-teal hover:bg-teal-dark text-white"
               >
-                Confirm Sent
+                {submittingPayment ? "Recording..." : "Confirm Sent"}
               </Button>
             </div>
           </div>
