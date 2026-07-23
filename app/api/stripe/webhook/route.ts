@@ -58,6 +58,22 @@ async function emailAdmin(subject: string, html: string) {
   }
 }
 
+async function stripeApi(
+  path: string,
+  params?: Record<string, string>,
+  method: "POST" | "DELETE" = "POST"
+) {
+  const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params ? new URLSearchParams(params).toString() : undefined,
+  })
+  return res.json()
+}
+
 async function findUserIdByEmail(email: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("profiles")
@@ -94,7 +110,8 @@ export async function POST(request: Request) {
 
         if (!email) break
 
-        let userId = await findUserIdByEmail(email)
+        const existingUserId = await findUserIdByEmail(email)
+        let userId = existingUserId
 
         if (!userId) {
           // New landlord: create the account and send the set-password invite.
@@ -114,10 +131,35 @@ export async function POST(request: Request) {
 
         if (!userId) break
 
+        let status = "trialing"
+
+        if (existingUserId) {
+          // Returning account: no second free trial — start billing now.
+          const ended = await stripeApi(`subscriptions/${stripeSubscriptionId}`, {
+            trial_end: "now",
+          })
+          if (ended?.status) status = ended.status
+
+          // Cancel any previous, different subscription so only one bills.
+          const { data: prev } = await supabaseAdmin
+            .from("subscriptions")
+            .select("stripe_subscription_id")
+            .eq("user_id", userId)
+            .neq("stripe_subscription_id", stripeSubscriptionId)
+            .maybeSingle()
+          if (prev?.stripe_subscription_id) {
+            await stripeApi(`subscriptions/${prev.stripe_subscription_id}`, undefined, "DELETE")
+            await supabaseAdmin
+              .from("subscriptions")
+              .update({ status: "canceled", updated_at: new Date().toISOString() })
+              .eq("stripe_subscription_id", prev.stripe_subscription_id)
+          }
+        }
+
         await supabaseAdmin
           .from("profiles")
           .update({
-            subscription_status: "trialing",
+            subscription_status: status,
             stripe_customer_id: stripeCustomerId,
           })
           .eq("id", userId)
@@ -128,14 +170,16 @@ export async function POST(request: Request) {
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
             plan_name: "essential",
-            status: "trialing",
+            status,
           },
           { onConflict: "stripe_subscription_id" }
         )
 
         await emailAdmin(
-          "New HomeSuite signup",
-          `<p><strong>${email}</strong> just started a trial via Stripe Checkout.</p>`
+          existingUserId ? "HomeSuite reactivation" : "New HomeSuite signup",
+          existingUserId
+            ? `<p><strong>${email}</strong> resubscribed — billing started immediately (no repeat trial).</p>`
+            : `<p><strong>${email}</strong> just started a trial via Stripe Checkout.</p>`
         )
         break
       }
