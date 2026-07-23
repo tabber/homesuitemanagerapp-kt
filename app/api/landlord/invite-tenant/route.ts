@@ -52,23 +52,23 @@ export async function POST(request: Request) {
     }
 
     const email = lease.tenant_email.trim().toLowerCase()
-const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || "https://homesuitemanager.com"}/auth/callback`
+const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.homesuitemanager.com"}/auth/callback`
 
     // 2. Check whether an auth user already exists for this email.
     //    If they do, we don't re-invite (they can just log in and accept);
     //    we still record that an invitation was attempted.
-    let alreadyExists = false
-    try {
-      const { data: existing } = await supabaseAdmin.auth.admin.listUsers()
-      alreadyExists = !!existing?.users?.find(
-        (u) => u.email?.toLowerCase() === email
-      )
-    } catch {
-      // If the lookup fails, fall through and attempt the invite
-    }
+    // Check for an existing account via profiles (indexed lookup) rather than
+    // scanning every auth user.
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle()
+
+    let alreadyExists = !!existingProfile
 
     if (!alreadyExists) {
-      // 3. Invite the tenant. This creates an auth user and emails them a link.
+      // Invite the tenant. This creates an auth user and emails them a link.
       const { error: inviteError } =
         await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
           redirectTo,
@@ -80,7 +80,13 @@ const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || "https://homesuitemana
         })
 
       if (inviteError) {
-        return NextResponse.json({ error: inviteError.message }, { status: 500 })
+        // An account may exist in auth without a profile row; treat that as
+        // "already registered" rather than an error.
+        if (/already.*(registered|exists)/i.test(inviteError.message)) {
+          alreadyExists = true
+        } else {
+          return NextResponse.json({ error: inviteError.message }, { status: 500 })
+        }
       }
     }
 
