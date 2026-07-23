@@ -8,7 +8,6 @@ import {
   Eye,
   Copy,
   Mail,
-  Lock,
   CheckCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -67,6 +66,9 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
+  const [instructionLeaseId, setInstructionLeaseId] = useState("")
+  const [payMethodTab, setPayMethodTab] = useState<"etransfer" | "pad" | "auto">("etransfer")
+  const [sendingReminder, setSendingReminder] = useState(false)
   const [payments, setPayments] = useState<any[]>([])
   const [dbProperties, setDbProperties] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,11 +106,15 @@ export default function PaymentsPage() {
       // Load all of this landlord's properties for the filter dropdown
       const { data: allProps } = await supabase
         .from("properties")
-        .select("id, name")
+        .select("id, name, address, etransfer_email")
         .eq("landlord_id", user.id)
         .order("name", { ascending: true })
       const propertyNameMap = new Map<string, string>()
-      ;(allProps ?? []).forEach((p: any) => propertyNameMap.set(p.id, p.name))
+      const propertyInfoMap = new Map<string, any>()
+      ;(allProps ?? []).forEach((p: any) => {
+        propertyNameMap.set(p.id, p.name)
+        propertyInfoMap.set(p.id, p)
+      })
 
       // Resolve unit numbers referenced by the payments
       const unitIds = Array.from(
@@ -171,20 +177,26 @@ export default function PaymentsPage() {
       // Leases available for manual payment entry
       const { data: leaseList } = await supabase
         .from("leases")
-        .select("id, tenant_name, tenant_id, monthly_rent, property_id, unit_id, status")
+        .select("id, tenant_name, tenant_id, monthly_rent, property_id, unit_id, status, etransfer_email")
         .eq("landlord_id", user.id)
         .in("status", ["active", "pending"])
         .order("created_at", { ascending: false })
 
       if (!isMounted) return
-      setLeaseOptions(
-        (leaseList ?? []).map((l: any) => ({
+      const leaseMapped = (leaseList ?? []).map((l: any) => {
+        const prop = propertyInfoMap.get(l.property_id)
+        return {
           ...l,
+          propertyName: prop?.name ?? "",
+          propertyAddress: prop?.address ?? "",
+          payToEmail: l.etransfer_email || prop?.etransfer_email || "",
           label:
             `${l.tenant_name || "Tenant"}` +
-            (propertyNameMap.get(l.property_id) ? ` — ${propertyNameMap.get(l.property_id)}` : ""),
-        }))
-      )
+            (prop?.name ? ` — ${prop.name}` : ""),
+        }
+      })
+      setLeaseOptions(leaseMapped)
+      if (leaseMapped.length > 0) setInstructionLeaseId(leaseMapped[0].id)
       setPayments(mapped)
       setDbProperties(allProps ?? [])
       setLoading(false)
@@ -331,11 +343,53 @@ export default function PaymentsPage() {
   const totalPending = filteredPayments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
   const avgDaysToPay = 2.3
 
+  const selectedInstructionLease = leaseOptions.find((l) => l.id === instructionLeaseId)
+
+  const instructionText = selectedInstructionLease
+    ? `Send e-Transfer to: ${selectedInstructionLease.payToEmail || "(not set)"}\n` +
+      `Amount: ${formatCurrency(selectedInstructionLease.monthly_rent ?? 0)}\n` +
+      `Message: Rent - ${
+        selectedInstructionLease.propertyAddress ||
+        selectedInstructionLease.propertyName ||
+        "your rental"
+      }`
+    : ""
+
   const handleCopyInstructions = () => {
-    const instructions = `Send e-Transfer to: payments@email.com\nAmount: $2,800.00\nMessage: Rent - 456 Oak St`
-    navigator.clipboard.writeText(instructions)
+    if (!instructionText) return
+    navigator.clipboard.writeText(instructionText)
     setCopiedInstructions(true)
     setTimeout(() => setCopiedInstructions(false), 2000)
+  }
+
+  const handleSendReminder = async () => {
+    if (!selectedInstructionLease || sendingReminder) return
+    if (!selectedInstructionLease.tenant_id) {
+      toast.error("This tenant hasn't accepted their lease invitation yet")
+      return
+    }
+    setSendingReminder(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSendingReminder(false)
+      return
+    }
+    const { error } = await supabase.from("messages").insert({
+      sender_id: user.id,
+      recipient_id: selectedInstructionLease.tenant_id,
+      lease_id: selectedInstructionLease.id,
+      subject: "Rent payment reminder",
+      content: `A friendly reminder that rent is due.\n\n${instructionText}\n\nOnce you've sent it, mark it in your portal so I can confirm receipt.`,
+    })
+    setSendingReminder(false)
+    if (error) {
+      toast.error(error.message || "Could not send reminder")
+      return
+    }
+    toast.success("Reminder sent to tenant's inbox")
   }
 
   return (
@@ -413,37 +467,142 @@ export default function PaymentsPage() {
             <div className="w-10 h-10 rounded-lg bg-teal/10 flex items-center justify-center">
               <CreditCard className="h-5 w-5 text-teal" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-navy mb-1">How tenants pay rent</h3>
-              <p className="text-sm text-text-muted mb-3">
-                Share these instructions with your tenants for e-Transfer payments.
-              </p>
-              <div className="bg-white rounded-lg p-4 border border-sage/30">
-                <div className="space-y-2 text-sm">
-                  <p><span className="text-text-muted">Send e-Transfer to:</span> <span className="text-navy font-medium">payments@email.com</span></p>
-                  <p><span className="text-text-muted">Amount:</span> <span className="text-navy font-medium">$2,800.00</span></p>
-                  <p><span className="text-text-muted">Message:</span> <span className="text-navy font-medium">Rent - 456 Oak St</span></p>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <h3 className="font-medium text-navy mb-1">How tenants pay rent</h3>
+                  <p className="text-sm text-text-muted">
+                    Choose a method and share the details with your tenant.
+                  </p>
                 </div>
+                {leaseOptions.length > 0 && (
+                  <Select value={instructionLeaseId} onValueChange={setInstructionLeaseId}>
+                    <SelectTrigger className="w-56 border-sage bg-white">
+                      <SelectValue placeholder="Select a tenant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leaseOptions.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  onClick={handleCopyInstructions}
-                  className="border-navy/20 text-navy hover:bg-navy/5"
-                >
-                  <Copy className="h-4 w-4 mr-2" />
-                  {copiedInstructions ? "Copied!" : "Copy Instructions"}
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled
-                  className="border-navy/20 text-navy opacity-70"
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send Reminder
-                  <Lock className="h-3 w-3 ml-1.5" />
-                </Button>
+
+              {/* Method switcher */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  { key: "etransfer", label: "e-Transfer", ready: true },
+                  { key: "pad", label: "Pre-authorized debit", ready: false },
+                  { key: "auto", label: "Automatic collection", ready: false },
+                ].map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setPayMethodTab(m.key as typeof payMethodTab)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      payMethodTab === m.key
+                        ? "bg-teal text-white border-teal"
+                        : "bg-white text-navy border-sage hover:bg-sage/20"
+                    }`}
+                  >
+                    {m.label}
+                    {!m.ready && (
+                      <span className="ml-1.5 text-[10px] uppercase tracking-wide opacity-70">
+                        soon
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
+
+              {payMethodTab === "etransfer" && (
+                <>
+                  {leaseOptions.length === 0 ? (
+                    <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm text-text-muted">
+                      Create a lease to generate payment instructions.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-white rounded-lg p-4 border border-sage/30">
+                        <div className="space-y-2 text-sm">
+                          <p>
+                            <span className="text-text-muted">Send e-Transfer to:</span>{" "}
+                            <span className="text-navy font-medium">
+                              {selectedInstructionLease?.payToEmail || "Not set — add one on the lease"}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-text-muted">Amount:</span>{" "}
+                            <span className="text-navy font-medium">
+                              {formatCurrency(selectedInstructionLease?.monthly_rent ?? 0)}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-text-muted">Message:</span>{" "}
+                            <span className="text-navy font-medium">
+                              Rent -{" "}
+                              {selectedInstructionLease?.propertyAddress ||
+                                selectedInstructionLease?.propertyName ||
+                                "your rental"}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handleCopyInstructions}
+                          className="border-navy/20 text-navy hover:bg-navy/5"
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          {copiedInstructions ? "Copied!" : "Copy instructions"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleSendReminder}
+                          disabled={sendingReminder}
+                          className="border-navy/20 text-navy hover:bg-navy/5"
+                        >
+                          <Mail className="h-4 w-4 mr-2" />
+                          {sendingReminder ? "Sending..." : "Send reminder"}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {payMethodTab === "pad" && (
+                <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm space-y-2">
+                  <p className="text-navy font-medium">Pre-authorized debit (PAD)</p>
+                  <p className="text-text-muted">
+                    Have your tenant sign your bank&apos;s PAD agreement as part of their
+                    onboarding documents, then submit it to your bank to pull rent
+                    automatically each month.
+                  </p>
+                  <p className="text-text-muted">
+                    Coming with the document signing release — you&apos;ll upload your
+                    bank&apos;s form once and send it with every new lease.
+                  </p>
+                </div>
+              )}
+
+              {payMethodTab === "auto" && (
+                <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm space-y-2">
+                  <p className="text-navy font-medium">Automatic collection</p>
+                  <p className="text-text-muted">
+                    Rent debited from your tenant&apos;s account on the due date and
+                    recorded here automatically — no reminders, no manual confirming.
+                  </p>
+                  <p className="text-text-muted">
+                    On the roadmap. For now, e-Transfer with confirmation is the
+                    fastest way to keep records accurate.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
