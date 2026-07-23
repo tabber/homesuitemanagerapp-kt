@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
+import Link from "next/link"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
@@ -457,11 +458,11 @@ export default function TenantMyHome() {
             </CardContent>
           </Card>
 
-          {/* Signature Status */}
+          {/* Lease Status */}
           <Card className="border-sage/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg font-medium text-navy">
-                Signature Status
+                Lease Status
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -482,18 +483,18 @@ export default function TenantMyHome() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-navy">
-                      Tenant Signature
+                      Your acknowledgment
                     </p>
                     <p className="text-sm text-text-muted">
                       {lease.tenantSigned
-                        ? `Signed on ${lease.tenantSignedDate}`
-                        : "Awaiting your signature"}
+                        ? `Accepted on ${lease.tenantSignedDate}`
+                        : "Review and accept your lease terms"}
                     </p>
                   </div>
                 </div>
                 {!lease.tenantSigned && (
-                  <Button className="bg-teal hover:bg-teal-dark text-white">
-                    Sign Now
+                  <Button asChild className="bg-teal hover:bg-teal-dark text-white">
+                    <Link href="/tenant/lease/accept">Review &amp; Accept</Link>
                   </Button>
                 )}
               </div>
@@ -515,12 +516,12 @@ export default function TenantMyHome() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-navy">
-                      Landlord Signature
+                      Landlord acknowledgment
                     </p>
                     <p className="text-sm text-text-muted">
                       {lease.landlordSigned
                         ? `Signed on ${lease.landlordSignedDate}`
-                        : "Awaiting landlord signature"}
+                        : "Awaiting landlord confirmation"}
                     </p>
                   </div>
                 </div>
@@ -854,22 +855,16 @@ export default function TenantMyHome() {
             {/* Footer */}
             <div className="pt-4 border-t border-sage/30">
               <p className="text-xs text-text-muted text-center mb-4">
-                Generated on May 13, 2026
+                Generated on {new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}
               </p>
               <div className="flex gap-3 justify-center">
                 <Button
                   variant="outline"
+                  onClick={() => window.print()}
                   className="border-sage text-navy hover:bg-sage/20"
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-sage text-navy hover:bg-sage/20"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
                 </Button>
               </div>
             </div>
