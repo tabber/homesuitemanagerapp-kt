@@ -91,7 +91,19 @@ export default function TenantDashboard() {
         .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
         .eq("tenant_id", user.id)
         .limit(1)
-      const leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
+      let leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
+
+      // A lease that hasn't been accepted yet has no tenant_id, so fall back to
+      // matching on the email the landlord addressed it to.
+      if (!leaseRow && user.email) {
+        const { data: pendingRows } = await supabase
+          .from("leases")
+          .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
+          .ilike("tenant_email", user.email)
+          .eq("status", "pending")
+          .limit(1)
+        leaseRow = (pendingRows?.[0] as LeaseData | undefined) ?? null
+      }
 
       const { count: openCount } = await supabase
         .from("maintenance_requests")
