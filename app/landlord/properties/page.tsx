@@ -13,6 +13,8 @@ import {
   Search,
   Filter,
   Wrench,
+  AlertCircle,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -455,6 +457,27 @@ const selectedUnit = isApartment && selectedUnitId
                       <p className="text-sm text-text-muted">Security Deposit</p>
                       <p className="text-sm font-medium text-navy">{formatCurrency(lease.security_deposit ?? 0)}</p>
                     </div>
+                  </div>
+
+                  {lease.tenant_signed_at && !lease.landlord_signed_at && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <AlertCircle className="h-4 w-4 text-warning flex-shrink-0" />
+                      <p className="text-sm text-navy">
+                        Your tenant has accepted this lease — confirm it to complete the record.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowLeaseSummary(true)}
+                      className="border-sage text-navy hover:bg-sage/20"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View lease summary
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
