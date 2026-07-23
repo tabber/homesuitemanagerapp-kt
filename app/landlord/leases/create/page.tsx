@@ -146,26 +146,35 @@ export default function CreateLeasePage() {
           .from("units")
           .select("id, property_id, unit_number, bedrooms, bathrooms, rent_amount, status")
           .in("property_id", propertyIds)
-          .eq("status", "vacant")
         unitRows = units ?? []
       }
 
-      const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => ({
-        id: p.id,
-        name: p.name ?? "",
-        address: p.address ?? "",
-        type: p.property_type === "building" ? "apartment" : "single",
-        monthlyRent: p.rent_amount ?? 0,
-        vacantUnits: unitRows
-          .filter((u) => u.property_id === p.id)
-          .map((u) => ({
-            id: u.id,
-            number: u.unit_number ?? "",
-            bedrooms: u.bedrooms ?? 0,
-            bathrooms: u.bathrooms ?? 0,
-            rent: u.rent_amount ?? 0,
-          })),
-      }))
+      const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => {
+        const propertyUnits = unitRows.filter((u) => u.property_id === p.id)
+        // A property is multi-unit if it has unit records, or its type says so.
+        const isMulti =
+          propertyUnits.length > 0 ||
+          ["building", "apartment", "multi_unit", "multi", "duplex", "triplex", "fourplex"].includes(
+            String(p.property_type ?? "").toLowerCase()
+          )
+        return {
+          id: p.id,
+          name: p.name ?? "",
+          address: p.address ?? "",
+          type: isMulti ? "apartment" : "single",
+          monthlyRent: p.rent_amount ?? 0,
+          totalUnits: propertyUnits.length,
+          vacantUnits: propertyUnits
+            .filter((u) => String(u.status ?? "vacant").toLowerCase() !== "occupied")
+            .map((u) => ({
+              id: u.id,
+              number: u.unit_number ?? "",
+              bedrooms: u.bedrooms ?? 0,
+              bathrooms: u.bathrooms ?? 0,
+              rent: u.rent_amount ?? 0,
+            })),
+        }
+      })
 
       // Tenants available to assign to a lease
       const { data: tenantRows } = await supabase
@@ -394,7 +403,7 @@ export default function CreateLeasePage() {
       <p className="text-sm text-text-muted">Choose the property and unit for this lease.</p>
 
       <div className="space-y-3">
-        {properties.filter((p) => p.type === "single" || p.vacantUnits.length > 0).map((property) => (
+        {properties.map((property) => (
           <button
             key={property.id}
             onClick={() => setForm((prev) => ({ ...prev, propertyId: property.id, unitId: "" }))}
@@ -422,9 +431,19 @@ export default function CreateLeasePage() {
                 </div>
                 <p className="text-sm text-text-muted">{property.address}</p>
                 {property.type === "apartment" && (
-                  <p className="text-sm text-teal mt-1">
-                    {property.vacantUnits.length} units available
-                  </p>
+                  property.vacantUnits.length > 0 ? (
+                    <p className="text-sm text-teal mt-1">
+                      {property.vacantUnits.length} of {property.totalUnits || property.vacantUnits.length} units available
+                    </p>
+                  ) : property.totalUnits > 0 ? (
+                    <p className="text-sm text-warning mt-1">
+                      All units occupied
+                    </p>
+                  ) : (
+                    <p className="text-sm text-warning mt-1">
+                      No units added yet — add units to this property first
+                    </p>
+                  )
                 )}
               </div>
               {form.propertyId === property.id && (
