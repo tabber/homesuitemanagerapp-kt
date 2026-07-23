@@ -1,9 +1,7 @@
 "use client"
 
-import { Suspense } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import { Building2, Mail } from "lucide-react"
+import { Building2, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -18,59 +16,56 @@ function Logo() {
   )
 }
 
-function SignupSuccessContent() {
-  const searchParams = useSearchParams()
-  const email = searchParams.get("email") || "your email"
-
-  return (
-    <Card className="w-full max-w-md border-[0.5px] border-sage">
-      <CardContent className="p-6 text-center">
-        <div className="w-16 h-16 rounded-full bg-cream flex items-center justify-center mx-auto mb-6">
-          <Mail className="h-8 w-8 text-navy" />
-        </div>
-
-        <h1 className="text-2xl font-medium text-navy mb-2">Check your email</h1>
-        <p className="text-sm text-text-muted mb-2">
-          {"We've"} sent a confirmation link to:
-        </p>
-        <p className="text-sm font-medium text-navy mb-6">{email}</p>
-        <p className="text-sm text-text-muted mb-6">
-          Click the link in your email to activate your account.
-        </p>
-
-        <Button
-          variant="outline"
-          className="w-full border-navy/20 text-navy hover:bg-navy/5 mb-4"
-        >
-          Resend Confirmation Email
-        </Button>
-
-        <Link
-          href="/login"
-          className="text-sm text-teal hover:underline"
-        >
-          Back to login
-        </Link>
-      </CardContent>
-    </Card>
-  )
-}
-
 export default function SignupSuccessPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-sage/50">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <Logo />
         </div>
       </header>
 
-      {/* Content */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
-        <Suspense fallback={<div>Loading...</div>}>
-          <SignupSuccessContent />
-        </Suspense>
+        <Card className="w-full max-w-md border-[0.5px] border-sage">
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="h-8 w-8 text-success" />
+            </div>
+
+            <h1 className="text-2xl font-medium text-navy mb-4">
+              Payment successful — welcome to HomeSuite
+            </h1>
+
+            <div className="text-sm text-text-muted text-left space-y-3 mb-6">
+              <p>
+                <span className="font-medium text-navy">First time here?</span>{" "}
+                Check your inbox for an email from HomeSuite with a link to set
+                your password. It usually arrives within a minute.
+              </p>
+              <p>
+                <span className="font-medium text-navy">
+                  Already had an account?
+                </span>{" "}
+                {"You're"} reactivated — no email needed. Just sign in with your
+                existing password.
+              </p>
+            </div>
+
+            <Button asChild className="w-full bg-teal hover:bg-teal-dark text-white mb-4">
+              <Link href="/login">Sign In</Link>
+            </Button>
+
+            <p className="text-xs text-text-muted">
+              No email after a few minutes? Check spam, or contact{" "}
+              <a
+                className="text-teal hover:underline"
+                href="mailto:team@homesuitemanager.com"
+              >
+                team@homesuitemanager.com
+              </a>
+            </p>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )
