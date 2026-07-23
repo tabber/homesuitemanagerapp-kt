@@ -114,6 +114,31 @@ export default function PropertiesPage() {
   // Per-property tab data (lease / tenant / payments / maintenance)
   const [activeLease, setActiveLease] = useState<any | null>(null)
   const [acknowledging, setAcknowledging] = useState(false)
+  const [unitRows, setUnitRows] = useState<any[]>([])
+  const [unitDialogOpen, setUnitDialogOpen] = useState(false)
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null)
+  const [savingUnit, setSavingUnit] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [addUnitsOpen, setAddUnitsOpen] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    count: "1",
+    startNumber: "101",
+    floor: "1",
+    bedrooms: "1",
+    bathrooms: "1",
+    rent: "",
+    deposit: "",
+  })
+  const [unitForm, setUnitForm] = useState({
+    unit_number: "",
+    floor: "",
+    bedrooms: "",
+    bathrooms: "",
+    rent_amount: "",
+    deposit_amount: "",
+    status: "vacant",
+    notes: "",
+  })
   const [tenantProfile, setTenantProfile] = useState<any | null>(null)
   const [propertyPayments, setPropertyPayments] = useState<any[]>([])
   const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
@@ -152,6 +177,7 @@ export default function PropertiesPage() {
       .from("properties")
       .select("*")
       .eq("landlord_id", user.id)
+      .or("archived.is.null,archived.eq.false")
       .order("created_at", { ascending: true })
 
     if (data) {
@@ -177,8 +203,11 @@ export default function PropertiesPage() {
       const supabase = createClient()
       const { data, error } = await supabase
         .from("units")
-        .select("status, rent_amount")
+        .select("*")
         .eq("property_id", selectedPropertyId)
+        .order("unit_number", { ascending: true })
+
+      if (isMounted) setUnitRows(data ?? [])
 
       // If the units table doesn't exist or has no rows, keep zeros
       if (error || !data || !isMounted) return
@@ -336,6 +365,136 @@ const selectedUnit = isApartment && selectedUnitId
   // Single unit property view — JSX built inline (not a nested component) so it
   // is not redefined on each render and uses the parent's state/hooks directly.
   const property = selectedProperty as any
+  const UNIT_STATUSES = [
+    { value: "vacant", label: "Vacant" },
+    { value: "occupied", label: "Occupied" },
+    { value: "maintenance", label: "Under repair" },
+    { value: "renovating", label: "Renovating" },
+    { value: "unavailable", label: "Not available" },
+  ]
+
+  const reloadUnits = async () => {
+    if (!selectedPropertyId) return
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("units")
+      .select("*")
+      .eq("property_id", selectedPropertyId)
+      .order("unit_number", { ascending: true })
+    setUnitRows(data ?? [])
+  }
+
+  const openUnitEditor = (unit: any) => {
+    setEditingUnitId(unit.id)
+    setUnitForm({
+      unit_number: String(unit.number ?? unit.unit_number ?? ""),
+      floor: String(unit.floor ?? ""),
+      bedrooms: String(unit.bedrooms ?? ""),
+      bathrooms: String(unit.bathrooms ?? ""),
+      rent_amount: String(unit.rent ?? unit.rent_amount ?? ""),
+      deposit_amount: String(unit.deposit ?? unit.deposit_amount ?? ""),
+      status: unit.status ?? "vacant",
+      notes: unit.notes ?? "",
+    })
+    setUnitDialogOpen(true)
+  }
+
+  const handleSaveUnit = async () => {
+    if (!editingUnitId || savingUnit) return
+    setSavingUnit(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("units")
+      .update({
+        unit_number: unitForm.unit_number,
+        floor: unitForm.floor ? parseInt(unitForm.floor) : null,
+        bedrooms: unitForm.bedrooms ? parseInt(unitForm.bedrooms) : null,
+        bathrooms: unitForm.bathrooms ? parseFloat(unitForm.bathrooms) : null,
+        rent_amount: unitForm.rent_amount ? parseFloat(unitForm.rent_amount) : null,
+        deposit_amount: unitForm.deposit_amount ? parseFloat(unitForm.deposit_amount) : null,
+        status: unitForm.status,
+        notes: unitForm.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingUnitId)
+    setSavingUnit(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Unit updated")
+    setUnitDialogOpen(false)
+    setEditingUnitId(null)
+    reloadUnits()
+  }
+
+  const handleDeleteUnit = async (unitId: string, status: string) => {
+    if (status === "occupied") {
+      toast.error("End the lease before removing an occupied unit")
+      return
+    }
+    const supabase = createClient()
+    const { error } = await supabase.from("units").delete().eq("id", unitId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Unit removed")
+    setUnitDialogOpen(false)
+    setEditingUnitId(null)
+    reloadUnits()
+  }
+
+  const handleAddUnits = async () => {
+    if (!selectedPropertyId || savingUnit) return
+    const count = Math.max(1, Math.min(parseInt(bulkForm.count || "1"), 50))
+    const start = parseInt(bulkForm.startNumber || "101")
+    if (Number.isNaN(start)) {
+      toast.error("Starting unit number must be a number")
+      return
+    }
+    setSavingUnit(true)
+    const supabase = createClient()
+    const rows = Array.from({ length: count }, (_, i) => ({
+      property_id: selectedPropertyId,
+      unit_number: String(start + i),
+      floor: bulkForm.floor ? parseInt(bulkForm.floor) : null,
+      bedrooms: bulkForm.bedrooms ? parseInt(bulkForm.bedrooms) : null,
+      bathrooms: bulkForm.bathrooms ? parseFloat(bulkForm.bathrooms) : null,
+      rent_amount: bulkForm.rent ? parseFloat(bulkForm.rent) : null,
+      deposit_amount: bulkForm.deposit ? parseFloat(bulkForm.deposit) : null,
+      status: "vacant",
+    }))
+    const { error } = await supabase.from("units").insert(rows)
+    setSavingUnit(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`${count} unit${count === 1 ? "" : "s"} added`)
+    setAddUnitsOpen(false)
+    reloadUnits()
+  }
+
+  const handleArchiveProperty = async () => {
+    if (!selectedPropertyId || archiving) return
+    setArchiving(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("properties")
+      .update({ archived: true, archived_at: new Date().toISOString() })
+      .eq("id", selectedPropertyId)
+    setArchiving(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Property archived")
+    setEditOpen(false)
+    setSelectedPropertyId("")
+    loadProperties()
+  }
+
   const handleAcknowledgeLease = async () => {
     if (!activeLease || acknowledging) return
     setAcknowledging(true)
@@ -669,17 +828,34 @@ const selectedUnit = isApartment && selectedUnitId
   // Multi-unit building view
   const MultiUnitBuildingView = () => {
     const property = selectedProperty as any
-    const occupiedCount = property.units?.filter((u) => u.status === "occupied").length || 0
-    const vacantCount = property.units?.filter((u) => u.status === "vacant").length || 0
-    const maintenanceCount = property.units?.filter((u) => u.status === "maintenance").length || 0
-    const totalRevenue = property.units?.filter((u) => u.status === "occupied").reduce((sum, u) => sum + u.rent, 0) || 0
+    // Units come from the database, mapped into the shape this view expects.
+    const mappedUnits = unitRows.map((u: any) => ({
+      id: u.id,
+      number: u.unit_number ?? "",
+      floor: u.floor ?? 1,
+      bedrooms: u.bedrooms ?? 0,
+      bathrooms: u.bathrooms ?? 0,
+      rent: Number(u.rent_amount ?? 0),
+      deposit: Number(u.deposit_amount ?? 0),
+      status: u.status ?? "vacant",
+      notes: u.notes ?? "",
+      tenant: null,
+    }))
+    const occupiedCount = mappedUnits.filter((u) => u.status === "occupied").length
+    const vacantCount = mappedUnits.filter((u) => u.status === "vacant").length
+    const maintenanceCount = mappedUnits.filter((u) =>
+      ["maintenance", "renovating", "unavailable"].includes(u.status)
+    ).length
+    const totalRevenue = mappedUnits
+      .filter((u) => u.status === "occupied")
+      .reduce((sum, u) => sum + u.rent, 0)
     
     // Group units by floor
-    const floors = property.units?.reduce((acc, unit) => {
+    const floors = mappedUnits.reduce((acc: any, unit: any) => {
       if (!acc[unit.floor]) acc[unit.floor] = []
       acc[unit.floor].push(unit)
       return acc
-    }, {} as Record<number, typeof property.units>) || {}
+    }, {} as Record<number, any[]>)
 
     if (selectedUnit) {
       // Unit Detail View
@@ -725,7 +901,11 @@ const selectedUnit = isApartment && selectedUnitId
                     {selectedUnit.bedrooms} bed / {selectedUnit.bathrooms} bath - Floor {selectedUnit.floor}
                   </p>
                 </div>
-                <Button variant="outline" className="border-navy/20 text-navy hover:bg-navy/5">
+                <Button
+                  variant="outline"
+                  onClick={() => openUnitEditor(selectedUnit)}
+                  className="border-navy/20 text-navy hover:bg-navy/5"
+                >
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit Unit
                 </Button>
@@ -985,7 +1165,29 @@ const selectedUnit = isApartment && selectedUnitId
 
           <TabsContent value="units" className="mt-6">
             <Card className="border-sage/50">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg font-medium text-navy">
+                    Units ({mappedUnits.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setAddUnitsOpen(true)}
+                    className="bg-teal hover:bg-teal-dark text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add units
+                  </Button>
+                </div>
+              </CardHeader>
               <CardContent className="p-0">
+                {mappedUnits.length === 0 && (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-text-muted mb-4">
+                      No units yet. Add units so you can create leases for this building.
+                    </p>
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -999,9 +1201,16 @@ const selectedUnit = isApartment && selectedUnitId
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {property.units?.map((unit) => (
+                    {mappedUnits.map((unit: any) => (
                       <TableRow key={unit.id}>
-                        <TableCell className="font-medium text-navy">{unit.number}</TableCell>
+                        <TableCell className="font-medium text-navy">
+                          {unit.number}
+                          {unit.notes && (
+                            <p className="text-xs text-text-muted font-normal mt-0.5 max-w-[220px] truncate">
+                              {unit.notes}
+                            </p>
+                          )}
+                        </TableCell>
                         <TableCell>{unit.floor}</TableCell>
                         <TableCell>{unit.bedrooms} / {unit.bathrooms}</TableCell>
                         <TableCell>{unit.tenant || "—"}</TableCell>
@@ -1016,6 +1225,14 @@ const selectedUnit = isApartment && selectedUnitId
                               className="border-navy/20 text-navy hover:bg-navy/5"
                             >
                               View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openUnitEditor(unit)}
+                              className="border-navy/20 text-navy hover:bg-navy/5"
+                            >
+                              Edit
                             </Button>
                             {unit.status === "vacant" && (
                               <Button
@@ -1303,6 +1520,14 @@ const selectedUnit = isApartment && selectedUnitId
           <DialogFooter>
             <Button
               variant="outline"
+              onClick={handleArchiveProperty}
+              disabled={archiving}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 mr-auto"
+            >
+              {archiving ? "Archiving..." : "Archive property"}
+            </Button>
+            <Button
+              variant="outline"
               className="border-navy/20 text-navy hover:bg-navy/5"
               onClick={() => setEditOpen(false)}
               disabled={savingEdit}
@@ -1319,6 +1544,136 @@ const selectedUnit = isApartment && selectedUnitId
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Edit Unit Dialog */}
+      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Edit unit</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="u_number">Unit number</Label>
+                <Input id="u_number" value={unitForm.unit_number} onChange={(e) => setUnitForm((f) => ({ ...f, unit_number: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="u_floor">Floor</Label>
+                <Input id="u_floor" type="number" value={unitForm.floor} onChange={(e) => setUnitForm((f) => ({ ...f, floor: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="u_bed">Bedrooms</Label>
+                <Input id="u_bed" type="number" value={unitForm.bedrooms} onChange={(e) => setUnitForm((f) => ({ ...f, bedrooms: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="u_bath">Bathrooms</Label>
+                <Input id="u_bath" type="number" step="0.5" value={unitForm.bathrooms} onChange={(e) => setUnitForm((f) => ({ ...f, bathrooms: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="u_rent">Monthly rent</Label>
+                <Input id="u_rent" type="number" step="0.01" value={unitForm.rent_amount} onChange={(e) => setUnitForm((f) => ({ ...f, rent_amount: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="u_dep">Deposit</Label>
+                <Input id="u_dep" type="number" step="0.01" value={unitForm.deposit_amount} onChange={(e) => setUnitForm((f) => ({ ...f, deposit_amount: e.target.value }))} />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="u_status">Status</Label>
+              <Select value={unitForm.status} onValueChange={(v) => setUnitForm((f) => ({ ...f, status: v }))}>
+                <SelectTrigger id="u_status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNIT_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {unitForm.status === "occupied" && (
+                <p className="text-xs text-text-muted mt-1">
+                  Occupied is normally set automatically when a lease becomes active.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="u_notes">Notes</Label>
+              <Textarea id="u_notes" rows={3} placeholder="Upgraded windows 2026, north-facing, new dishwasher..." value={unitForm.notes} onChange={(e) => setUnitForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+
+            <div className="flex gap-3 justify-between pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const u = unitRows.find((x) => x.id === editingUnitId)
+                  if (editingUnitId) handleDeleteUnit(editingUnitId, u?.status ?? "vacant")
+                }}
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                Remove unit
+              </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setUnitDialogOpen(false)} className="border-sage text-navy hover:bg-sage/20">
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveUnit} disabled={savingUnit} className="bg-teal hover:bg-teal-dark text-white">
+                  {savingUnit ? "Saving..." : "Save unit"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Units Dialog */}
+      <Dialog open={addUnitsOpen} onOpenChange={setAddUnitsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Add units</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-text-muted">
+              Units are numbered sequentially from the starting number. You can rename or adjust any of them afterwards.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="b_count">How many</Label>
+                <Input id="b_count" type="number" min="1" max="50" value={bulkForm.count} onChange={(e) => setBulkForm((f) => ({ ...f, count: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="b_start">Starting number</Label>
+                <Input id="b_start" value={bulkForm.startNumber} onChange={(e) => setBulkForm((f) => ({ ...f, startNumber: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="b_floor">Floor</Label>
+                <Input id="b_floor" type="number" value={bulkForm.floor} onChange={(e) => setBulkForm((f) => ({ ...f, floor: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="b_bed">Bedrooms</Label>
+                <Input id="b_bed" type="number" value={bulkForm.bedrooms} onChange={(e) => setBulkForm((f) => ({ ...f, bedrooms: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="b_bath">Bathrooms</Label>
+                <Input id="b_bath" type="number" step="0.5" value={bulkForm.bathrooms} onChange={(e) => setBulkForm((f) => ({ ...f, bathrooms: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="b_rent">Monthly rent</Label>
+                <Input id="b_rent" type="number" step="0.01" value={bulkForm.rent} onChange={(e) => setBulkForm((f) => ({ ...f, rent: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="outline" onClick={() => setAddUnitsOpen(false)} className="border-sage text-navy hover:bg-sage/20">
+                Cancel
+              </Button>
+              <Button onClick={handleAddUnits} disabled={savingUnit} className="bg-teal hover:bg-teal-dark text-white">
+                {savingUnit ? "Adding..." : "Add units"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
           <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
