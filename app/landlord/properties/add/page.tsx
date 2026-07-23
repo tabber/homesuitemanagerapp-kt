@@ -269,29 +269,87 @@ export default function AddPropertyPage() {
             total_floors: String(multiForm.totalFloors),
           }
 
-    const { error } = await supabase.from("properties").insert({
-      landlord_id: user.id,
-      name: formData.name,
-      property_type: formData.property_type,
-      status: formData.status || "vacant",
-      address: formData.address,
-      city: formData.city,
-      province: formData.province,
-      postal_code: formData.postal_code,
-      country: "Canada",
-      description: formData.description,
-      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
-      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
-      square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
-      rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
-      deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
-      total_units: formData.total_units ? parseInt(formData.total_units) : null,
-      total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
-    })
+    const { data: created, error } = await supabase
+      .from("properties")
+      .insert({
+        landlord_id: user.id,
+        name: formData.name,
+        property_type: formData.property_type,
+        status: formData.status || "vacant",
+        address: formData.address,
+        city: formData.city,
+        province: formData.province,
+        postal_code: formData.postal_code,
+        country: "Canada",
+        description: formData.description,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+        bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
+        square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
+        rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
+        deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
+        total_units: formData.total_units ? parseInt(formData.total_units) : null,
+        total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
+      })
+      .select("id")
+      .single()
 
-    if (error) {
-      toast.error(error.message)
+    if (error || !created) {
+      toast.error(error?.message ?? "Could not create property")
       return
+    }
+
+    // Multi-unit: persist the unit types and the individual units that were
+    // configured in the builder (previously these were discarded).
+    if (propertyType === "multi") {
+      const typeIdMap = new Map<string, string>()
+
+      for (const ut of multiForm.unitTypes) {
+        const { data: insertedType } = await supabase
+          .from("unit_types")
+          .insert({
+            property_id: created.id,
+            bedrooms: ut.bedrooms,
+            bathrooms: ut.bathrooms,
+            rent_amount: ut.rent,
+            deposit_amount: ut.deposit || null,
+          })
+          .select("id")
+          .single()
+        if (insertedType) typeIdMap.set(ut.id, insertedType.id)
+      }
+
+      const unitRows: any[] = []
+      multiForm.floors.forEach((floor) => {
+        let unitNum = 1
+        floor.units.forEach((fu) => {
+          const ut = multiForm.unitTypes.find((t) => t.id === fu.unitTypeId)
+          for (let i = 0; i < fu.count; i++) {
+            unitRows.push({
+              property_id: created.id,
+              unit_number: `${floor.number}${String(unitNum).padStart(2, "0")}`,
+              floor: floor.number,
+              bedrooms: ut?.bedrooms ?? null,
+              bathrooms: ut?.bathrooms ?? null,
+              rent_amount: ut?.rent ?? null,
+              deposit_amount: ut?.deposit ?? null,
+              status: "vacant",
+            })
+            unitNum++
+          }
+        })
+      })
+
+      if (unitRows.length > 0) {
+        const { error: unitError } = await supabase.from("units").insert(unitRows)
+        if (unitError) {
+          toast.error(`Property saved, but units failed: ${unitError.message}`)
+          router.push("/landlord/properties")
+          return
+        }
+      }
+      toast.success(`Property created with ${unitRows.length} unit${unitRows.length === 1 ? "" : "s"}`)
+    } else {
+      toast.success("Property created")
     }
 
     router.push("/landlord/properties")
