@@ -1,13 +1,53 @@
 "use client"
 
-import { ReactNode } from "react"
+import { ReactNode, useEffect, useState } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { createClient } from "@/lib/supabase/client"
 import { UserProvider, useUser } from "@/lib/context/UserContext"
 
 function LandlordLayoutInner({ children }: { children: ReactNode }) {
-  const { firstName, lastName, email } = useUser()
+  const { id, firstName, lastName, email } = useUser()
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | undefined>(
+    undefined
+  )
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadSubscription() {
+      if (!id) return
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("profiles")
+        .select("subscription_status, trial_end_date")
+        .eq("id", id)
+        .maybeSingle()
+
+      if (!isMounted || !data) return
+
+      const status = data.subscription_status ?? "trial"
+      if (status === "trial" || status === "trialing") {
+        const end = data.trial_end_date ? new Date(data.trial_end_date) : null
+        if (end) {
+          const days = Math.max(
+            0,
+            Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          )
+          setTrialDaysRemaining(days)
+        }
+      } else {
+        // active / canceled / anything else: hide the trial widget
+        setTrialDaysRemaining(undefined)
+      }
+    }
+
+    loadSubscription()
+
+    return () => {
+      isMounted = false
+    }
+  }, [id])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -17,14 +57,21 @@ function LandlordLayoutInner({ children }: { children: ReactNode }) {
     window.location.href = "/"
   }
 
+  const handleUpgrade = () => {
+    // Stripe Checkout: for comped/manual trials this starts a paid
+    // subscription; for Stripe trials it converts to paid immediately
+    // (the webhook ends the trial and cancels the old subscription).
+    window.location.href = "/api/stripe/checkout"
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <MobileSidebarWrapper>
         <AppSidebar
           portal="landlord"
           user={{ firstName, lastName, email }}
-          trialDaysRemaining={5}
-          onUpgrade={() => console.log("Upgrade clicked")}
+          trialDaysRemaining={trialDaysRemaining}
+          onUpgrade={handleUpgrade}
           onSignOut={handleSignOut}
         />
       </MobileSidebarWrapper>
