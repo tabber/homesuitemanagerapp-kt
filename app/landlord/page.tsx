@@ -146,6 +146,8 @@ export default function LandlordDashboard() {
         maintenanceRes,
         messagesRes,
         paymentConfigRes,
+        utilityBillsRes,
+        unitsRes,
       ] = await Promise.all([
         supabase.from("properties").select("id, name, status").eq("landlord_id", user.id),
         supabase
@@ -171,13 +173,13 @@ export default function LandlordDashboard() {
           .single(),
         supabase
           .from("payments")
-          .select("amount, payment_date, created_at, property_id")
+          .select("amount, payment_date, created_at, property_id, lease_id, status")
           .eq("landlord_id", user.id)
           .gte("payment_date", format(sixMonthsAgo, "yyyy-MM-dd")),
         supabase
           .from("leases")
           .select(
-            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at"
+            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at, payment_due_day, unit_id"
           )
           .eq("landlord_id", user.id),
         supabase
@@ -189,6 +191,11 @@ export default function LandlordDashboard() {
           .select("id, subject, created_at")
           .eq("recipient_id", user.id),
         supabase.from("payment_configuration").select("id").eq("landlord_id", user.id),
+        supabase
+          .from("utility_bills")
+          .select("id, utility_type, amount, due_date, paid, lease_id")
+          .eq("paid", false),
+        supabase.from("units").select("id, property_id, status"),
       ])
 
       if (!isMounted) return
@@ -239,16 +246,111 @@ export default function LandlordDashboard() {
       )
       setHasRevenue(payments.length > 0)
 
-      // Occupancy (from properties)
-      const occupied = properties.filter((p) => p.status === "occupied").length
-      setOccupancy({
-        occupied,
-        vacant: properties.length - occupied,
-        total: properties.length,
+      // Occupancy — derived from active leases and units, never from the
+      // stale properties.status column.
+      const unitRows = unitsRes.data ?? []
+      const activeLeases = leases.filter((l: any) => l.status === "active")
+      let rentable = 0
+      let occupiedCount = 0
+
+      properties.forEach((p: any) => {
+        const propertyUnits = unitRows.filter((u: any) => u.property_id === p.id)
+        if (propertyUnits.length > 0) {
+          // Multi-unit: each unit is a rentable slot
+          rentable += propertyUnits.length
+          occupiedCount += propertyUnits.filter(
+            (u: any) =>
+              u.status === "occupied" ||
+              activeLeases.some((l: any) => l.unit_id === u.id)
+          ).length
+        } else {
+          // Single-unit: the property itself is the rentable slot
+          rentable += 1
+          if (activeLeases.some((l: any) => l.property_id === p.id)) {
+            occupiedCount += 1
+          }
+        }
       })
 
-      // Upcoming events (lease expirations + scheduled maintenance)
+      setOccupancy({
+        occupied: occupiedCount,
+        vacant: Math.max(0, rentable - occupiedCount),
+        total: rentable,
+      })
+
+      // Upcoming events (rent due/overdue, confirmations, leases, maintenance, utilities)
       const events: UpcomingEvent[] = []
+      const utilityBills = utilityBillsRes.data ?? []
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const money = (n: number) =>
+        new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n)
+
+      // Payments a tenant reported but the landlord hasn't confirmed yet
+      payments
+        .filter((p: any) => p.status === "pending")
+        .forEach((p: any) => {
+          const lease = leases.find((l: any) => l.id === p.lease_id)
+          events.push({
+            type: "rent",
+            icon: eventIconByType.rent,
+            title: "Confirm payment received",
+            description: `${lease?.tenant_name ?? "Tenant"} reported a payment`,
+            amount: money(Number(p.amount ?? 0)),
+            date: p.payment_date ? new Date(p.payment_date) : today,
+          })
+        })
+
+      // Rent due / overdue for each active lease this month
+      leases
+        .filter((l: any) => l.status === "active")
+        .forEach((l: any) => {
+          const dueDay = Math.min(Math.max(Number(l.payment_due_day ?? 1), 1), 28)
+          const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay)
+          const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+          const paidThisPeriod = payments.some(
+            (p: any) =>
+              p.lease_id === l.id &&
+              p.status === "completed" &&
+              p.payment_date &&
+              new Date(p.payment_date) >= periodStart
+          )
+          if (paidThisPeriod) return
+
+          const overdue = dueThisMonth < today
+          const nextDue = overdue
+            ? new Date(now.getFullYear(), now.getMonth() + 1, dueDay)
+            : dueThisMonth
+
+          events.push({
+            type: "rent",
+            icon: eventIconByType.rent,
+            title: overdue ? "Rent overdue" : "Rent due",
+            description: `${l.tenant_name ?? "Tenant"} - ${
+              propertyMap.get(l.property_id) ?? "Property"
+            }`,
+            amount: money(Number(l.monthly_rent ?? 0)),
+            date: overdue ? dueThisMonth : nextDue,
+          })
+        })
+
+      // Unpaid utility bills coming due
+      utilityBills.forEach((b: any) => {
+        const lease = leases.find((l: any) => l.id === b.lease_id)
+        if (!lease || !b.due_date) return
+        const due = new Date(b.due_date)
+        const days = Math.ceil((due.getTime() - today.getTime()) / 86400000)
+        if (days > 45) return
+        events.push({
+          type: "utility",
+          icon: eventIconByType.utility,
+          title: days < 0 ? "Utility bill overdue" : "Utility bill due",
+          description: `${String(b.utility_type ?? "Utility")} - ${
+            propertyMap.get(lease.property_id) ?? "Property"
+          }`,
+          amount: money(Number(b.amount ?? 0)),
+          date: due,
+        })
+      })
       leases.forEach((l) => {
         if (!l.end_date) return
         const end = new Date(l.end_date)
@@ -505,11 +607,13 @@ export default function LandlordDashboard() {
         <Card className="border-[0.5px] border-sage">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-medium text-navy">Upcoming Events</CardTitle>
-          
           </CardHeader>
           <CardContent>
             {!loading && upcomingEvents.length === 0 ? (
-              <p className="text-sm text-text-muted py-4 text-center">No data yet</p>
+              <p className="text-sm text-text-muted py-4 text-center">
+                Nothing due in the next while — rent, utility bills, lease
+                renewals and scheduled maintenance will appear here.
+              </p>
             ) : (
               <ul className="space-y-3">
                 {upcomingEvents.slice(0, 5).map((event, index) => (
@@ -547,7 +651,6 @@ export default function LandlordDashboard() {
         <Card className="border-[0.5px] border-sage">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-medium text-navy">Recent Activity</CardTitle>
-           
           </CardHeader>
           <CardContent>
             {!loading && recentActivity.length === 0 ? (
