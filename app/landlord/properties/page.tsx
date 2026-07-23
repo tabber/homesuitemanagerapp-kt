@@ -111,6 +111,7 @@ export default function PropertiesPage() {
 
   // Per-property tab data (lease / tenant / payments / maintenance)
   const [activeLease, setActiveLease] = useState<any | null>(null)
+  const [acknowledging, setAcknowledging] = useState(false)
   const [tenantProfile, setTenantProfile] = useState<any | null>(null)
   const [propertyPayments, setPropertyPayments] = useState<any[]>([])
   const [propertyMaintenance, setPropertyMaintenance] = useState<any[]>([])
@@ -333,6 +334,24 @@ const selectedUnit = isApartment && selectedUnitId
   // Single unit property view — JSX built inline (not a nested component) so it
   // is not redefined on each render and uses the parent's state/hooks directly.
   const property = selectedProperty as any
+  const handleAcknowledgeLease = async () => {
+    if (!activeLease || acknowledging) return
+    setAcknowledging(true)
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from("leases")
+      .update({ landlord_signed_at: now })
+      .eq("id", activeLease.id)
+    setAcknowledging(false)
+    if (error) {
+      toast.error(error.message || "Could not confirm the lease")
+      return
+    }
+    setActiveLease({ ...activeLease, landlord_signed_at: now })
+    toast.success("Lease confirmed")
+  }
+
   const lease = activeLease
   const tenant = tenantProfile
   const payments = propertyPayments
@@ -1390,6 +1409,43 @@ const selectedUnit = isApartment && selectedUnitId
                         <p className="text-navy whitespace-pre-line">{activeLease.terms}</p>
                       </div>
                     )}
+
+                    {/* Lease status */}
+                    <div className="border-t border-sage/40 pt-4 space-y-3">
+                      <p className="text-xs uppercase tracking-wide text-text-muted">
+                        Lease Status
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-navy font-medium">Tenant acceptance</p>
+                          <p className="text-text-muted">
+                            {activeLease.tenant_signed_at
+                              ? `Accepted on ${formatDate(activeLease.tenant_signed_at)}`
+                              : "Awaiting tenant acceptance"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-navy font-medium">Your confirmation</p>
+                          <p className="text-text-muted">
+                            {activeLease.landlord_signed_at
+                              ? `Confirmed on ${formatDate(activeLease.landlord_signed_at)}`
+                              : "Not yet confirmed"}
+                          </p>
+                        </div>
+                        {!activeLease.landlord_signed_at && (
+                          <Button
+                            size="sm"
+                            onClick={handleAcknowledgeLease}
+                            disabled={acknowledging}
+                            className="bg-teal hover:bg-teal-dark text-white flex-shrink-0"
+                          >
+                            {acknowledging ? "Confirming..." : "Confirm lease"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </DialogContent>
