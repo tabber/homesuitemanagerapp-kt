@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   FileText,
@@ -67,8 +67,11 @@ type TenantOption = {
 
 type LeaseType = "create" | "upload" | null
 
-export default function CreateLeasePage() {
+function CreateLeasePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetPropertyId = searchParams.get("property") ?? ""
+  const presetUnitId = searchParams.get("unit") ?? ""
   const [leaseType, setLeaseType] = useState<LeaseType>(null)
   const [currentStep, setCurrentStep] = useState(0)
 
@@ -192,6 +195,23 @@ export default function CreateLeasePage() {
       if (!isMounted) return
 
       setProperties(mappedProperties)
+
+      // Deep link from a unit: preselect the property and unit, and use the
+      // unit's rent as the starting monthly rent.
+      if (presetPropertyId) {
+        const preProp = mappedProperties.find((p) => p.id === presetPropertyId)
+        const preUnit = preProp?.vacantUnits.find((u) => u.id === presetUnitId)
+        setForm((prev) => ({
+          ...prev,
+          propertyId: presetPropertyId,
+          unitId: presetUnitId || prev.unitId,
+          monthlyRent: preUnit?.rent
+            ? String(preUnit.rent)
+            : preProp?.monthlyRent
+            ? String(preProp.monthlyRent)
+            : prev.monthlyRent,
+        }))
+      }
       setTenants(mappedTenants)
 
       if (profile) {
@@ -950,5 +970,14 @@ export default function CreateLeasePage() {
         </Button>
       </div>
     </div>
+  )
+}
+
+
+export default function CreateLeasePage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateLeasePageInner />
+    </Suspense>
   )
 }
