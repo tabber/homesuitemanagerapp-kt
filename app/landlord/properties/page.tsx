@@ -79,6 +79,28 @@ const CANADIAN_PROVINCES = [
   { value: "YT", label: "Yukon" },
 ]
 
+const MULTI_UNIT_TYPES = [
+  "building",
+  "apartment",
+  "multi_unit",
+  "multi",
+  "duplex",
+  "triplex",
+  "fourplex",
+]
+
+// A property is multi-unit if its type says so, or it already has units,
+// or it declares more than one total unit.
+function isMultiUnitProperty(p: any, unitCount = 0) {
+  if (!p) return false
+  const t = String(p.property_type ?? "").toLowerCase()
+  return (
+    MULTI_UNIT_TYPES.includes(t) ||
+    unitCount > 0 ||
+    Number(p.total_units ?? 0) > 1
+  )
+}
+
 const PROPERTY_TYPES = [
   { value: "house", label: "House" },
   { value: "condo", label: "Condo" },
@@ -300,9 +322,24 @@ export default function PropertiesPage() {
   }, [selectedPropertyId, tabsRefreshTick])
 
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
-  const isApartment = selectedProperty?.type === "apartment" ?? false
-const selectedUnit = isApartment && selectedUnitId
-  ? selectedProperty?.units?.find((u: any) => u.id === selectedUnitId)
+  const isApartment = isMultiUnitProperty(selectedProperty, unitRows.length)
+const selectedUnitRow =
+  isApartment && selectedUnitId
+    ? unitRows.find((u: any) => u.id === selectedUnitId)
+    : null
+const selectedUnit = selectedUnitRow
+  ? {
+      id: selectedUnitRow.id,
+      number: selectedUnitRow.unit_number ?? "",
+      floor: selectedUnitRow.floor ?? 1,
+      bedrooms: selectedUnitRow.bedrooms ?? 0,
+      bathrooms: selectedUnitRow.bathrooms ?? 0,
+      rent: Number(selectedUnitRow.rent_amount ?? 0),
+      deposit: Number(selectedUnitRow.deposit_amount ?? 0),
+      status: selectedUnitRow.status ?? "vacant",
+      notes: selectedUnitRow.notes ?? "",
+      tenant: null,
+    }
   : null
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
@@ -1362,7 +1399,7 @@ const selectedUnit = isApartment && selectedUnitId
                     property.id === selectedPropertyId && "bg-sage/20"
                   )}
                 >
-                  {property.type === "apartment" ? (
+                  {isMultiUnitProperty(property) ? (
                     <Building2 className="h-4 w-4 text-navy" />
                   ) : (
                     <Home className="h-4 w-4 text-navy" />
