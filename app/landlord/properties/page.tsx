@@ -135,6 +135,8 @@ export default function PropertiesPage() {
 
   // Per-property tab data (lease / tenant / payments / maintenance)
   const [activeLease, setActiveLease] = useState<any | null>(null)
+  const [propertyLeases, setPropertyLeases] = useState<any[]>([])
+  const [unitTenants, setUnitTenants] = useState<Record<string, any>>({})
   const [acknowledging, setAcknowledging] = useState(false)
   const [unitRows, setUnitRows] = useState<any[]>([])
   const [unitDialogOpen, setUnitDialogOpen] = useState(false)
@@ -280,6 +282,28 @@ export default function PropertiesPage() {
         .limit(1)
         .maybeSingle()
 
+      // All leases for this property (used by the per-unit views)
+      const { data: allLeases } = await supabase
+        .from("leases")
+        .select("*")
+        .eq("property_id", selectedPropertyId)
+        .in("status", ["active", "pending"])
+
+      // Tenant profiles referenced by those leases
+      const tenantIds = Array.from(
+        new Set((allLeases ?? []).map((l: any) => l.tenant_id).filter(Boolean))
+      )
+      const tenantMap: Record<string, any> = {}
+      if (tenantIds.length > 0) {
+        const { data: tenantRows } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", tenantIds)
+        ;(tenantRows ?? []).forEach((t: any) => {
+          tenantMap[t.id] = t
+        })
+      }
+
       // Tenant tab: profile referenced by the active lease
       let tenant: any | null = null
       if (leaseRow?.tenant_id) {
@@ -297,7 +321,7 @@ export default function PropertiesPage() {
         .select("*")
         .eq("property_id", selectedPropertyId)
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(200)
 
       // Maintenance tab: requests for this property
       const { data: maintenance } = await supabase
@@ -309,6 +333,8 @@ export default function PropertiesPage() {
       if (!isMounted) return
 
       setActiveLease(leaseRow ?? null)
+      setPropertyLeases(allLeases ?? [])
+      setUnitTenants(tenantMap)
       setTenantProfile(tenant)
       setPropertyPayments(payments ?? [])
       setPropertyMaintenance(maintenance ?? [])
@@ -323,6 +349,14 @@ export default function PropertiesPage() {
 
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = isMultiUnitProperty(selectedProperty, unitRows.length)
+
+  // Lease/tenant/payment/maintenance data scoped to the selected unit
+  const leaseForUnit = (unitId: string | null) =>
+    unitId
+      ? propertyLeases.find(
+          (l: any) => l.unit_id === unitId && (l.status === "active" || l.status === "pending")
+        ) ?? null
+      : null
 const selectedUnitRow =
   isApartment && selectedUnitId
     ? unitRows.find((u: any) => u.id === selectedUnitId)
@@ -338,9 +372,31 @@ const selectedUnit = selectedUnitRow
       deposit: Number(selectedUnitRow.deposit_amount ?? 0),
       status: selectedUnitRow.status ?? "vacant",
       notes: selectedUnitRow.notes ?? "",
-      tenant: null,
+      tenant: (() => {
+        const l = propertyLeases.find(
+          (x: any) => x.unit_id === selectedUnitRow.id && x.status === "active"
+        )
+        if (!l) return null
+        const p = l.tenant_id ? unitTenants[l.tenant_id] : null
+        return (
+          [p?.first_name, p?.last_name].filter(Boolean).join(" ") ||
+          l.tenant_name ||
+          "Tenant"
+        )
+      })(),
     }
   : null
+
+const selectedUnitLease = selectedUnitRow ? leaseForUnit(selectedUnitRow.id) : null
+const selectedUnitTenantProfile = selectedUnitLease?.tenant_id
+  ? unitTenants[selectedUnitLease.tenant_id] ?? null
+  : null
+const selectedUnitPayments = selectedUnitRow
+  ? propertyPayments.filter((p: any) => p.unit_id === selectedUnitRow.id)
+  : []
+const selectedUnitMaintenance = selectedUnitRow
+  ? propertyMaintenance.filter((m: any) => m.unit_id === selectedUnitRow.id)
+  : []
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
       year: "numeric",
@@ -938,14 +994,28 @@ const selectedUnit = selectedUnitRow
                     {selectedUnit.bedrooms} bed / {selectedUnit.bathrooms} bath - Floor {selectedUnit.floor}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => openUnitEditor(selectedUnit)}
-                  className="border-navy/20 text-navy hover:bg-navy/5"
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit Unit
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => openUnitEditor(selectedUnit)}
+                    className="border-navy/20 text-navy hover:bg-navy/5"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Unit
+                  </Button>
+                  {!selectedUnitLease && (
+                    <Button
+                      onClick={() =>
+                        router.push(
+                          `/landlord/leases/create?property=${selectedPropertyId}&unit=${selectedUnit.id}`
+                        )
+                      }
+                      className="bg-teal hover:bg-teal-dark text-white"
+                    >
+                      Create Lease
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -958,15 +1028,29 @@ const selectedUnit = selectedUnitRow
             />
             <StatCard
               label="Lease Status"
-              value={selectedUnit.tenant ? "Active" : "No Lease"}
+              value={
+                selectedUnitLease
+                  ? selectedUnitLease.status === "active"
+                    ? "Active"
+                    : "Pending"
+                  : "No Lease"
+              }
             />
             <StatCard
               label="Open Requests"
-              value={0}
+              value={
+                selectedUnitMaintenance.filter(
+                  (m: any) => m.status !== "completed" && m.status !== "closed"
+                ).length
+              }
             />
             <StatCard
               label="Last Payment"
-              value="N/A"
+              value={
+                selectedUnitPayments.length > 0
+                  ? formatCurrency(Number(selectedUnitPayments[0].amount ?? 0))
+                  : "None yet"
+              }
             />
           </div>
 
@@ -979,7 +1063,7 @@ const selectedUnit = selectedUnitRow
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
             </TabsList>
             <TabsContent value="lease" className="mt-6">
-              {selectedUnit.tenant ? (
+              {selectedUnitLease ? (
                 <Card className="border-sage/50">
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -991,7 +1075,13 @@ const selectedUnit = selectedUnitRow
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-text-muted">Tenant</p>
-                        <p className="text-sm font-medium text-navy">{selectedUnit.tenant}</p>
+                        <p className="text-sm font-medium text-navy">
+                          {[selectedUnitTenantProfile?.first_name, selectedUnitTenantProfile?.last_name]
+                            .filter(Boolean)
+                            .join(" ") ||
+                            selectedUnitLease.tenant_name ||
+                            "Tenant"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-text-muted">Monthly Rent</p>
@@ -1014,7 +1104,7 @@ const selectedUnit = selectedUnitRow
             </TabsContent>
 
             <TabsContent value="tenant" className="mt-6">
-              {selectedUnit.tenant ? (
+              {selectedUnitLease ? (
                 <Card className="border-sage/50">
                   <CardHeader>
                     <CardTitle className="text-lg font-medium text-navy">Tenant Information</CardTitle>
@@ -1022,10 +1112,31 @@ const selectedUnit = selectedUnitRow
                   <CardContent className="space-y-4">
                     <div className="flex items-start gap-4">
                       <div className="w-16 h-16 rounded-full bg-navy flex items-center justify-center text-white text-xl font-medium">
-                        {selectedUnit.tenant.split(" ").map((n) => n[0]).join("")}
+                        {(
+                          [selectedUnitTenantProfile?.first_name, selectedUnitTenantProfile?.last_name]
+                            .filter(Boolean)
+                            .join(" ") ||
+                          selectedUnitLease.tenant_name ||
+                          "T"
+                        )
+                          .split(" ")
+                          .map((n: string) => n[0])
+                          .join("")}
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-medium text-navy">{selectedUnit.tenant}</h3>
+                        <h3 className="text-lg font-medium text-navy">
+                          {[selectedUnitTenantProfile?.first_name, selectedUnitTenantProfile?.last_name]
+                            .filter(Boolean)
+                            .join(" ") ||
+                            selectedUnitLease.tenant_name ||
+                            "Tenant"}
+                        </h3>
+                        <p className="text-sm text-text-muted">
+                          {selectedUnitTenantProfile?.email ?? selectedUnitLease.tenant_email ?? ""}
+                          {(selectedUnitTenantProfile?.phone ?? selectedUnitLease.tenant_phone)
+                            ? ` · ${selectedUnitTenantProfile?.phone ?? selectedUnitLease.tenant_phone}`
+                            : ""}
+                        </p>
                         <p className="text-sm text-text-muted">Unit {selectedUnit.number}</p>
                       </div>
                     </div>
@@ -1051,18 +1162,43 @@ const selectedUnit = selectedUnitRow
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-medium text-navy">Payment History</CardTitle>
-                    <Button className="bg-teal hover:bg-teal-dark text-white" disabled>
-                      Record Payment
-                      <span className="ml-2 text-xs bg-white/20 px-1.5 py-0.5 rounded">Essential</span>
+                    <Button
+                      onClick={() => router.push("/landlord/payments")}
+                      variant="outline"
+                      className="border-navy/20 text-navy hover:bg-navy/5"
+                    >
+                      Go to Payments
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <EmptyState
-                    icon={Home}
-                    title="No Payments Yet"
-                    description="Payment history will appear here once rent is collected."
-                  />
+                  {selectedUnitPayments.length === 0 ? (
+                    <EmptyState
+                      icon={Home}
+                      title="No Payments Yet"
+                      description="Payment history will appear here once rent is collected."
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedUnitPayments.slice(0, 12).map((p: any) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-sage/40"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-navy">
+                              {formatCurrency(Number(p.amount ?? 0))}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              {p.payment_date ?? ""} ·{" "}
+                              {String(p.payment_method ?? "").replace(/_/g, " ")}
+                            </p>
+                          </div>
+                          <StatusBadge status={p.status === "completed" ? "active" : "pending"} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1081,11 +1217,37 @@ const selectedUnit = selectedUnitRow
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <EmptyState
-                    icon={Wrench}
-                    title="No Maintenance Requests"
-                    description="Maintenance requests for this unit will appear here."
-                  />
+                  {selectedUnitMaintenance.length === 0 ? (
+                    <EmptyState
+                      icon={Wrench}
+                      title="No Maintenance Requests"
+                      description="Maintenance requests for this unit will appear here."
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedUnitMaintenance.map((m: any) => (
+                        <div
+                          key={m.id}
+                          className="flex items-center justify-between p-3 rounded-lg border border-sage/40"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-navy truncate">{m.title}</p>
+                            <p className="text-xs text-text-muted capitalize">
+                              {String(m.priority ?? "medium")} priority
+                              {m.created_at ? ` · ${formatDate(m.created_at)}` : ""}
+                            </p>
+                          </div>
+                          <StatusBadge
+                            status={
+                              m.status === "completed" || m.status === "closed"
+                                ? "active"
+                                : "pending"
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1209,8 +1371,9 @@ const selectedUnit = selectedUnitRow
                   </CardTitle>
                   <Button
                     size="sm"
+                    variant="outline"
                     onClick={() => setAddUnitsOpen(true)}
-                    className="bg-teal hover:bg-teal-dark text-white"
+                    className="border-sage text-navy hover:bg-sage/20"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add units
@@ -1250,7 +1413,25 @@ const selectedUnit = selectedUnitRow
                         </TableCell>
                         <TableCell>{unit.floor}</TableCell>
                         <TableCell>{unit.bedrooms} / {unit.bathrooms}</TableCell>
-                        <TableCell>{unit.tenant || "—"}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const l = leaseForUnit(unit.id)
+                            if (!l) return "—"
+                            const p = l.tenant_id ? unitTenants[l.tenant_id] : null
+                            const name =
+                              [p?.first_name, p?.last_name].filter(Boolean).join(" ") ||
+                              l.tenant_name ||
+                              "Tenant"
+                            return (
+                              <span>
+                                {name}
+                                {l.status === "pending" && (
+                                  <span className="ml-2 text-xs text-warning">pending</span>
+                                )}
+                              </span>
+                            )
+                          })()}
+                        </TableCell>
                         <TableCell>{formatCurrency(unit.rent)}</TableCell>
                         <TableCell><StatusBadge status={unit.status} /></TableCell>
                         <TableCell className="text-right">
@@ -1271,10 +1452,14 @@ const selectedUnit = selectedUnitRow
                             >
                               Edit
                             </Button>
-                            {unit.status === "vacant" && (
+                            {unit.status === "vacant" && !leaseForUnit(unit.id) && (
                               <Button
                                 size="sm"
-                                onClick={() => router.push("/landlord/leases/create")}
+                                onClick={() =>
+                                  router.push(
+                                    `/landlord/leases/create?property=${selectedPropertyId}&unit=${unit.id}`
+                                  )
+                                }
                                 className="bg-teal hover:bg-teal-dark text-white"
                               >
                                 Create Lease
