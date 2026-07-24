@@ -98,6 +98,7 @@ export default function InboxPage() {
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all")
   const [showCreateRequestModal, setShowCreateRequestModal] = useState(false)
   const [showUploadDocModal, setShowUploadDocModal] = useState(false)
+  const [contractorRows, setContractorRows] = useState<any[]>([])
   const [selectedProvince, setSelectedProvince] = useState("ON")
   const [userId, setUserId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -126,6 +127,24 @@ export default function InboxPage() {
   }
 
   const loadInbox = useCallback(async () => {
+    // Contractors available for maintenance assignment
+    try {
+      const sb = createClient()
+      const {
+        data: { user: cu },
+      } = await sb.auth.getUser()
+      if (cu) {
+        const { data: crows } = await sb
+          .from("contractors")
+          .select("id, name, category")
+          .eq("landlord_id", cu.id)
+          .order("name", { ascending: true })
+        setContractorRows(crows ?? [])
+      }
+    } catch {
+      // non-fatal
+    }
+
     const supabase = createClient()
     const {
       data: { user },
@@ -153,6 +172,20 @@ export default function InboxPage() {
       .select("*")
       .eq("landlord_id", user.id)
       .order("created_at", { ascending: false })
+
+    // Leases give us tenant names and the property behind each conversation,
+    // including for tenancies that have ended.
+    const { data: leaseRows } = await supabase
+      .from("leases")
+      .select("id, tenant_id, tenant_name, tenant_email, property_id, unit_id, status")
+      .eq("landlord_id", user.id)
+
+    const leaseById = new Map<string, any>()
+    const leaseByTenant = new Map<string, any>()
+    ;(leaseRows ?? []).forEach((l: any) => {
+      leaseById.set(l.id, l)
+      if (l.tenant_id && !leaseByTenant.has(l.tenant_id)) leaseByTenant.set(l.tenant_id, l)
+    })
 
     // Collect every other-party / tenant id so we can resolve names in one query
     const profileIds = new Set<string>()
@@ -186,7 +219,11 @@ export default function InboxPage() {
           id: otherId,
           recipientId: otherId,
           propertyId: null,
-          tenant: profileNameMap.get(otherId) || "Unknown",
+          tenant:
+            profileNameMap.get(otherId) ||
+            leaseByTenant.get(otherId)?.tenant_name ||
+            leaseByTenant.get(otherId)?.tenant_email ||
+            "Former tenant",
           property: "",
           unit: null,
           lastMessage: "",
@@ -205,7 +242,15 @@ export default function InboxPage() {
       })
       convo.lastMessage = text
       convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
-      if (m.property_id) convo.propertyId = m.property_id
+      // Messages carry a lease_id; the property comes from that lease.
+      const msgLease = m.lease_id ? leaseById.get(m.lease_id) : null
+      const fallbackLease = leaseByTenant.get(otherId)
+      const lease = msgLease ?? fallbackLease
+      if (lease) {
+        convo.propertyId = lease.property_id ?? convo.propertyId
+        convo.property = propertyNameMap.get(lease.property_id) ?? convo.property
+        if (lease.status && lease.status !== "active") convo.former = true
+      }
       if (m.recipient_id === user.id && !m.read) convo.unread = true
     })
     const convos = Array.from(convoMap.values())
@@ -245,6 +290,19 @@ export default function InboxPage() {
     loadInbox()
   }, [loadInbox])
 
+
+  const handleAssignContractor = async (requestId: string, contractorId: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ contractor_id: contractorId || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Contractor assigned")
+  }
 
   const handleSendMessage = async () => {
     const text = messageInput.trim()
@@ -455,6 +513,10 @@ export default function InboxPage() {
 
   const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
 
+  const filteredConversations = conversations.filter(
+    (c) => propertyFilter === "all" || c.propertyId === propertyFilter
+  )
+
   const unreadMessages = conversations.filter((c) => c.unread).length
   const openRequests = maintenanceRequests.filter((r) => r.status === "open" || r.status === "in-progress").length
 
@@ -614,10 +676,10 @@ export default function InboxPage() {
               </div>
               <CardContent className="p-0 flex-1 overflow-hidden">
                 <ScrollArea className="h-full">
-                  {conversations.length === 0 && (
+                  {filteredConversations.length === 0 && (
                     <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
                   )}
-                  {conversations.map((conversation) => (
+                  {filteredConversations.map((conversation) => (
                     <button
                       key={conversation.id}
                       onClick={() => setSelectedConversation(conversation)}
@@ -720,14 +782,17 @@ export default function InboxPage() {
                     />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="border-navy/20 text-navy" disabled>
+                        <Button variant="outline" className="border-navy/20 text-navy">
                           Templates
-                          <Lock className="h-3 w-3 ml-1.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-64">
                         {messageTemplates.map((template) => (
-                          <DropdownMenuItem key={template.id} className="flex flex-col items-start py-2">
+                          <DropdownMenuItem
+                            key={template.id}
+                            onClick={() => setMessageInput(template.preview)}
+                            className="flex flex-col items-start py-2 cursor-pointer"
+                          >
                             <span className="font-medium text-navy">{template.name}</span>
                             <span className="text-xs text-text-muted truncate w-full">{template.preview}</span>
                           </DropdownMenuItem>
@@ -920,34 +985,28 @@ export default function InboxPage() {
                     <div className="border-t border-sage/30 pt-4">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-navy">Assign Contractor</h3>
-                        <span className="flex items-center gap-1 text-xs text-navy bg-sage/30 px-2 py-1 rounded-full">
-                          <Lock className="h-3 w-3" />
-                          Essential
-                        </span>
+
                       </div>
-                      <Select disabled defaultValue={selectedRequest.contractor || ""}>
-                        <SelectTrigger className="border-sage opacity-70">
+                      <Select
+                        value={selectedRequest.contractor_id || ""}
+                        onValueChange={(v) => handleAssignContractor(selectedRequest.id, v)}
+                      >
+                        <SelectTrigger className="border-sage">
                           <SelectValue placeholder="Select contractor..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.entries(contractors).map(([category, list]) => (
-                            <div key={category}>
-                              <div className="px-2 py-1.5 text-xs font-medium text-text-muted">{category}</div>
-                              {list.map((contractor) => (
-                                <SelectItem key={contractor.id} value={contractor.name}>
-                                  <div className="flex items-center gap-2">
-                                    {contractor.starred && <Star className="h-3 w-3 text-warning fill-warning" />}
-                                    {contractor.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
+                          {contractorRows.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-text-muted">
+                              Add contractors in Settings first
                             </div>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <div className="px-2 py-1.5 text-sm text-teal cursor-pointer hover:bg-sage/10">
-                            <Plus className="h-3 w-3 inline mr-1" />
-                            Add New Contractor
-                          </div>
+                          ) : (
+                            contractorRows.map((c: any) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                                {c.category ? ` · ${c.category}` : ""}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
