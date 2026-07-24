@@ -399,6 +399,20 @@ export default function TenantMyHome() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
+        {leaseRow?.move_out_date && (
+          <Card className="border-warning/40 bg-warning/5">
+            <CardContent className="p-4">
+              <p className="text-sm font-medium text-navy">
+                Move-out scheduled for {formatLongDate(leaseRow.move_out_date)}
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                Rent remains due until then. Your landlord will arrange a
+                condition inspection and settle your deposit after you move out.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Lease Tab */}
         <TabsContent value="lease" className="space-y-4">
           {/* Financial Details */}
