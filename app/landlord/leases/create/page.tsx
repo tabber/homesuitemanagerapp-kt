@@ -154,6 +154,17 @@ function CreateLeasePageInner() {
         unitRows = units ?? []
       }
 
+      // Units already committed to a lease (active or pending) are not
+      // available, even if the tenant hasn't accepted yet.
+      const { data: committedLeases } = await supabase
+        .from("leases")
+        .select("unit_id, status")
+        .eq("landlord_id", user.id)
+        .in("status", ["active", "pending"])
+      const committedUnitIds = new Set(
+        (committedLeases ?? []).map((l: any) => l.unit_id).filter(Boolean)
+      )
+
       const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => {
         const propertyUnits = unitRows.filter((u) => u.property_id === p.id)
         // A property is multi-unit if it has unit records, or its type says so.
@@ -170,7 +181,11 @@ function CreateLeasePageInner() {
           monthlyRent: p.rent_amount ?? 0,
           totalUnits: propertyUnits.length,
           vacantUnits: propertyUnits
-            .filter((u) => String(u.status ?? "vacant").toLowerCase() !== "occupied")
+            .filter(
+              (u) =>
+                String(u.status ?? "vacant").toLowerCase() !== "occupied" &&
+                !committedUnitIds.has(u.id)
+            )
             .map((u) => ({
               id: u.id,
               number: u.unit_number ?? "",
