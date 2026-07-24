@@ -14,6 +14,7 @@ import {
   Building2,
   Plus,
   X,
+  Clock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -382,8 +383,8 @@ function CreateLeasePageInner() {
             className="p-6 rounded-lg border-2 border-sage bg-sage/10 text-left opacity-70 cursor-not-allowed relative"
           >
             <div className="absolute top-4 right-4 flex items-center gap-1 text-xs text-navy bg-sage/30 px-2 py-1 rounded-full">
-              <Lock className="h-3 w-3" />
-              Essential
+              <Clock className="h-3 w-3" />
+              Coming soon
             </div>
             <div className="w-12 h-12 rounded-lg bg-sage/30 flex items-center justify-center mb-4">
               <Upload className="h-6 w-6 text-navy" />
