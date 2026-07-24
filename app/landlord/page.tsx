@@ -179,7 +179,7 @@ export default function LandlordDashboard() {
         supabase
           .from("leases")
           .select(
-            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at, payment_due_day, unit_id"
+            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at, payment_due_day, unit_id, move_out_date"
           )
           .eq("landlord_id", user.id),
         supabase
@@ -330,6 +330,22 @@ export default function LandlordDashboard() {
             }`,
             amount: money(Number(l.monthly_rent ?? 0)),
             date: overdue ? dueThisMonth : nextDue,
+          })
+        })
+
+      // Scheduled move-outs
+      leases
+        .filter((l: any) => l.move_out_date && l.status === "active")
+        .forEach((l: any) => {
+          const due = new Date(l.move_out_date)
+          events.push({
+            type: "lease",
+            icon: eventIconByType.lease,
+            title: due < today ? "Move-out due — complete it" : "Move-out scheduled",
+            description: `${l.tenant_name ?? "Tenant"} - ${
+              propertyMap.get(l.property_id) ?? "Property"
+            }`,
+            date: due,
           })
         })
 
