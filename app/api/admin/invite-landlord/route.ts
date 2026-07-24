@@ -7,11 +7,14 @@ const supabaseAdmin = createAdminClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const FROM = "HomeSuite <team@homesuitemanager.com>"
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : ""
+    const promoNote = typeof body.note === "string" ? body.note.trim() : ""
 
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "A valid email is required" }, { status: 400 })
@@ -41,29 +44,83 @@ export async function POST(request: Request) {
       )
     }
 
-    // 3. Send the invite. Creates the auth user and emails a magic link;
-    //    the profile trigger reads role from the metadata at creation.
-    const redirectTo = `${
-      process.env.NEXT_PUBLIC_SITE_URL || "https://homesuitemanager.com"
-    }/auth/callback`
+    // 3. Don't invite someone who already has an account
+    const { data: existing } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle()
 
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
-      {
-        redirectTo,
-        data: { role: "landlord" },
-      }
-    )
+    if (existing) {
+      return NextResponse.json(
+        { error: "That email already has an account" },
+        { status: 409 }
+      )
+    }
 
-    if (inviteError) {
-      // Friendly message if the address already has an account
-      if (/already.*(registered|exists)/i.test(inviteError.message)) {
-        return NextResponse.json(
-          { error: "That email already has an account" },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json({ error: inviteError.message }, { status: 500 })
+    // 4. Email an invitation to subscribe. Accounts are only ever created by
+    //    the Stripe webhook, so every landlord follows the same path.
+    const site =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://www.homesuitemanager.com"
+    const checkoutUrl = `${site}/api/stripe/checkout`
+
+    const resendKey = process.env.RESEND_API_KEY
+    if (!resendKey) {
+      return NextResponse.json(
+        { error: "Email is not configured" },
+        { status: 500 }
+      )
+    }
+
+    const html = `
+      <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 520px;">
+        <h2 style="color:#1B3A6B; font-weight:500;">You've been invited to HomeSuite</h2>
+        <p style="color:#2C3A30; line-height:1.6;">
+          HomeSuite gives self-managing landlords everything a property manager does —
+          leases, rent tracking, maintenance and tenant messaging — for $79.99/month.
+        </p>
+        ${
+          promoNote
+            ? `<p style="color:#2C3A30; line-height:1.6;"><strong>${promoNote}</strong></p>`
+            : ""
+        }
+        <p style="color:#2C3A30; line-height:1.6;">
+          Start with a 7-day free trial. You can cancel any time before it ends.
+        </p>
+        <p style="margin:28px 0;">
+          <a href="${checkoutUrl}"
+             style="background:#5BC8AF; color:#fff; padding:12px 24px; border-radius:8px;
+                    text-decoration:none; font-weight:500;">
+            Start your free trial
+          </a>
+        </p>
+        <p style="color:#6B8C7D; font-size:13px; line-height:1.6;">
+          Questions? Just reply to this email.
+        </p>
+      </div>
+    `
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: FROM,
+        to: email,
+        subject: "You've been invited to HomeSuite",
+        html,
+      }),
+    })
+
+    if (!res.ok) {
+      const detail = await res.text()
+      console.error("Invite email failed:", detail)
+      return NextResponse.json(
+        { error: "Could not send the invitation email" },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ success: true })
