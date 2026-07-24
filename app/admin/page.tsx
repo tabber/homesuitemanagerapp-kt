@@ -39,6 +39,7 @@ interface LandlordRow {
 export default function AdminDashboard() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteNote, setInviteNote] = useState("")
 
   const [loading, setLoading] = useState(true)
   const [totalLandlords, setTotalLandlords] = useState(0)
@@ -123,13 +124,14 @@ export default function AdminDashboard() {
       const res = await fetch("/api/admin/invite-landlord", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail }),
+        body: JSON.stringify({ email: inviteEmail, note: inviteNote }),
       })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || "Failed to send invite")
-      toast.success(`Invite sent to ${inviteEmail}`)
+      toast.success(`Invitation sent to ${inviteEmail}`)
       setShowInviteModal(false)
       setInviteEmail("")
+      setInviteNote("")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send invite")
     } finally {
@@ -292,7 +294,10 @@ export default function AdminDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-text-muted">
-              Send an invitation email to a new landlord to join HomeSuite.
+              Sends an email inviting them to start a 7-day free trial. Accounts
+              are created through checkout, so everyone follows the same path.
+              For a free or discounted account, create a promotion code in
+              Stripe and mention it below.
             </p>
             <div>
               <Label htmlFor="email">Email Address</Label>
@@ -302,6 +307,15 @@ export default function AdminDashboard() {
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="landlord@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="note">Note (optional)</Label>
+              <Input
+                id="note"
+                value={inviteNote}
+                onChange={(e) => setInviteNote(e.target.value)}
+                placeholder="Use code BETA100 at checkout for your first year free"
               />
             </div>
             <div className="flex gap-3 justify-end">
