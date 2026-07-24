@@ -400,10 +400,8 @@ export default function PaymentsPage() {
         <Button
           onClick={() => setShowRecordModal(true)}
           className="bg-teal hover:bg-teal-dark text-white"
-          disabled
         >
           Record Payment
-          <span className="ml-2 text-xs bg-white/20 px-1.5 py-0.5 rounded">Essential</span>
         </Button>
       </div>
 
