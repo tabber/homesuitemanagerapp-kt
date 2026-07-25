@@ -463,6 +463,11 @@ export default function LandlordDashboard() {
       if (leaseExpiring.length > 0)
         groups.push({ key: "lease-expiring", label: `${leaseExpiring.length} lease${leaseExpiring.length > 1 ? "s" : ""} expiring soon`, count: leaseExpiring.length, href: "/landlord/properties", tone: "info" })
 
+      // Open maintenance requests needing attention
+      const openMaint = maintenanceCountRes.count ?? 0
+      if (openMaint > 0)
+        groups.push({ key: "maintenance", label: `${openMaint} maintenance request${openMaint > 1 ? "s" : ""} open`, count: openMaint, href: "/landlord/inbox", tone: "action" })
+
       setNotificationGroups(groups)
 
       // Recent activity (payments, leases, maintenance, messages)
