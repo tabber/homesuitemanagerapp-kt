@@ -18,6 +18,7 @@ import {
   MapPin,
   Star,
   Wrench,
+  Bell,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,6 +53,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
 import { CreateRequestModal } from "@/components/create-request-modal"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
 // Static reference content (no backing table)
@@ -817,6 +819,15 @@ export default function InboxPage() {
 
         {/* Maintenance Tab */}
         <TabsContent value="maintenance" className="h-[calc(100%-3rem)] mt-0">
+          <div className="flex items-center justify-end mb-3">
+            <Link
+              href="/landlord/reminders"
+              className="inline-flex items-center gap-1.5 text-sm text-teal hover:underline"
+            >
+              <Bell className="h-4 w-4" />
+              Manage seasonal reminders
+            </Link>
+          </div>
           <div className="flex gap-4 h-full">
             {/* Request List */}
             <Card className="w-80 border-sage/50 flex flex-col">
