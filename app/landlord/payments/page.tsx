@@ -322,7 +322,9 @@ function PaymentsPageInner() {
     return matchesSearch && matchesProperty && matchesStatus
   })
 
-  const totalExpected = 21300
+const totalExpected = leaseOptions
+    .filter((l) => l.status === "active")
+    .reduce((sum, l) => sum + Number(l.monthly_rent ?? 0), 0)
   const refreshPayments = async () => {
     const supabase = createClient()
     const {
@@ -413,8 +415,21 @@ function PaymentsPageInner() {
 
   const totalCollected = filteredPayments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0)
   const totalPending = filteredPayments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
-  const avgDaysToPay = 2.3
-
+const avgDaysToPay = (() => {
+    const completed = payments.filter((p) => p.status === "completed" && p.date)
+    if (completed.length === 0) return null
+    const diffs: number[] = []
+    completed.forEach((p) => {
+      const lease = leaseOptions.find((l) => l.id === (p as any).leaseId)
+      const dueDay = Math.min(Math.max(Number((lease as any)?.payment_due_day ?? 1), 1), 28)
+      const paid = new Date(p.date)
+      if (Number.isNaN(paid.getTime())) return
+      const due = new Date(paid.getFullYear(), paid.getMonth(), dueDay)
+      diffs.push(Math.round((paid.getTime() - due.getTime()) / 86400000))
+    })
+    if (diffs.length === 0) return null
+    return Math.round((diffs.reduce((a, b) => a + b, 0) / diffs.length) * 10) / 10
+  })()
   const selectedInstructionLease = leaseOptions.find((l) => l.id === instructionLeaseId)
 
   const instructionText = selectedInstructionLease
@@ -525,7 +540,7 @@ function PaymentsPageInner() {
         />
         <StatCard
           label="Avg. Days to Pay"
-          value={avgDaysToPay}
+          value={avgDaysToPay === null ? "—" : avgDaysToPay}
           sublabel="days after due date"
         />
       </div>
