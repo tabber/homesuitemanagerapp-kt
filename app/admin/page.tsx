@@ -61,6 +61,7 @@ export default function AdminDashboard() {
       const { count: propertyCount } = await supabase
         .from("properties")
         .select("id", { count: "exact", head: true })
+        .or("archived.is.null,archived.eq.false")
 
       const { count: userCount } = await supabase
         .from("profiles")
@@ -82,6 +83,7 @@ export default function AdminDashboard() {
           .from("properties")
           .select("landlord_id")
           .in("landlord_id", ids)
+          .or("archived.is.null,archived.eq.false")
         for (const p of props ?? []) {
           if (p.landlord_id) {
             propsByLandlord[p.landlord_id] = (propsByLandlord[p.landlord_id] ?? 0) + 1
