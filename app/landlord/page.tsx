@@ -453,7 +453,7 @@ export default function LandlordDashboard() {
       if (pendingLeaseConfirmCount > 0)
         groups.push({ key: "confirm-leases", label: `${pendingLeaseConfirmCount} lease${pendingLeaseConfirmCount > 1 ? "s" : ""} to confirm`, count: pendingLeaseConfirmCount, href: "/landlord/properties", tone: "action" })
       if (overdueRent.length > 0)
-        groups.push({ key: "overdue-rent", label: `${overdueRent.length} rent payment${overdueRent.length > 1 ? "s" : ""} overdue`, count: overdueRent.length, href: "/landlord/payments", tone: "urgent" })
+        groups.push({ key: "overdue-rent", label: `${overdueRent.length} rent payment${overdueRent.length > 1 ? "s" : ""} overdue`, count: overdueRent.length, href: "/landlord/payments?filter=overdue", tone: "urgent" })
       if (moveOuts.length > 0)
         groups.push({ key: "move-outs", label: `${moveOuts.length} move-out${moveOuts.length > 1 ? "s" : ""} to review`, count: moveOuts.length, href: "/landlord/properties", tone: "action" })
       if (remindersDue.length > 0)
