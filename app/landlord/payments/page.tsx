@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import {
   Search,
   Filter,
@@ -9,6 +9,7 @@ import {
   Copy,
   Mail,
   CheckCircle,
+  Bell,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/dialog"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
+import { useSearchParams } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
@@ -51,19 +53,13 @@ import {
 } from "recharts"
 
 // Mock data
-const revenueData = [
-  { month: "Jan", collected: 18200, expected: 18500 },
-  { month: "Feb", collected: 18500, expected: 18500 },
-  { month: "Mar", collected: 17800, expected: 18500 },
-  { month: "Apr", collected: 18500, expected: 18500 },
-  { month: "May", collected: 16500, expected: 18500 },
-  { month: "Jun", collected: 15200, expected: 18500 },
-]
-
-export default function PaymentsPage() {
+function PaymentsPageInner() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [revenueData, setRevenueData] = useState<{ month: string; collected: number; expected: number }[]>([])
   const [propertyFilter, setPropertyFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const searchParams = useSearchParams()
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("filter") || "all")
+  const [remindingId, setRemindingId] = useState<string | null>(null)
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
   const [instructionLeaseId, setInstructionLeaseId] = useState("")
@@ -205,7 +201,75 @@ export default function PaymentsPage() {
       })
       setLeaseOptions(leaseMapped)
       if (leaseMapped.length > 0) setInstructionLeaseId(leaseMapped[0].id)
-      setPayments(mapped)
+      // ---- Expected rent this period, per active lease ----
+      // An overdue tenant has NO payment row, so we synthesize one per active
+      // lease and mark it paid / overdue / upcoming.
+      const now = new Date()
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+      const activeLeases = (leaseList ?? []).filter((l: any) => l.status === "active")
+      const expectedRows = activeLeases.map((l: any) => {
+        const dueDay = Math.min(Math.max(Number(l.payment_due_day ?? 1), 1), 28)
+        const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay)
+        const prop = propertyInfoMap.get(l.property_id)
+        // Was there a completed payment for this lease this period?
+        const paid = (rows ?? []).some(
+          (p: any) =>
+            p.lease_id === l.id &&
+            p.status === "completed" &&
+            p.payment_date &&
+            new Date(p.payment_date) >= periodStart
+        )
+        let status: string
+        if (paid) status = "completed"
+        else if (dueDate < todayMid) status = "overdue"
+        else status = "upcoming"
+        return {
+          id: `expected-${l.id}`,
+          synthetic: true,
+          leaseId: l.id,
+          tenant: l.tenant_name || "Tenant",
+          tenantId: l.tenant_id ?? null,
+          landlordEmail: l.etransfer_email || prop?.etransfer_email || defaultEtransferEmail || "",
+          unit: (l.unit_id && unitNumberMap.get(l.unit_id)) || "—",
+          propertyId: l.property_id ?? null,
+          property: prop?.name || "—",
+          amount: Number(l.monthly_rent ?? 0),
+          method: "—",
+          date: dueDate.toISOString(),
+          status,
+        }
+      })
+
+      // Only show synthetic rows for leases that are NOT already paid this period
+      // (paid ones are represented by their real completed payment row).
+      const unpaidExpected = expectedRows.filter((e) => e.status !== "completed")
+
+      // Real chart: last 6 months collected vs expected
+      const monthFmt = new Intl.DateTimeFormat("en-CA", { month: "short" })
+      const chart: { month: string; collected: number; expected: number }[] = []
+      for (let i = 5; i >= 0; i--) {
+        const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
+        const collected = (rows ?? [])
+          .filter(
+            (p: any) =>
+              p.status === "completed" &&
+              p.payment_date &&
+              new Date(p.payment_date) >= mStart &&
+              new Date(p.payment_date) < mEnd
+          )
+          .reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0)
+        const expected = activeLeases.reduce(
+          (s: number, l: any) => s + Number(l.monthly_rent ?? 0),
+          0
+        )
+        chart.push({ month: monthFmt.format(mStart), collected, expected })
+      }
+      setRevenueData(chart)
+
+      setPayments([...mapped, ...unpaidExpected])
       setDbProperties(allProps ?? [])
       setLoading(false)
     }
@@ -368,6 +432,36 @@ export default function PaymentsPage() {
     navigator.clipboard.writeText(instructionText)
     setCopiedInstructions(true)
     setTimeout(() => setCopiedInstructions(false), 2000)
+  }
+
+  const handleRemindOverdue = async (payment: any) => {
+    if (!payment?.leaseId || remindingId) return
+    setRemindingId(payment.id)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setRemindingId(null)
+      return
+    }
+    const { error } = await supabase.from("messages").insert({
+      sender_id: user.id,
+      recipient_id: payment.tenantId,
+      lease_id: payment.leaseId,
+      subject: "Rent reminder",
+      content:
+        `Hi ${payment.tenant}, this is a friendly reminder that rent of ` +
+        `${formatCurrency(payment.amount)} for ${payment.property} is now due` +
+        `${payment.landlordEmail ? `. You can send it by e-Transfer to ${payment.landlordEmail}` : ""}.` +
+        ` Thank you!`,
+    })
+    setRemindingId(null)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`Reminder sent to ${payment.tenant}`)
   }
 
   const handleSendReminder = async () => {
@@ -645,7 +739,7 @@ export default function PaymentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                {statusOptions.map((status) => (
+                {Array.from(new Set([...statusOptions, "overdue", "upcoming", "completed"])).map((status) => (
                   <SelectItem key={status} value={status} className="capitalize">
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </SelectItem>
@@ -700,6 +794,17 @@ export default function PaymentsPage() {
                         >
                           <CheckCircle className="h-4 w-4 mr-1" />
                           {confirmingId === payment.id ? "Confirming..." : "Confirm received"}
+                        </Button>
+                      ) : payment.status === "overdue" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={remindingId === payment.id}
+                          onClick={() => handleRemindOverdue(payment)}
+                          className="text-warning hover:bg-warning/10"
+                        >
+                          <Bell className="h-4 w-4 mr-1" />
+                          {remindingId === payment.id ? "Sending..." : "Send reminder"}
                         </Button>
                       ) : (
                         <span className="text-xs text-text-muted pr-2">—</span>
@@ -813,5 +918,14 @@ export default function PaymentsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsPageInner />
+    </Suspense>
   )
 }
