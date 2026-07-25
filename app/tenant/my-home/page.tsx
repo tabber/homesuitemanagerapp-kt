@@ -12,6 +12,7 @@ import {
   Check,
   Download,
   Printer,
+  Bell,
 } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useUser } from "@/lib/context/UserContext"
@@ -49,6 +50,7 @@ export default function TenantMyHome() {
   const [landlordRow, setLandlordRow] = useState<any | null>(null)
   const [propertyRow, setPropertyRow] = useState<any | null>(null)
   const [landlordEtransfer, setLandlordEtransfer] = useState<string>("")
+  const [reminders, setReminders] = useState<any[]>([])
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
   const [submittingPayment, setSubmittingPayment] = useState(false)
@@ -139,6 +141,15 @@ export default function TenantMyHome() {
       if (!isMounted) return
       setTenantRow(tenant ?? null)
       setLeaseRow(lease ?? null)
+
+      if (lease?.id) {
+        const { data: remRows } = await supabase
+          .from("maintenance_reminders")
+          .select("id, title, notes, due_date")
+          .is("completed_at", null)
+          .order("due_date", { ascending: true })
+        if (isMounted) setReminders(remRows ?? [])
+      }
 
       // Documents attached to this lease (RLS limits this to the tenant's own lease)
       if (lease?.id) {
@@ -407,6 +418,7 @@ export default function TenantMyHome() {
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="utilities">Utilities</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
         </TabsList>
 
         {leaseRow?.move_out_date && (
@@ -798,6 +810,51 @@ export default function TenantMyHome() {
                       >
                         {openingDocId === doc.id ? "Opening..." : "Open"}
                       </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Reminders Tab */}
+        <TabsContent value="reminders" className="space-y-4">
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-medium text-navy">
+                Upkeep reminders
+              </CardTitle>
+              <p className="text-sm text-text-muted mt-1">
+                Seasonal maintenance your landlord has shared — so there are no
+                surprises
+              </p>
+            </CardHeader>
+            <CardContent>
+              {reminders.length === 0 ? (
+                <p className="text-sm text-text-muted py-6 text-center">
+                  No reminders right now. Anything your landlord shares will
+                  appear here.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {reminders.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-sage/40"
+                    >
+                      <div className="w-9 h-9 rounded bg-teal/10 flex items-center justify-center flex-shrink-0">
+                        <Bell className="h-4 w-4 text-teal" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-navy">{r.title}</p>
+                        <p className="text-xs text-text-muted">
+                          {formatLongDate(r.due_date)}
+                        </p>
+                        {r.notes && (
+                          <p className="text-xs text-text-muted mt-1">{r.notes}</p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
