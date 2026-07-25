@@ -148,9 +148,10 @@ export default function SettingsPage() {
 
   // Payment Settings
   const [paymentForm, setPaymentForm] = useState({
-    eTransferEmail: "payments@smithproperties.com",
+    eTransferEmail: "",
     eTransferMessage: "Rent - {property_address}",
   })
+  const [savingPayment, setSavingPayment] = useState(false)
 
   // Contractors
   const [contractors, setContractors] = useState<Contractor[]>([])
@@ -341,6 +342,59 @@ export default function SettingsPage() {
     loadContractors()
   }
 
+
+  useEffect(() => {
+    const loadPaymentConfig = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from("payment_configuration")
+        .select("etransfer_email, etransfer_message")
+        .eq("landlord_id", user.id)
+        .maybeSingle()
+      if (data) {
+        setPaymentForm({
+          eTransferEmail: data.etransfer_email ?? "",
+          eTransferMessage: data.etransfer_message ?? "Rent - {property_address}",
+        })
+      }
+    }
+    loadPaymentConfig()
+  }, [])
+
+  const handleSavePayment = async () => {
+    if (savingPayment) return
+    setSavingPayment(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSavingPayment(false)
+      return
+    }
+    const { error } = await supabase
+      .from("payment_configuration")
+      .upsert(
+        {
+          landlord_id: user.id,
+          etransfer_email: paymentForm.eTransferEmail || null,
+          etransfer_message: paymentForm.eTransferMessage || null,
+        },
+        { onConflict: "landlord_id" }
+      )
+    setSavingPayment(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Payment settings saved")
+  }
+
+
   return (
     <div className="p-6 max-w-4xl">
       <h1 className="text-2xl font-medium text-navy mb-6">Settings</h1>
@@ -439,6 +493,7 @@ export default function SettingsPage() {
                 className="mt-1.5 border-sage"
               />
               <p className="text-xs text-text-muted mt-1">Use {"{property_address}"} as a placeholder for the property address.</p>
+              <p className="text-xs text-text-muted mt-1">This is the default e-Transfer address tenants see, unless a specific one is set on a lease.</p>
             </div>
             <div className="flex items-center justify-between p-4 bg-sage/10 rounded-lg">
               <div>
@@ -447,8 +502,12 @@ export default function SettingsPage() {
               </div>
               <Badge variant="outline" className="border-warning text-warning">Coming Soon</Badge>
             </div>
-            <Button className="bg-teal hover:bg-teal-dark text-white">
-              Save Changes
+            <Button
+              onClick={handleSavePayment}
+              disabled={savingPayment}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {savingPayment ? "Saving..." : "Save Changes"}
             </Button>
           </CardContent>
         </Card>
