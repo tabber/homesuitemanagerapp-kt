@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Check,
   Circle,
+  ChevronRight,
 } from "lucide-react"
 import {
   BarChart,
@@ -80,6 +81,14 @@ interface UpcomingEvent {
   date: Date
 }
 
+interface NotificationGroup {
+  key: string
+  label: string
+  count: number
+  href: string
+  tone: "urgent" | "action" | "info"
+}
+
 interface ActivityItem {
   type: string
   description: string
@@ -111,6 +120,7 @@ export default function LandlordDashboard() {
   const [hasRevenue, setHasRevenue] = useState(false)
   const [occupancy, setOccupancy] = useState({ occupied: 0, vacant: 0, total: 0 })
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
+  const [notificationGroups, setNotificationGroups] = useState<NotificationGroup[]>([])
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
@@ -148,6 +158,7 @@ export default function LandlordDashboard() {
         paymentConfigRes,
         utilityBillsRes,
         unitsRes,
+        remindersRes,
       ] = await Promise.all([
         supabase.from("properties").select("id, name, status").eq("landlord_id", user.id),
         supabase
@@ -179,7 +190,7 @@ export default function LandlordDashboard() {
         supabase
           .from("leases")
           .select(
-            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at, payment_due_day, unit_id, move_out_date"
+            "id, monthly_rent, status, end_date, created_at, tenant_id, tenant_name, property_id, invitation_sent_at, payment_due_day, unit_id, move_out_date, tenant_signed_at, landlord_signed_at"
           )
           .eq("landlord_id", user.id),
         supabase
@@ -196,6 +207,10 @@ export default function LandlordDashboard() {
           .select("id, utility_type, amount, due_date, paid, lease_id")
           .eq("paid", false),
         supabase.from("units").select("id, property_id, status"),
+        supabase
+          .from("maintenance_reminders")
+          .select("id, title, due_date, property_id")
+          .is("completed_at", null),
       ])
 
       if (!isMounted) return
@@ -349,6 +364,25 @@ export default function LandlordDashboard() {
           })
         })
 
+      // Maintenance reminders coming due (within 45 days) or overdue
+      ;(remindersRes.data ?? []).forEach((r: any) => {
+        if (!r.due_date) return
+        const due = new Date(r.due_date)
+        const days = Math.ceil((due.getTime() - today.getTime()) / 86400000)
+        if (days > 45) return
+        events.push({
+          type: "maintenance",
+          icon: eventIconByType.maintenance,
+          title: days < 0 ? "Maintenance overdue" : "Maintenance reminder",
+          description: `${r.title}${
+            r.property_id && propertyMap.get(r.property_id)
+              ? " - " + propertyMap.get(r.property_id)
+              : ""
+          }`,
+          date: due,
+        })
+      })
+
       // Unpaid utility bills coming due
       utilityBills.forEach((b: any) => {
         const lease = leases.find((l: any) => l.id === b.lease_id)
@@ -397,6 +431,39 @@ export default function LandlordDashboard() {
       })
       events.sort((a, b) => a.date.getTime() - b.date.getTime())
       setUpcomingEvents(events)
+
+      // Leases the tenant accepted but the landlord hasn't confirmed
+      const pendingLeaseConfirmCount = leases.filter(
+        (l: any) => l.tenant_signed_at && !l.landlord_signed_at
+      ).length
+
+      // Group events into actionable notification categories with counts.
+      const groups: NotificationGroup[] = []
+      const pendingConfirm = events.filter((e) => e.title === "Confirm payment received")
+      const overdueRent = events.filter((e) => e.title === "Rent overdue")
+      const moveOuts = events.filter((e) => e.title.startsWith("Move-out"))
+      const remindersDue = events.filter(
+        (e) => e.title === "Maintenance reminder" || e.title === "Maintenance overdue"
+      )
+      const utilityDue = events.filter((e) => e.title.startsWith("Utility bill"))
+      const leaseExpiring = events.filter((e) => e.title === "Lease expiring")
+
+      if (pendingConfirm.length > 0)
+        groups.push({ key: "confirm-payments", label: `${pendingConfirm.length} payment${pendingConfirm.length > 1 ? "s" : ""} to confirm`, count: pendingConfirm.length, href: "/landlord/payments", tone: "action" })
+      if (pendingLeaseConfirmCount > 0)
+        groups.push({ key: "confirm-leases", label: `${pendingLeaseConfirmCount} lease${pendingLeaseConfirmCount > 1 ? "s" : ""} to confirm`, count: pendingLeaseConfirmCount, href: "/landlord/properties", tone: "action" })
+      if (overdueRent.length > 0)
+        groups.push({ key: "overdue-rent", label: `${overdueRent.length} rent payment${overdueRent.length > 1 ? "s" : ""} overdue`, count: overdueRent.length, href: "/landlord/payments", tone: "urgent" })
+      if (moveOuts.length > 0)
+        groups.push({ key: "move-outs", label: `${moveOuts.length} move-out${moveOuts.length > 1 ? "s" : ""} to review`, count: moveOuts.length, href: "/landlord/properties", tone: "action" })
+      if (remindersDue.length > 0)
+        groups.push({ key: "reminders", label: `${remindersDue.length} maintenance reminder${remindersDue.length > 1 ? "s" : ""} due`, count: remindersDue.length, href: "/landlord/reminders", tone: "info" })
+      if (utilityDue.length > 0)
+        groups.push({ key: "utilities", label: `${utilityDue.length} utility bill${utilityDue.length > 1 ? "s" : ""} due`, count: utilityDue.length, href: "/landlord/payments", tone: "info" })
+      if (leaseExpiring.length > 0)
+        groups.push({ key: "lease-expiring", label: `${leaseExpiring.length} lease${leaseExpiring.length > 1 ? "s" : ""} expiring soon`, count: leaseExpiring.length, href: "/landlord/properties", tone: "info" })
+
+      setNotificationGroups(groups)
 
       // Recent activity (payments, leases, maintenance, messages)
       const activity: ActivityItem[] = []
@@ -619,43 +686,47 @@ export default function LandlordDashboard() {
 
       {/* Events & Activity Row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upcoming Events */}
+        {/* Notifications */}
         <Card className="border-[0.5px] border-sage">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-lg font-medium text-navy">Upcoming Events</CardTitle>
+            <CardTitle className="text-lg font-medium text-navy">Notifications</CardTitle>
+            {notificationGroups.length > 0 && (
+              <span className="text-xs font-medium text-white bg-teal rounded-full px-2 py-0.5">
+                {notificationGroups.reduce((sum, g) => sum + g.count, 0)}
+              </span>
+            )}
           </CardHeader>
           <CardContent>
-            {!loading && upcomingEvents.length === 0 ? (
-              <p className="text-sm text-text-muted py-4 text-center">
-                Nothing due in the next while — rent, utility bills, lease
-                renewals and scheduled maintenance will appear here.
-              </p>
+            {!loading && notificationGroups.length === 0 ? (
+              <div className="py-6 text-center">
+                <div className="w-10 h-10 rounded-full bg-sage/30 flex items-center justify-center mx-auto mb-2">
+                  <Check className="h-5 w-5 text-teal" />
+                </div>
+                <p className="text-sm text-text-muted">You&apos;re all caught up</p>
+              </div>
             ) : (
-              <ul className="space-y-3">
-                {upcomingEvents.slice(0, 5).map((event, index) => (
-                  <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
-                    <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
-                      <event.icon className="h-4 w-4 text-navy" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-navy">{event.title}</p>
-                      <p className="text-xs text-text-muted truncate">{event.description}</p>
-                      {event.amount && (
-                        <p className="text-xs font-medium text-teal">{event.amount}</p>
-                      )}
-                      {event.daysRemaining !== undefined && (
-                        <p className={cn(
-                          "text-xs font-medium",
-                          event.daysRemaining < 30 ? "text-destructive" : "text-text-muted"
-                        )}>
-                          {event.daysRemaining} days remaining
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-text-muted">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(event.date)}
-                    </div>
+              <ul className="space-y-1.5">
+                {notificationGroups.map((g) => (
+                  <li key={g.key}>
+                    <Link
+                      href={g.href}
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-sage/10 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={cn(
+                            "inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-full text-xs font-semibold",
+                            g.tone === "urgent" && "bg-destructive/15 text-destructive",
+                            g.tone === "action" && "bg-teal/15 text-teal",
+                            g.tone === "info" && "bg-sage/40 text-navy"
+                          )}
+                        >
+                          {g.count}
+                        </span>
+                        <span className="text-sm text-navy truncate">{g.label}</span>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-text-muted group-hover:text-navy flex-shrink-0" />
+                    </Link>
                   </li>
                 ))}
               </ul>
