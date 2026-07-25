@@ -104,6 +104,13 @@ export default function PaymentsPage() {
       const rows = paymentRows ?? []
 
       // Load all of this landlord's properties for the filter dropdown
+      const { data: configRow } = await supabase
+        .from("payment_configuration")
+        .select("etransfer_email")
+        .eq("landlord_id", user.id)
+        .maybeSingle()
+      const defaultEtransferEmail = configRow?.etransfer_email ?? ""
+
       const { data: allProps } = await supabase
         .from("properties")
         .select("id, name, address, etransfer_email")
@@ -189,7 +196,8 @@ export default function PaymentsPage() {
           ...l,
           propertyName: prop?.name ?? "",
           propertyAddress: prop?.address ?? "",
-          payToEmail: l.etransfer_email || prop?.etransfer_email || "",
+          payToEmail:
+            l.etransfer_email || prop?.etransfer_email || defaultEtransferEmail || "",
           label:
             `${l.tenant_name || "Tenant"}` +
             (prop?.name ? ` — ${prop.name}` : ""),
