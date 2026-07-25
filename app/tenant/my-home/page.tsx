@@ -48,6 +48,7 @@ export default function TenantMyHome() {
   const [leaseRow, setLeaseRow] = useState<any | null>(null)
   const [landlordRow, setLandlordRow] = useState<any | null>(null)
   const [propertyRow, setPropertyRow] = useState<any | null>(null)
+  const [landlordEtransfer, setLandlordEtransfer] = useState<string>("")
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
   const [submittingPayment, setSubmittingPayment] = useState(false)
@@ -101,6 +102,15 @@ export default function TenantMyHome() {
 
       let landlord: any = null
       let property: any = null
+      if (lease?.landlord_id) {
+        const { data: cfg } = await supabase
+          .from("payment_configuration")
+          .select("etransfer_email")
+          .eq("landlord_id", lease.landlord_id)
+          .maybeSingle()
+        if (isMounted && cfg?.etransfer_email) setLandlordEtransfer(cfg.etransfer_email)
+      }
+
       if (lease?.landlord_id) {
         const { data } = await supabase
           .from("profiles")
@@ -175,7 +185,7 @@ export default function TenantMyHome() {
       "—",
     email: landlordRow?.email || leaseRow?.landlord_email || "—",
     phone: landlordRow?.phone || leaseRow?.landlord_phone || "—",
-    eTransferEmail: leaseRow?.etransfer_email || propertyRow?.etransfer_email || "—",
+    eTransferEmail: leaseRow?.etransfer_email || propertyRow?.etransfer_email || landlordEtransfer || "—",
   }
 
   const lease = leaseRow
