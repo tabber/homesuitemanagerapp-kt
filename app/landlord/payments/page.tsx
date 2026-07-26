@@ -831,7 +831,6 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                             className="text-teal hover:bg-teal/10"
                           >
                             <CheckCircle className="h-4 w-4 mr-1" />
-                            title="Record Payment"
                           </Button>
                           <Button
                             variant="ghost"
