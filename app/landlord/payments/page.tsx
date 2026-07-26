@@ -840,7 +840,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                             className="text-warning hover:bg-warning/10"
                           >
                             <Bell className="h-4 w-4 mr-1" />
-                            {remindingId === payment.id ? "Sending..." : "Remind"}
+                            {remindingId === payment.id ? "Sending..." : ""}
                           </Button>
                         </div>
                       ) : payment.status === "upcoming" ? (
