@@ -330,7 +330,9 @@ export default function InboxPage() {
       prev.map((r) => (r.id === requestId ? { ...r, status } : r))
     )
     toast.success("Status updated")
-  }  const handleSendMessage = async () => {
+  }  
+    const handleSendMessage = async () => 
+      {
     const text = messageInput.trim()
     if (!text || sending) return
     if (!userId || !selectedConversation?.recipientId) {
