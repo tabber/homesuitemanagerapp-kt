@@ -415,7 +415,8 @@ const totalExpected = leaseOptions
 
   const totalCollected = filteredPayments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0)
   const totalPending = filteredPayments.filter(p => p.status === "pending").reduce((sum, p) => sum + p.amount, 0)
-const avgDaysToPay = (() => {
+const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce((sum, p) => sum + p.amount, 0)
+  const avgDaysToPay = (() => {
     const completed = payments.filter((p) => p.status === "completed" && p.date)
     if (completed.length === 0) return null
     const diffs: number[] = []
