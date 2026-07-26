@@ -372,6 +372,17 @@ const totalExpected = leaseOptions
     toast.success("Payment confirmed")
   }
 
+  const openRecordFor = (payment: any) => {
+    const leaseId = payment.leaseId ?? ""
+    const lease = leaseOptions.find((l) => l.id === leaseId)
+    setForm((f) => ({
+      ...f,
+      leaseId,
+      amount: String(payment.amount ?? lease?.monthly_rent ?? ""),
+    }))
+    setShowRecordModal(true)
+  }
+
   const handleRecordPayment = async () => {
     if (!form.leaseId || !form.amount || savingPayment) return
     const lease = leaseOptions.find((l) => l.id === form.leaseId)
@@ -812,15 +823,36 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                           {confirmingId === payment.id ? "Confirming..." : "Confirm received"}
                         </Button>
                       ) : payment.status === "overdue" ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openRecordFor(payment)}
+                            className="text-teal hover:bg-teal/10"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Record
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={remindingId === payment.id}
+                            onClick={() => handleRemindOverdue(payment)}
+                            className="text-warning hover:bg-warning/10"
+                          >
+                            <Bell className="h-4 w-4 mr-1" />
+                            {remindingId === payment.id ? "Sending..." : "Remind"}
+                          </Button>
+                        </div>
+                      ) : payment.status === "upcoming" ? (
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={remindingId === payment.id}
-                          onClick={() => handleRemindOverdue(payment)}
-                          className="text-warning hover:bg-warning/10"
+                          onClick={() => openRecordFor(payment)}
+                          className="text-teal hover:bg-teal/10"
                         >
-                          <Bell className="h-4 w-4 mr-1" />
-                          {remindingId === payment.id ? "Sending..." : "Send reminder"}
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Record
                         </Button>
                       ) : (
                         <span className="text-xs text-text-muted pr-2">—</span>
