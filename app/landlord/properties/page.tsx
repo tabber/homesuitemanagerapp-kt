@@ -147,6 +147,22 @@ export default function PropertiesPage() {
   const [moveOutOpen, setMoveOutOpen] = useState(false)
   const [moveOutLease, setMoveOutLease] = useState<any | null>(null)
   const [savingMoveOut, setSavingMoveOut] = useState(false)
+  const [editLeaseOpen, setEditLeaseOpen] = useState(false)
+  const [editingLease, setEditingLease] = useState<any | null>(null)
+  const [savingLeaseEdit, setSavingLeaseEdit] = useState(false)
+  const [cancelLeaseOpen, setCancelLeaseOpen] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<any | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [leaseEditForm, setLeaseEditForm] = useState({
+    tenant_name: "",
+    tenant_email: "",
+    tenant_phone: "",
+    monthly_rent: "",
+    security_deposit: "",
+    payment_due_day: "1",
+    start_date: "",
+    end_date: "",
+  })
   const [moveOutForm, setMoveOutForm] = useState({
     date: "",
     reason: "tenant_notice",
@@ -720,6 +736,110 @@ const selectedUnitMaintenance = selectedUnitRow
     loadProperties()
   }
 
+  const openLeaseEditor = (lease: any) => {
+    if (!lease) return
+    setEditingLease(lease)
+    setLeaseEditForm({
+      tenant_name: lease.tenant_name ?? "",
+      tenant_email: lease.tenant_email ?? "",
+      tenant_phone: lease.tenant_phone ?? "",
+      monthly_rent: lease.monthly_rent != null ? String(lease.monthly_rent) : "",
+      security_deposit: lease.security_deposit != null ? String(lease.security_deposit) : "",
+      payment_due_day: lease.payment_due_day != null ? String(lease.payment_due_day) : "1",
+      start_date: lease.start_date ?? "",
+      end_date: lease.end_date ?? "",
+    })
+    setEditLeaseOpen(true)
+  }
+
+  const handleSaveLeaseEdit = async () => {
+    if (!editingLease || savingLeaseEdit) return
+    setSavingLeaseEdit(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("leases")
+      .update({
+        tenant_name: leaseEditForm.tenant_name || null,
+        tenant_email: leaseEditForm.tenant_email || null,
+        tenant_phone: leaseEditForm.tenant_phone || null,
+        monthly_rent: leaseEditForm.monthly_rent ? Number(leaseEditForm.monthly_rent) : null,
+        security_deposit: leaseEditForm.security_deposit ? Number(leaseEditForm.security_deposit) : null,
+        payment_due_day: leaseEditForm.payment_due_day ? Number(leaseEditForm.payment_due_day) : null,
+        start_date: leaseEditForm.start_date || null,
+        end_date: leaseEditForm.end_date || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingLease.id)
+    setSavingLeaseEdit(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Lease updated")
+    setEditLeaseOpen(false)
+    setEditingLease(null)
+    await refreshLeases()
+    loadProperties()
+  }
+
+  const openCancelLease = (lease: any) => {
+    setCancelTarget(lease)
+    setCancelLeaseOpen(true)
+  }
+
+  // Cancel a lease safely: if it's pending with no payments, delete it clean.
+  // Otherwise void it (status = cancelled) so history and references survive.
+  const handleCancelLease = async () => {
+    if (!cancelTarget || cancelling) return
+    setCancelling(true)
+    const supabase = createClient()
+
+    // Does this lease have any payments referencing it?
+    const { count: paymentCount } = await supabase
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("lease_id", cancelTarget.id)
+
+    const isPending = cancelTarget.status === "pending"
+    const hasPayments = (paymentCount ?? 0) > 0
+
+    if (isPending && !hasPayments) {
+      // Clean delete — free the unit if one was tied to it
+      const { error } = await supabase.from("leases").delete().eq("id", cancelTarget.id)
+      if (error) {
+        setCancelling(false)
+        toast.error(error.message)
+        return
+      }
+      if (cancelTarget.unit_id) {
+        await supabase.from("units").update({ status: "vacant" }).eq("id", cancelTarget.unit_id)
+      }
+      toast.success("Lease cancelled")
+    } else {
+      // Void: preserve the record, free the unit
+      const { error } = await supabase
+        .from("leases")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("id", cancelTarget.id)
+      if (error) {
+        setCancelling(false)
+        toast.error(error.message)
+        return
+      }
+      if (cancelTarget.unit_id) {
+        await supabase.from("units").update({ status: "vacant" }).eq("id", cancelTarget.unit_id)
+      }
+      toast.success("Lease voided — history preserved")
+    }
+
+    setCancelling(false)
+    setCancelLeaseOpen(false)
+    setCancelTarget(null)
+    setSelectedUnitId("")
+    await refreshLeases()
+    loadProperties()
+  }
+
   const confirmLeaseById = async (leaseId: string) => {
     if (!leaseId || acknowledging) return
     setAcknowledging(true)
@@ -894,11 +1014,28 @@ const selectedUnitMaintenance = selectedUnitRow
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => openLeaseEditor(lease)}
+                      className="border-sage text-navy hover:bg-sage/20"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit lease
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setShowLeaseSummary(true)}
                       className="border-sage text-navy hover:bg-sage/20"
                     >
                       <FileText className="h-4 w-4 mr-2" />
                       View lease summary
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openCancelLease(lease)}
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                    >
+                      Cancel lease
                     </Button>
                   </div>
                 </CardContent>
@@ -1341,7 +1478,16 @@ const selectedUnitMaintenance = selectedUnitRow
                         )}
                       </div>
                       {!selectedUnitLease.move_out_date && (
-                        <div className="pt-2">
+                        <div className="pt-2 flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openLeaseEditor(selectedUnitLease)}
+                            className="border-sage text-navy hover:bg-sage/20"
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit lease
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -1349,6 +1495,14 @@ const selectedUnitMaintenance = selectedUnitRow
                             className="border-sage text-navy hover:bg-sage/20"
                           >
                             Schedule move-out
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openCancelLease(selectedUnitLease)}
+                            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                          >
+                            Cancel lease
                           </Button>
                         </div>
                       )}
@@ -2212,6 +2366,109 @@ const selectedUnitMaintenance = selectedUnitRow
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Lease Dialog */}
+      <Dialog open={editLeaseOpen} onOpenChange={setEditLeaseOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Edit lease</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <Label htmlFor="el_name">Tenant name</Label>
+                <Input id="el_name" value={leaseEditForm.tenant_name}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, tenant_name: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="el_email">Tenant email</Label>
+                <Input id="el_email" type="email" value={leaseEditForm.tenant_email}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, tenant_email: e.target.value }))} />
+                {editingLease?.status === "active" && (
+                  <p className="text-xs text-warning mt-1">
+                    This lease is active — changing the email won&apos;t move the tenant&apos;s existing account.
+                  </p>
+                )}
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="el_phone">Tenant phone</Label>
+                <Input id="el_phone" value={leaseEditForm.tenant_phone}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, tenant_phone: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="el_rent">Monthly rent</Label>
+                <Input id="el_rent" type="number" step="0.01" value={leaseEditForm.monthly_rent}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, monthly_rent: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="el_dep">Deposit</Label>
+                <Input id="el_dep" type="number" step="0.01" value={leaseEditForm.security_deposit}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, security_deposit: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="el_start">Start date</Label>
+                <Input id="el_start" type="date" value={leaseEditForm.start_date}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, start_date: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="el_end">End date</Label>
+                <Input id="el_end" type="date" value={leaseEditForm.end_date}
+                  onChange={(e) => setLeaseEditForm((f) => ({ ...f, end_date: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="el_due">Rent due day</Label>
+                <Select value={leaseEditForm.payment_due_day}
+                  onValueChange={(v) => setLeaseEditForm((f) => ({ ...f, payment_due_day: v }))}>
+                  <SelectTrigger id="el_due"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="outline" onClick={() => setEditLeaseOpen(false)}
+                className="border-sage text-navy hover:bg-sage/20">Cancel</Button>
+              <Button onClick={handleSaveLeaseEdit} disabled={savingLeaseEdit}
+                className="bg-teal hover:bg-teal-dark text-white">
+                {savingLeaseEdit ? "Saving..." : "Save lease"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Lease Dialog */}
+      <Dialog open={cancelLeaseOpen} onOpenChange={setCancelLeaseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Cancel this lease?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-text-muted">
+              {cancelTarget?.status === "pending"
+                ? "This lease hasn't been accepted yet. If nothing is attached to it, it will be removed entirely. Otherwise it will be voided and its history kept."
+                : "This lease will be voided (marked cancelled). Its payment history is preserved and the unit becomes available again."}
+            </p>
+            {cancelTarget && (
+              <div className="p-3 rounded-lg bg-sage/20 text-sm">
+                <p className="text-navy font-medium">{cancelTarget.tenant_name || "Tenant"}</p>
+                <p className="text-text-muted">{cancelTarget.tenant_email}</p>
+              </div>
+            )}
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="outline" onClick={() => setCancelLeaseOpen(false)}
+                className="border-sage text-navy hover:bg-sage/20">Keep lease</Button>
+              <Button onClick={handleCancelLease} disabled={cancelling}
+                className="bg-destructive hover:bg-destructive/90 text-white">
+                {cancelling ? "Cancelling..." : "Cancel lease"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
