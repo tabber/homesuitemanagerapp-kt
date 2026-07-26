@@ -293,7 +293,7 @@ export default function InboxPage() {
   }, [loadInbox])
 
 
-  const handleAssignContractor = async (requestId: string, contractorId: string) => {
+ const handleAssignContractor = async (requestId: string, contractorId: string) => {
     const supabase = createClient()
     const { error } = await supabase
       .from("maintenance_requests")
@@ -303,9 +303,15 @@ export default function InboxPage() {
       toast.error(error.message)
       return
     }
+    // Update local state so the dropdown reflects the new selection immediately
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, contractor_id: contractorId } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, contractor_id: contractorId } : r))
+    )
     toast.success("Contractor assigned")
   }
-
   const handleSendMessage = async () => {
     const text = messageInput.trim()
     if (!text || sending) return
