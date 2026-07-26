@@ -312,7 +312,25 @@ export default function InboxPage() {
     )
     toast.success("Contractor assigned")
   }
-  const handleSendMessage = async () => {
+
+  const handleUpdateStatus = async (requestId: string, status: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ status })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, status } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, status } : r))
+    )
+    toast.success("Status updated")
+  }  const handleSendMessage = async () => {
     const text = messageInput.trim()
     if (!text || sending) return
     if (!userId || !selectedConversation?.recipientId) {
@@ -940,7 +958,10 @@ export default function InboxPage() {
                       <div>
                         <Label className="text-text-muted text-xs">Status</Label>
                         <div className="mt-1">
-                          <Select defaultValue={selectedRequest.status}>
+                         <Select
+                            value={selectedRequest.status}
+                            onValueChange={(v) => handleUpdateStatus(selectedRequest.id, v)}
+                          >
                             <SelectTrigger className="border-sage">
                               <SelectValue />
                             </SelectTrigger>
