@@ -137,7 +137,7 @@ export default function TenantInbox() {
       status: r.status ?? "open",
       createdAt: formatDate(r.created_at),
       timeline: [],
-      landlordNotes: r.landlord_notes ?? "",
+      // landlord_notes is internal to the landlord — never exposed to tenants
       contractor: "",
       scheduledDate: r.scheduled_date ? formatDate(r.scheduled_date) : "",
     }))
@@ -522,17 +522,6 @@ export default function TenantInbox() {
                         </p>
                         <p className="text-sm text-teal-dark">
                           Scheduled: {selectedRequest.scheduledDate}
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedRequest.landlordNotes && (
-                      <div className="bg-cream rounded-lg p-4">
-                        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
-                          Landlord Notes
-                        </p>
-                        <p className="text-sm text-navy">
-                          {selectedRequest.landlordNotes}
                         </p>
                       </div>
                     )}
