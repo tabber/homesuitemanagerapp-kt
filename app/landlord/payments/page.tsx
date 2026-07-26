@@ -534,9 +534,9 @@ const avgDaysToPay = (() => {
           className="[&_p:last-of-type]:text-success"
         />
         <StatCard
-          label="Pending"
-          value={formatCurrency(totalPending)}
-          className="[&_p:last-of-type]:text-warning"
+          label="Overdue"
+          value={formatCurrency(totalOverdue)}
+          className="[&_p:last-of-type]:text-destructive"
         />
         <StatCard
           label="Avg. Days to Pay"
