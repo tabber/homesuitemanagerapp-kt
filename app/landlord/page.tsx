@@ -710,7 +710,7 @@ export default function LandlordDashboard() {
                 <p className="text-sm text-text-muted">You&apos;re all caught up</p>
               </div>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
                 {notificationGroups.map((g) => (
                   <li key={g.key}>
                     <Link
@@ -748,7 +748,7 @@ export default function LandlordDashboard() {
             {!loading && recentActivity.length === 0 ? (
               <p className="text-sm text-text-muted py-4 text-center">No data yet</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
                 {recentActivity.map((activity, index) => (
                   <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
                     <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
