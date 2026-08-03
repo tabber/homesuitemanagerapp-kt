@@ -2603,7 +2603,7 @@ const selectedUnitMaintenance = selectedUnitRow
       </Dialog>
 
           <Dialog open={showLeaseSummary} onOpenChange={setShowLeaseSummary}>
-              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="text-navy font-medium">Lease Summary</DialogTitle>
                 </DialogHeader>
