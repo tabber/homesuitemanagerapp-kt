@@ -131,11 +131,12 @@ export default function SettingsPage() {
     const supabase = createClient()
     const { error } = await supabase
       .from("profiles")
-      .update({
+     .update({
         first_name: accountForm.firstName,
         last_name: accountForm.lastName,
         phone: accountForm.phone,
         company_name: accountForm.company,
+        profile_completed: true,
       })
       .eq("id", userId)
     setSavingAccount(false)
