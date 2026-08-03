@@ -770,7 +770,7 @@ export default function InboxPage() {
                       <div
                         key={message.id}
                         className={cn(
-                          "max-w-[70%]",
+                          "max-w-[70%] min-w-0",
                           message.sender === "landlord" ? "ml-auto" : "mr-auto"
                         )}
                       >
@@ -782,7 +782,7 @@ export default function InboxPage() {
                               : "bg-sage/30 text-navy"
                           )}
                         >
-                          <p className="text-sm">{message.text}</p>
+                          <p className="text-sm break-words whitespace-pre-wrap">{message.text}</p>
                         </div>
                         <p className={cn(
                           "text-xs text-text-muted mt-1",
