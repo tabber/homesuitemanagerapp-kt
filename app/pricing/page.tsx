@@ -118,7 +118,7 @@ export default function PricingPage() {
             </h2>
             <Card className="border-sage/50">
               <CardContent className="p-6">
-                <div className="grid grid-cols-4 gap-2 text-sm font-medium text-text-muted border-b border-sage/40 pb-3 mb-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm font-medium text-text-muted border-b border-sage/40 pb-3 mb-3">
                   <span>Monthly rent</span>
                   <span>Property manager</span>
                   <span>HomeSuite</span>
@@ -127,7 +127,7 @@ export default function PricingPage() {
                 {savings.map((row) => (
                   <div
                     key={row.rent}
-                    className="grid grid-cols-4 gap-2 text-sm text-navy py-2"
+                    className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-navy py-2"
                   >
                     <span>{row.rent}</span>
                     <span>{row.traditional}</span>
