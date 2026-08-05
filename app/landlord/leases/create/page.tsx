@@ -405,7 +405,7 @@ function CreateLeasePageInner() {
         <h1 className="text-2xl font-medium text-navy mb-2">Create Lease</h1>
         <p className="text-text-muted mb-8">How would you like to create the lease?</p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={() => setLeaseType("create")}
             className="p-6 rounded-lg border-2 border-sage bg-white text-left transition-all hover:border-teal"
@@ -757,7 +757,7 @@ function CreateLeasePageInner() {
       {selectedProperty?.type === "apartment" && selectedProperty.vacantUnits.length > 0 && (
         <div className="mt-6">
           <Label className="text-navy mb-3 block">Select Unit</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {selectedProperty.vacantUnits.map((unit) => (
               <button
                 key={unit.id}
@@ -796,7 +796,7 @@ function CreateLeasePageInner() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="landlordPhone" className="text-navy">Phone</Label>
             <Input
@@ -850,7 +850,7 @@ function CreateLeasePageInner() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="tenantEmail" className="text-navy">Email *</Label>
             <Input
@@ -918,7 +918,7 @@ function CreateLeasePageInner() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="numberOfVehicles" className="text-navy">Number of Vehicles</Label>
             <Input
@@ -946,7 +946,7 @@ function CreateLeasePageInner() {
 
         <div>
           <Label className="text-navy mb-3 block">Utilities Tenant is Responsible For</Label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {UTILITIES.map((utility) => (
               <label key={utility} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -976,7 +976,7 @@ function CreateLeasePageInner() {
       <p className="text-sm text-text-muted">Set the terms and conditions of the lease.</p>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="startDate" className="text-navy">Start Date *</Label>
             <Input
@@ -999,7 +999,7 @@ function CreateLeasePageInner() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="monthlyRent" className="text-navy">Monthly Rent *</Label>
             <div className="relative mt-1.5">
@@ -1132,7 +1132,7 @@ function CreateLeasePageInner() {
             {/* Lease Terms */}
             <div className="pb-4 border-b border-sage/30">
               <h4 className="text-sm font-medium text-text-muted mb-2">Lease Terms</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-text-muted">Lease Period</p>
                   <p className="text-sm text-navy">
