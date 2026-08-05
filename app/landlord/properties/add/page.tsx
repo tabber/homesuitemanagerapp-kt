@@ -416,7 +416,7 @@ export default function AddPropertyPage() {
         <h1 className="text-2xl font-medium text-navy mb-2">Add New Property</h1>
         <p className="text-text-muted mb-8">What type of property are you adding?</p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={() => setPropertyType("single")}
             className={cn(
@@ -528,7 +528,7 @@ export default function AddPropertyPage() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="city" className="text-navy">City *</Label>
             <Input
@@ -558,7 +558,7 @@ export default function AddPropertyPage() {
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="postalCode" className="text-navy">Postal Code *</Label>
             <Input
@@ -587,7 +587,7 @@ export default function AddPropertyPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-medium text-navy">Property Details & Amenities</h2>
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="bedrooms" className="text-navy">Bedrooms</Label>
             <Input
@@ -623,7 +623,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="parkingType" className="text-navy">Parking Type</Label>
             <Select
@@ -655,7 +655,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="laundry" className="text-navy">Laundry</Label>
             <Select
@@ -708,7 +708,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label className="text-navy mb-3 block">Amenities</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {AMENITIES.map((amenity) => (
               <label key={amenity} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -730,7 +730,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label className="text-navy mb-3 block">Utilities Included</Label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {UTILITIES.map((utility) => (
               <label key={utility} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -758,7 +758,7 @@ export default function AddPropertyPage() {
       <h2 className="text-xl font-medium text-navy">Rental Information & Review</h2>
       
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="monthlyRent" className="text-navy">Monthly Rent *</Label>
             <div className="relative mt-1.5">
@@ -789,7 +789,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="availableFrom" className="text-navy">Available From</Label>
             <Input
@@ -819,7 +819,7 @@ export default function AddPropertyPage() {
         <CardContent className="p-6">
           <h3 className="text-lg font-medium text-navy mb-4">Review Summary</h3>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Property Name</p>
                 <p className="text-sm font-medium text-navy">{singleForm.name || "—"}</p>
@@ -837,7 +837,7 @@ export default function AddPropertyPage() {
                 {singleForm.streetAddress ? `${singleForm.streetAddress}, ${singleForm.city}, ${singleForm.province} ${singleForm.postalCode}` : "—"}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Bedrooms</p>
                 <p className="text-sm font-medium text-navy">{singleForm.bedrooms}</p>
@@ -851,7 +851,7 @@ export default function AddPropertyPage() {
                 <p className="text-sm font-medium text-navy">{singleForm.squareFeet || "—"}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-text-muted">Monthly Rent</p>
                 <p className="text-sm font-medium text-navy">
@@ -947,7 +947,7 @@ export default function AddPropertyPage() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="city" className="text-navy">City *</Label>
             <Input
@@ -977,7 +977,7 @@ export default function AddPropertyPage() {
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="postalCode" className="text-navy">Postal Code *</Label>
             <Input
@@ -1012,7 +1012,7 @@ export default function AddPropertyPage() {
           <Card key={unitType.id} className="border-sage/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
-                <div className="flex-1 grid grid-cols-4 gap-4">
+                <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label className="text-navy text-xs">Bedrooms</Label>
                     <Input
@@ -1119,7 +1119,7 @@ export default function AddPropertyPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-medium text-navy">Building Details & Floor Builder</h2>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="totalFloors" className="text-navy">Total Floors *</Label>
           <Input
@@ -1265,7 +1265,7 @@ export default function AddPropertyPage() {
       
       <div>
         <Label className="text-navy mb-3 block">Building Amenities</Label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {AMENITIES.map((amenity) => (
             <label key={amenity} className="flex items-center gap-2 cursor-pointer">
               <Checkbox
@@ -1290,7 +1290,7 @@ export default function AddPropertyPage() {
         <CardContent className="p-6">
           <h3 className="text-lg font-medium text-navy mb-4">Review Summary</h3>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Building Name</p>
                 <p className="text-sm font-medium text-navy">{multiForm.name || "—"}</p>
