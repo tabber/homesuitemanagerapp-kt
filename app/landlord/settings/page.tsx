@@ -407,7 +407,7 @@ export default function SettingsPage() {
             <CardTitle className="text-lg font-medium text-navy">Account Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName" className="text-navy">First Name</Label>
                 <Input
@@ -438,7 +438,7 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-text-muted mt-1">Contact support to change your email address.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone" className="text-navy">Phone</Label>
                 <Input
@@ -606,7 +606,7 @@ export default function SettingsPage() {
             <CardTitle className="text-lg font-medium text-navy">Subscription</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Current Plan</p>
                 <p className="text-xl font-medium text-navy">Trial</p>
