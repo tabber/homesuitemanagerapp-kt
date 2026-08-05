@@ -376,7 +376,8 @@ export default function LandlordDocuments() {
               onAction={() => setShowUpload(true)}
             />
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>File</TableHead>
@@ -449,7 +450,8 @@ export default function LandlordDocuments() {
                   ))
                 )}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
