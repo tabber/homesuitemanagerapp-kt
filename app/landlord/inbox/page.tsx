@@ -718,7 +718,7 @@ export default function InboxPage() {
                   Compose
                 </Button>
               </div>
-              <CardContent className="p-0 flex-1 overflow-hidden">
+              <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   {filteredConversations.length === 0 && (
                     <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
@@ -788,8 +788,8 @@ export default function InboxPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-                <ScrollArea className="flex-1 p-4">
+              <CardContent className="flex-1 min-h-0 overflow-hidden p-0 flex flex-col">
+                <ScrollArea className="flex-1 min-h-0 p-4">
                   <div className="space-y-4">
                     {selectedConversation.messages.map((message: any) => (
                       <div
@@ -907,7 +907,7 @@ export default function InboxPage() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-0 flex-1 overflow-hidden">
+              <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   {filteredRequests.length === 0 && (
                     <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
