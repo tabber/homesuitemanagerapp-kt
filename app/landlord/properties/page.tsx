@@ -887,7 +887,7 @@ const selectedUnitMaintenance = selectedUnitRow
         {/* Property Header Card */}
         <Card className="border-sage/50">
           <CardContent className="p-6">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-lg bg-sage/30 flex items-center justify-center">
                   <Home className="h-6 w-6 text-navy" />
@@ -913,7 +913,7 @@ const selectedUnitMaintenance = selectedUnitRow
         </Card>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Monthly Rent"
             value={formatCurrency(lease?.monthly_rent ?? property.rent_amount ?? 0)}
@@ -952,7 +952,7 @@ const selectedUnitMaintenance = selectedUnitRow
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-text-muted">Tenant</p>
                       <p className="text-sm font-medium text-navy">{tenantName}</p>
@@ -1068,7 +1068,7 @@ const selectedUnitMaintenance = selectedUnitRow
                       <p className="text-sm text-text-muted">{tenant.phone}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-sage/30">
                     <div>
                       <p className="text-sm text-text-muted">Lease Period</p>
                       <p className="text-sm font-medium text-navy">
@@ -1294,7 +1294,7 @@ const selectedUnitMaintenance = selectedUnitRow
           {/* Unit Header */}
           <Card className="border-sage/50">
             <CardContent className="p-6">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-xl font-medium text-navy">Unit {selectedUnit.number}</h2>
@@ -1304,7 +1304,7 @@ const selectedUnitMaintenance = selectedUnitRow
                     {selectedUnit.bedrooms} bed / {selectedUnit.bathrooms} bath - Floor {selectedUnit.floor}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     onClick={() => openUnitEditor(selectedUnit)}
@@ -1331,7 +1331,7 @@ const selectedUnitMaintenance = selectedUnitRow
           </Card>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Monthly Rent"
               value={formatCurrency(selectedUnit.rent)}
@@ -1418,7 +1418,7 @@ const selectedUnitMaintenance = selectedUnitRow
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-text-muted">Tenant</p>
                         <p className="text-sm font-medium text-navy">
@@ -1681,7 +1681,7 @@ const selectedUnitMaintenance = selectedUnitRow
         {/* Property Header Card */}
         <Card className="border-sage/50">
           <CardContent className="p-6">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-lg bg-sage/30 flex items-center justify-center">
                   <Building2 className="h-6 w-6 text-navy" />
@@ -1707,7 +1707,7 @@ const selectedUnitMaintenance = selectedUnitRow
         </Card>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Total Units"
             value={property.totalUnits || 0}
@@ -1751,7 +1751,7 @@ const selectedUnitMaintenance = selectedUnitRow
               {Object.entries(floors).sort(([a], [b]) => Number(b) - Number(a)).map(([floor, units]) => (
                 <div key={floor} className="flex items-center gap-4">
                   <span className="text-sm text-text-muted w-16">Floor {floor}</span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {units.map((unit) => (
                       <button
                         key={unit.id}
@@ -1807,7 +1807,8 @@ const selectedUnitMaintenance = selectedUnitRow
                     </p>
                   </div>
                 )}
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Unit</TableHead>
@@ -1897,7 +1898,8 @@ const selectedUnitMaintenance = selectedUnitRow
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1908,7 +1910,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 <CardTitle className="text-lg font-medium text-navy">Financial Overview</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div>
                     <p className="text-sm text-text-muted">Potential Monthly Revenue</p>
                     <p className="text-2xl font-medium text-navy">{formatCurrency(property.monthlyRevenue || 0)}</p>
@@ -1941,7 +1943,8 @@ const selectedUnitMaintenance = selectedUnitRow
               </CardHeader>
               <CardContent>
                 {propertyMaintenance.length > 0 ? (
-                  <Table>
+                  <div className="overflow-x-auto">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Title</TableHead>
@@ -1962,7 +1965,8 @@ const selectedUnitMaintenance = selectedUnitRow
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 ) : (
                   <EmptyState
                     icon={Wrench}
@@ -2107,7 +2111,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 className="border-sage"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-city" className="text-navy">City</Label>
                 <Input
@@ -2127,7 +2131,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-navy">Province</Label>
                 <Select
@@ -2231,7 +2235,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 </Label>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="mo_returned">Deposit returned</Label>
                   <Input
@@ -2479,7 +2483,7 @@ const selectedUnitMaintenance = selectedUnitRow
             <DialogTitle className="text-navy">Edit unit</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="u_number">Unit number</Label>
                 <Input id="u_number" value={unitForm.unit_number} onChange={(e) => setUnitForm((f) => ({ ...f, unit_number: e.target.value }))} />
@@ -2564,7 +2568,7 @@ const selectedUnitMaintenance = selectedUnitRow
             <p className="text-sm text-text-muted">
               Units are numbered sequentially from the starting number. You can rename or adjust any of them afterwards.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="b_count">How many</Label>
                 <Input id="b_count" type="number" min="1" max="50" value={bulkForm.count} onChange={(e) => setBulkForm((f) => ({ ...f, count: e.target.value }))} />
@@ -2618,7 +2622,7 @@ const selectedUnitMaintenance = selectedUnitRow
                     </div>
 
                     {/* Lease terms */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-text-muted">Start Date</p>
                         <p className="font-medium text-navy">{formatDate(activeLease.start_date)}</p>
@@ -2644,7 +2648,7 @@ const selectedUnitMaintenance = selectedUnitRow
                     </div>
 
                     {/* Policies */}
-                    <div className="border-t border-sage/40 pt-4 grid grid-cols-2 gap-4">
+                    <div className="border-t border-sage/40 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-text-muted">Pets</p>
                         <p className="font-medium text-navy">
