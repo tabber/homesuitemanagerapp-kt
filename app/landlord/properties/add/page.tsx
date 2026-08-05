@@ -1164,7 +1164,7 @@ export default function AddPropertyPage() {
                         setMultiForm((prev) => ({ ...prev, floors: newFloors }))
                       }}
                     >
-                      <SelectTrigger className="w-48 border-sage">
+                      <SelectTrigger className="w-full sm:w-48 border-sage">
                         <SelectValue placeholder="Select unit type" />
                       </SelectTrigger>
                       <SelectContent>
