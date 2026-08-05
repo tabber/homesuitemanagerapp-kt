@@ -234,7 +234,8 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           {landlords.length > 0 ? (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Landlord</TableHead>
@@ -281,7 +282,8 @@ export default function AdminDashboard() {
                   )
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           ) : (
             <p className="text-sm text-text-muted">No data yet</p>
           )}
