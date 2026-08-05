@@ -18,13 +18,13 @@ export function StatCard({ label, value, sublabel, trend, className }: StatCardP
   return (
     <div
       className={cn(
-        "w-full min-w-0 bg-card rounded-lg p-6 border-[0.5px] border-sage",
+        "w-full min-w-0 bg-card rounded-lg p-4 sm:p-6 border-[0.5px] border-sage",
         className
       )}
     >
-      <p className="text-sm text-text-muted font-normal">{label}</p>
-      <div className="flex items-baseline gap-2 mt-1">
-        <p className="text-3xl font-medium text-navy">{value}</p>
+      <p className="text-xs sm:text-sm text-text-muted font-normal break-words">{label}</p>
+      <div className="flex items-baseline gap-2 mt-1 min-w-0">
+        <p className="text-xl sm:text-2xl lg:text-3xl font-medium text-navy truncate min-w-0">{value}</p>
         {trend && (
           <span
             className={cn(
@@ -42,7 +42,7 @@ export function StatCard({ label, value, sublabel, trend, className }: StatCardP
         )}
       </div>
       {sublabel && (
-        <p className="text-sm text-text-muted font-normal mt-1">{sublabel}</p>
+        <p className="text-xs sm:text-sm text-text-muted font-normal mt-1 break-words">{sublabel}</p>
       )}
     </div>
   )
