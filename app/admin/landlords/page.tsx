@@ -492,7 +492,7 @@ export default function AdminLandlords() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
