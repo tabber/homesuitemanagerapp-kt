@@ -233,7 +233,7 @@ export default function TenantInbox() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          <Card className="border-sage/50 h-[600px] flex flex-col">
+          <Card className="border-sage/50 h-[70vh] sm:h-[600px] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-sage/30 flex items-center gap-3">
               <Avatar className="h-10 w-10 bg-sage-light">
                 <AvatarFallback className="bg-sage-light text-navy text-sm">
@@ -246,7 +246,7 @@ export default function TenantInbox() {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 min-h-0 p-4">
               <div className="space-y-4">
                 {messages.length === 0 && (
                   <p className="text-sm text-text-muted text-center py-6">No data yet</p>
