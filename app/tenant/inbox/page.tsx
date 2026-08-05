@@ -318,7 +318,7 @@ export default function TenantInbox() {
                     setMaintenanceFilter(value)
                   }
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-full sm:w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
