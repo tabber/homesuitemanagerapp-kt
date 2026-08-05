@@ -259,13 +259,13 @@ export default function TenantInbox() {
                     }`}
                   >
                     <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
+                      className={`max-w-[85%] sm:max-w-[70%] min-w-0 rounded-lg p-3 ${
                         message.sender === "tenant"
                           ? "bg-teal text-white"
                           : "bg-cream text-navy"
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
                       <p
                         className={`text-xs mt-1 ${
                           message.sender === "tenant"
