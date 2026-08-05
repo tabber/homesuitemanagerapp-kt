@@ -328,7 +328,7 @@ export default function LandlordDocuments() {
               />
             </div>
             <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-              <SelectTrigger className="w-52 border-sage">
+              <SelectTrigger className="w-full sm:w-52 border-sage">
                 <SelectValue placeholder="All properties" />
               </SelectTrigger>
               <SelectContent>
@@ -341,7 +341,7 @@ export default function LandlordDocuments() {
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-44 border-sage">
+              <SelectTrigger className="w-full sm:w-44 border-sage">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
@@ -469,7 +469,7 @@ export default function LandlordDocuments() {
               </p>
             </div>
             <Select value={province} onValueChange={setProvince}>
-              <SelectTrigger className="w-52 border-sage">
+              <SelectTrigger className="w-full sm:w-52 border-sage">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
