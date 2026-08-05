@@ -280,11 +280,24 @@ export default function InboxPage() {
     setConversations(convos)
     setMaintenanceRequests(mappedRequests)
     // Preserve the currently selected conversation across refreshes
+    // On desktop, auto-select the first item so the detail pane isn't empty.
+    // On mobile the list IS the first screen, so don't auto-open a thread.
+    const isDesktop =
+      typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches
+
     setSelectedConversation((prev: any) =>
-      prev ? convos.find((c) => c.id === prev.id) ?? convos[0] ?? null : convos[0] ?? null
+      prev
+        ? convos.find((c) => c.id === prev.id) ?? (isDesktop ? convos[0] ?? null : null)
+        : isDesktop
+          ? convos[0] ?? null
+          : null
     )
     setSelectedRequest((prev: any) =>
-      prev ? mappedRequests.find((r) => r.id === prev.id) ?? mappedRequests[0] ?? null : mappedRequests[0] ?? null
+      prev
+        ? mappedRequests.find((r) => r.id === prev.id) ?? (isDesktop ? mappedRequests[0] ?? null : null)
+        : isDesktop
+          ? mappedRequests[0] ?? null
+          : null
     )
   }, [])
 
@@ -558,10 +571,10 @@ export default function InboxPage() {
   return (
     <div className="p-6 h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-medium text-navy">Inbox</h1>
         <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-          <SelectTrigger className="w-48 border-sage">
+          <SelectTrigger className="w-full sm:w-48 border-sage">
             <SelectValue placeholder="Filter by property" />
           </SelectTrigger>
           <SelectContent>
@@ -690,9 +703,12 @@ export default function InboxPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <div className="flex gap-4 h-full">
-            {/* Conversation List */}
-            <Card className="w-80 border-sage/50 flex flex-col">
+          <div className="flex flex-col md:flex-row gap-4 h-full">
+            {/* Conversation List — hidden on mobile once a thread is open */}
+            <Card className={cn(
+              "w-full md:w-80 border-sage/50 flex flex-col flex-shrink-0",
+              selectedConversation && "hidden md:flex"
+            )}>
               <div className="p-3 border-b border-sage/20">
                 <Button
                   onClick={openCompose}
@@ -743,7 +759,10 @@ export default function InboxPage() {
             </Card>
 
             {/* Message Thread */}
-            <Card className="flex-1 border-sage/50 flex flex-col">
+            <Card className={cn(
+              "flex-1 border-sage/50 flex flex-col",
+              !selectedConversation && "hidden md:flex"
+            )}>
               {!selectedConversation ? (
                 <CardContent className="flex-1 flex items-center justify-center text-sm text-text-muted">
                   No data yet
@@ -751,6 +770,12 @@ export default function InboxPage() {
               ) : (
               <>
               <CardHeader className="border-b border-sage/20 py-4">
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  className="md:hidden flex items-center gap-1 text-sm text-teal mb-3"
+                >
+                  ← All conversations
+                </button>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium">
                     {selectedConversation.tenant.split(" ").map((n: string) => n[0]).join("")}
@@ -854,13 +879,16 @@ export default function InboxPage() {
               Manage seasonal reminders
             </Link>
           </div>
-          <div className="flex gap-4 h-full">
-            {/* Request List */}
-            <Card className="w-80 border-sage/50 flex flex-col">
+          <div className="flex flex-col md:flex-row gap-4 h-full">
+            {/* Request List — hidden on mobile once a request is open */}
+            <Card className={cn(
+              "w-full md:w-80 border-sage/50 flex flex-col flex-shrink-0",
+              selectedRequest && "hidden md:flex"
+            )}>
               <CardHeader className="py-3 border-b border-sage/20">
                 <div className="flex items-center justify-between">
                   <Select value={maintenanceStatusFilter} onValueChange={setMaintenanceStatusFilter}>
-                    <SelectTrigger className="w-32 border-sage h-8 text-sm">
+                    <SelectTrigger className="w-full sm:w-32 border-sage h-8 text-sm">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -911,7 +939,10 @@ export default function InboxPage() {
             </Card>
 
             {/* Request Detail */}
-            <Card className="flex-1 border-sage/50">
+            <Card className={cn(
+              "flex-1 border-sage/50",
+              !selectedRequest && "hidden md:block"
+            )}>
               {!selectedRequest ? (
                 <CardContent className="h-full flex items-center justify-center text-sm text-text-muted">
                   No data yet
@@ -920,6 +951,12 @@ export default function InboxPage() {
               <ScrollArea className="h-full">
                 <CardContent className="p-6">
                   <div className="space-y-6">
+                    <button
+                      onClick={() => setSelectedRequest(null)}
+                      className="md:hidden flex items-center gap-1 text-sm text-teal"
+                    >
+                      ← All requests
+                    </button>
                     {/* Header */}
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -936,7 +973,7 @@ export default function InboxPage() {
                     </div>
 
                     {/* Details Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-text-muted text-xs">Category</Label>
                         <p className="text-navy mt-1">{selectedRequest.category}</p>
@@ -1001,7 +1038,7 @@ export default function InboxPage() {
                     {/* Scheduling */}
                     <div className="border-t border-sage/30 pt-4">
                       <h3 className="font-medium text-navy mb-3">Scheduling</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-text-muted text-xs">Scheduled Date</Label>
                           <Input
@@ -1107,7 +1144,7 @@ export default function InboxPage() {
                 </label>
               </Button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-navy">Type</Label>
                 <Select value={uploadDocType} onValueChange={setUploadDocType}>
