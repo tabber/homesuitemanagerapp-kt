@@ -524,7 +524,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-medium text-navy">Payments</h1>
         <Button
           onClick={() => setShowRecordModal(true)}
@@ -535,7 +535,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           label="This Month Expected"
           value={formatCurrency(totalExpected)}
@@ -604,7 +604,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                 </div>
                 {leaseOptions.length > 0 && (
                   <Select value={instructionLeaseId} onValueChange={setInstructionLeaseId}>
-                    <SelectTrigger className="w-56 border-sage bg-white">
+                    <SelectTrigger className="w-full sm:w-56 border-sage bg-white">
                       <SelectValue placeholder="Select a tenant" />
                     </SelectTrigger>
                     <SelectContent>
@@ -738,7 +738,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
       {/* Filter Bar */}
       <Card className="border-sage/50 mb-6">
         <CardContent className="p-4">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
               <Input
@@ -749,7 +749,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
               />
             </div>
             <Select value={propertyFilter} onValueChange={handlePropertyChange}>
-              <SelectTrigger className="w-48 border-sage">
+              <SelectTrigger className="w-full sm:w-48 border-sage">
                 <SelectValue placeholder="Filter by property" />
               </SelectTrigger>
               <SelectContent>
@@ -761,7 +761,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40 border-sage">
+              <SelectTrigger className="w-full sm:w-40 border-sage">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -780,7 +780,8 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
       {/* Payments Table */}
       <Card className="border-sage/50">
         <CardContent className="p-0">
-          <Table>
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Tenant</TableHead>
@@ -861,7 +862,8 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
