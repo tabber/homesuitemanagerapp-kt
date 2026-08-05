@@ -646,7 +646,8 @@ export default function TenantMyHome() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -681,7 +682,8 @@ export default function TenantMyHome() {
                   ))
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -880,7 +882,7 @@ export default function TenantMyHome() {
             </p>
 
             {/* Parties */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-lg bg-cream">
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
                   Landlord
@@ -925,7 +927,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Financial Terms */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-lg bg-cream">
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
                   Monthly Rent
@@ -956,7 +958,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Terms Grid */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Utilities
@@ -992,7 +994,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Signatures */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-sage/30">
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
                  {lease.landlordSigned && (
