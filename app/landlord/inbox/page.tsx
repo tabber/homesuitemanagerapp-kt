@@ -346,6 +346,24 @@ export default function InboxPage() {
     )
     toast.success("Status updated")
   }  
+  // Opening a conversation marks its incoming messages as read.
+  const openConversation = async (conversation: any) => {
+    setSelectedConversation(conversation)
+    if (!conversation?.unread || !userId) return
+
+    // Optimistically clear the badge so the UI responds immediately
+    setConversations((prev: any[]) =>
+      prev.map((c) => (c.id === conversation.id ? { ...c, unread: false } : c))
+    )
+
+    const supabase = createClient()
+    await supabase
+      .from("messages")
+      .update({ read: true })
+      .eq("recipient_id", userId)
+      .eq("sender_id", conversation.recipientId)
+      .eq("read", false)
+  }
     const handleSendMessage = async () => 
       {
     const text = messageInput.trim()
@@ -728,7 +746,7 @@ export default function InboxPage() {
                   {filteredConversations.map((conversation) => (
                     <button
                       key={conversation.id}
-                      onClick={() => setSelectedConversation(conversation)}
+                      onClick={() => openConversation(conversation)}
                       className={cn(
                         "w-full p-4 text-left border-b border-sage/20 hover:bg-sage/10 transition-colors",
                         selectedConversation?.id === conversation.id && "bg-sage/20"
