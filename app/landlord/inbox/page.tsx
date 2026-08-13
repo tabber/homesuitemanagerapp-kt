@@ -221,6 +221,7 @@ export default function InboxPage() {
           id: otherId,
           recipientId: otherId,
           propertyId: null,
+          leaseId: null,
           tenant:
             profileNameMap.get(otherId) ||
             leaseByTenant.get(otherId)?.tenant_name ||
@@ -249,6 +250,7 @@ export default function InboxPage() {
       const fallbackLease = leaseByTenant.get(otherId)
       const lease = msgLease ?? fallbackLease
       if (lease) {
+        convo.leaseId = lease.id ?? convo.leaseId
         convo.propertyId = lease.property_id ?? convo.propertyId
         convo.property = propertyNameMap.get(lease.property_id) ?? convo.property
         if (lease.status && lease.status !== "active") convo.former = true
@@ -357,8 +359,8 @@ export default function InboxPage() {
     const { error } = await supabase.from("messages").insert({
       sender_id: userId,
       recipient_id: selectedConversation.recipientId,
-     content: text,
-      ...(selectedConversation.propertyId ? { property_id: selectedConversation.propertyId } : {}),
+      content: text,
+      ...(selectedConversation.leaseId ? { lease_id: selectedConversation.leaseId } : {}),
     })
     setSending(false)
     if (error) {
