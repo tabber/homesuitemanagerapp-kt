@@ -398,21 +398,6 @@ export default function TenantDashboard() {
               </div>
               <ChevronRight className="h-4 w-4 text-text-muted" />
             </Link>
-
-            <Link
-              href="/tenant/inbox"
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-cream hover:bg-sage/20 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center">
-                  <Mail className="h-4 w-4 text-teal-dark" />
-                </div>
-                <span className="text-sm font-normal text-navy">
-                  Message Landlord
-                </span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-text-muted" />
-            </Link>
           </CardContent>
         </Card>
 
