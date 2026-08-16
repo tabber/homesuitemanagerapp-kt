@@ -59,6 +59,18 @@ function PaymentsPageInner() {
   const [propertyFilter, setPropertyFilter] = useState("all")
   const searchParams = useSearchParams()
   const [statusFilter, setStatusFilter] = useState(searchParams.get("filter") || "all")
+
+  // The ?filter= param seeds the initial view (e.g. arriving from a dashboard
+  // notification). Clear it from the URL afterwards so recording a payment or
+  // reloading doesn't snap the list back to that filter.
+  useEffect(() => {
+    if (searchParams.get("filter")) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("filter")
+      window.history.replaceState({}, "", url.toString())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
@@ -442,7 +454,8 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
     if (diffs.length === 0) return null
     return Math.round((diffs.reduce((a, b) => a + b, 0) / diffs.length) * 10) / 10
   })()
-  const selectedInstructionLease = leaseOptions.find((l) => l.id === instructionLeaseId)
+  const selectedInstructionLease =
+    leaseOptions.find((l) => l.id === instructionLeaseId) || leaseOptions[0] || null
 
   const instructionText = selectedInstructionLease
     ? `Send e-Transfer to: ${selectedInstructionLease.payToEmail || "(not set)"}\n` +
@@ -603,7 +616,10 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                   </p>
                 </div>
                 {leaseOptions.length > 0 && (
-                  <Select value={instructionLeaseId} onValueChange={setInstructionLeaseId}>
+                  <Select
+                    value={selectedInstructionLease?.id || ""}
+                    onValueChange={setInstructionLeaseId}
+                  >
                     <SelectTrigger className="w-full sm:w-56 border-sage bg-white">
                       <SelectValue placeholder="Select a tenant" />
                     </SelectTrigger>
