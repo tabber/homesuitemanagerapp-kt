@@ -322,7 +322,7 @@ export default function AdminDashboard() {
                 placeholder="Use code BETA100 at checkout for your first year free"
               />
             </div>
-            <div className="flex gap-3 justify-end">
+            <div className="flex flex-wrap gap-3 justify-end">
               <Button
                 variant="outline"
                 onClick={() => setShowInviteModal(false)}
