@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import {
   Send,
@@ -96,6 +96,7 @@ export default function InboxPage() {
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [notesDraft, setNotesDraft] = useState("")
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all")
@@ -312,6 +313,11 @@ export default function InboxPage() {
   useEffect(() => {
     setNotesDraft(selectedRequest?.notes ?? "")
   }, [selectedRequest?.id])
+
+  // Jump to the newest message when a thread opens or updates
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" })
+  }, [selectedConversation?.id, selectedConversation?.messages?.length])
 
 
  const handleAssignContractor = async (requestId: string, contractorId: string) => {
@@ -910,6 +916,7 @@ export default function InboxPage() {
                         </p>
                       </div>
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
                 <div className="p-4 border-t border-sage/20">
