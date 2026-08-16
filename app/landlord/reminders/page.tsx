@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   Bell,
   Plus,
@@ -95,13 +96,26 @@ function formatDate(value: string | null) {
   }).format(d)
 }
 
-export default function RemindersPage() {
+function RemindersPageInner() {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
 
   const [showAdd, setShowAdd] = useState(false)
+  const searchParams = useSearchParams()
+
+  // Arriving from the dashboard Quick Action (?add=1) opens the dialog
+  // straight away — no extra click.
+  useEffect(() => {
+    if (searchParams.get("add") === "1") {
+      setShowAdd(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete("add")
+      window.history.replaceState({}, "", url.toString())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -503,5 +517,13 @@ export default function RemindersPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function RemindersPage() {
+  return (
+    <Suspense fallback={null}>
+      <RemindersPageInner />
+    </Suspense>
   )
 }
