@@ -1000,7 +1000,7 @@ const selectedUnitMaintenance = selectedUnitRow
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-start sm:justify-end gap-2">
                     {!lease.move_out_date && (
                       <Button
                         variant="outline"
@@ -1863,7 +1863,7 @@ const selectedUnitMaintenance = selectedUnitRow
                         <TableCell>{formatCurrency(unit.rent)}</TableCell>
                         <TableCell><StatusBadge status={unit.status} /></TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex flex-wrap justify-start sm:justify-end gap-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -2352,7 +2352,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 />
               </div>
 
-              <div className="flex gap-3 justify-end pt-2">
+              <div className="flex flex-wrap gap-3 justify-end pt-2">
                 <Button
                   variant="outline"
                   onClick={() => setMoveOutOpen(false)}
@@ -2434,7 +2434,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 </Select>
               </div>
             </div>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex flex-wrap gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setEditLeaseOpen(false)}
                 className="border-sage text-navy hover:bg-sage/20">Cancel</Button>
               <Button onClick={handleSaveLeaseEdit} disabled={savingLeaseEdit}
@@ -2464,7 +2464,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 <p className="text-text-muted">{cancelTarget.tenant_email}</p>
               </div>
             )}
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex flex-wrap gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setCancelLeaseOpen(false)}
                 className="border-sage text-navy hover:bg-sage/20">Keep lease</Button>
               <Button onClick={handleCancelLease} disabled={cancelling}
@@ -2594,7 +2594,7 @@ const selectedUnitMaintenance = selectedUnitRow
                 <Input id="b_rent" type="number" step="0.01" value={bulkForm.rent} onChange={(e) => setBulkForm((f) => ({ ...f, rent: e.target.value }))} />
               </div>
             </div>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex flex-wrap gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setAddUnitsOpen(false)} className="border-sage text-navy hover:bg-sage/20">
                 Cancel
               </Button>
