@@ -136,7 +136,6 @@ export default function TenantInbox() {
       priority: r.priority ?? "medium",
       status: r.status ?? "open",
       createdAt: formatDate(r.created_at),
-      timeline: [],
       // landlord_notes is internal to the landlord — never exposed to tenants
       contractor: "",
       scheduledDate: r.scheduled_date ? formatDate(r.scheduled_date) : "",
@@ -526,24 +525,6 @@ export default function TenantInbox() {
                       </div>
                     )}
 
-                    <div>
-                      <p className="text-xs text-text-muted uppercase tracking-wider mb-3">
-                        Status Timeline
-                      </p>
-                      <div className="space-y-3">
-                        {selectedRequest.timeline.map((item, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <div className="w-2 h-2 rounded-full bg-teal mt-2" />
-                            <div>
-                              <p className="text-sm text-navy">{item.event}</p>
-                              <p className="text-xs text-text-muted">
-                                {item.date} by {item.by}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               ) : (
