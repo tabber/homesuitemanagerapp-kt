@@ -497,7 +497,7 @@ function RemindersPageInner() {
                 Share with tenant
               </Label>
             </div>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex flex-wrap gap-3 justify-end pt-2">
               <Button
                 variant="outline"
                 onClick={() => setShowAdd(false)}
