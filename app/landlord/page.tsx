@@ -827,7 +827,7 @@ export default function LandlordDashboard() {
               className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
               asChild
             >
-              <Link href="/landlord/payments">
+              <Link href="/landlord/payments?record=1">
                 <DollarSign className="h-5 w-5" />
                 <span className="text-sm">Record Payment</span>
               </Link>
@@ -837,7 +837,7 @@ export default function LandlordDashboard() {
               className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
               asChild
             >
-              <Link href="/landlord/reminders">
+              <Link href="/landlord/reminders?add=1">
                 <Bell className="h-5 w-5" />
                 <span className="text-sm">Reminders</span>
               </Link>
