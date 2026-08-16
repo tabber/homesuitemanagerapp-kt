@@ -25,7 +25,7 @@ const features = [
   "Tenant messaging and inbox",
   "Utility bill tracking",
   "Document storage",
-  "Includes 1 property — $15/mo per additional (up to 15)",
+  "Manage all your properties — no per-property fees during early access",
 ]
 
 const savings = [
