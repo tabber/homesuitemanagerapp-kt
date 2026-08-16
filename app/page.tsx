@@ -41,6 +41,12 @@ export default function LandingPage() {
           <Logo />
           <nav className="flex items-center gap-4">
             <Link
+              href="/pricing"
+              className="text-sm font-normal text-navy hover:text-navy/80 transition-colors"
+            >
+              Pricing
+            </Link>
+            <Link
               href="/login"
               className="text-sm font-normal text-navy hover:text-navy/80 transition-colors"
             >
@@ -109,8 +115,19 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-sage/50 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-text-muted">
-          <p>2026 HomeSuite. All rights reserved.</p>
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-text-muted">
+          <p>&copy; 2026 HomeSuite. All rights reserved.</p>
+          <nav className="flex items-center gap-6">
+            <Link href="/pricing" className="hover:text-navy transition-colors">
+              Pricing
+            </Link>
+            <Link href="/terms" className="hover:text-navy transition-colors">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="hover:text-navy transition-colors">
+              Privacy Policy
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
