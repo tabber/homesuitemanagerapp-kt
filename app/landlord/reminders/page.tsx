@@ -284,7 +284,7 @@ function RemindersPageInner() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-navy flex items-center gap-2">
             <Leaf className="h-4 w-4 text-teal" />
-            Add a seasonal reminder
+            Add a Reminder
           </CardTitle>
         </CardHeader>
         <CardContent>
