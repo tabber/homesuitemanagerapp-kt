@@ -652,7 +652,7 @@ function CreateLeasePageInner() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-3 pb-10">
+          <div className="flex flex-wrap justify-end gap-3 pb-10">
             <Button
               variant="outline"
               onClick={() => setLeaseType(null)}
