@@ -95,6 +95,7 @@ export default function InboxPage() {
   const documents: any[] = []
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
+  const [notesDraft, setNotesDraft] = useState("")
   const [messageInput, setMessageInput] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all")
@@ -307,6 +308,11 @@ export default function InboxPage() {
     loadInbox()
   }, [loadInbox])
 
+  // Keep the notes draft in sync with whichever request is open
+  useEffect(() => {
+    setNotesDraft(selectedRequest?.notes ?? "")
+  }, [selectedRequest?.id])
+
 
  const handleAssignContractor = async (requestId: string, contractorId: string) => {
     const supabase = createClient()
@@ -363,6 +369,73 @@ export default function InboxPage() {
       .eq("recipient_id", userId)
       .eq("sender_id", conversation.recipientId)
       .eq("read", false)
+  }
+
+  const handleUpdatePriority = async (requestId: string, priority: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ priority })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, priority } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, priority } : r))
+    )
+    toast.success("Priority updated")
+  }
+
+  const handleUpdateSchedule = async (
+    requestId: string,
+    field: "scheduled_date" | "scheduled_time",
+    value: string
+  ) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ [field]: value || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    const localField = field === "scheduled_date" ? "scheduledDate" : "scheduledTime"
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, [localField]: value } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, [localField]: value } : r))
+    )
+    toast.success("Schedule updated")
+  }
+
+  // Notes save on blur, and only when the text actually changed, so clicking
+  // in and out of the field doesn't fire a pointless save.
+  const handleSaveNotes = async (requestId: string, notes: string) => {
+    const current = maintenanceRequests.find((r) => r.id === requestId)
+    if ((current?.notes ?? "") === notes) return
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ landlord_notes: notes || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, notes } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, notes } : r))
+    )
+    toast.success("Notes saved")
   }
     const handleSendMessage = async () => 
       {
@@ -1001,7 +1074,10 @@ export default function InboxPage() {
                       <div>
                         <Label className="text-text-muted text-xs">Priority</Label>
                         <div className="mt-1">
-                          <Select defaultValue={selectedRequest.priority}>
+                          <Select
+                            value={selectedRequest.priority}
+                            onValueChange={(v) => handleUpdatePriority(selectedRequest.id, v)}
+                          >
                             <SelectTrigger className="border-sage">
                               <SelectValue />
                             </SelectTrigger>
@@ -1063,7 +1139,14 @@ export default function InboxPage() {
                           <Label className="text-text-muted text-xs">Scheduled Date</Label>
                           <Input
                             type="date"
-                            defaultValue={selectedRequest.scheduledDate}
+                            value={selectedRequest.scheduledDate || ""}
+                            onChange={(e) =>
+                              handleUpdateSchedule(
+                                selectedRequest.id,
+                                "scheduled_date",
+                                e.target.value
+                              )
+                            }
                             className="mt-1 border-sage"
                           />
                         </div>
@@ -1071,7 +1154,14 @@ export default function InboxPage() {
                           <Label className="text-text-muted text-xs">Scheduled Time</Label>
                           <Input
                             type="time"
-                            defaultValue={selectedRequest.scheduledTime ? "10:00" : ""}
+                            value={selectedRequest.scheduledTime || ""}
+                            onChange={(e) =>
+                              handleUpdateSchedule(
+                                selectedRequest.id,
+                                "scheduled_time",
+                                e.target.value
+                              )
+                            }
                             className="mt-1 border-sage"
                           />
                         </div>
@@ -1113,14 +1203,16 @@ export default function InboxPage() {
                       <Label className="text-navy">Landlord Notes</Label>
                       <Textarea
                         placeholder="Add internal notes about this request..."
-                        defaultValue={selectedRequest.notes}
+                        value={notesDraft}
+                        onChange={(e) => setNotesDraft(e.target.value)}
+                        onBlur={() => handleSaveNotes(selectedRequest.id, notesDraft)}
                         className="mt-2 border-sage min-h-[80px]"
                       />
+                      <p className="text-xs text-text-muted mt-1">
+                        Private to you — saves automatically when you click away.
+                      </p>
                     </div>
 
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
-                      Save Changes
-                    </Button>
                   </div>
                 </CardContent>
               </ScrollArea>
