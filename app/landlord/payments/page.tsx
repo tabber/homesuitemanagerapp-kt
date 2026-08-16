@@ -64,9 +64,15 @@ function PaymentsPageInner() {
   // notification). Clear it from the URL afterwards so recording a payment or
   // reloading doesn't snap the list back to that filter.
   useEffect(() => {
-    if (searchParams.get("filter")) {
+    // Arriving from the dashboard Quick Action (?record=1) opens the
+    // Record Payment modal straight away — no extra click.
+    if (searchParams.get("record") === "1") {
+      setShowRecordModal(true)
+    }
+    if (searchParams.get("filter") || searchParams.get("record")) {
       const url = new URL(window.location.href)
       url.searchParams.delete("filter")
+      url.searchParams.delete("record")
       window.history.replaceState({}, "", url.toString())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
