@@ -10,6 +10,7 @@ import {
   Wrench,
   Plus,
   FileText,
+  Bell,
   Calendar,
   CreditCard,
   MessageSquare,
@@ -562,7 +563,6 @@ export default function LandlordDashboard() {
         <TrialBanner daysRemaining={trialDaysRemaining} />
       )}
 
-     
       {/* Stats Row */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -760,48 +760,8 @@ export default function LandlordDashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions & Checklist Row */}
+      {/* Onboarding Checklist Row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick Actions */}
-        <Card className="border-[0.5px] border-sage">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium text-navy">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
-                asChild
-              >
-                <Link href="/landlord/properties/add">
-                  <Building2 className="h-5 w-5" />
-                  <span className="text-sm">Add Property</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
-                asChild
-              >
-                <Link href="/landlord/leases/create">
-                  <Plus className="h-5 w-5" />
-                  <span className="text-sm">Create Lease</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
-                asChild
-              >
-                <Link href="/landlord/inbox?tab=maintenance">
-                  <Wrench className="h-5 w-5" />
-                  <span className="text-sm">Maintenance</span>
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Onboarding Checklist */}
         {showChecklist && (
@@ -834,6 +794,67 @@ export default function LandlordDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Quick Actions — full width across the bottom */}
+      <Card className="border-[0.5px] border-sage">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-medium text-navy">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
+              asChild
+            >
+              <Link href="/landlord/properties/add">
+                <Building2 className="h-5 w-5" />
+                <span className="text-sm">Add Property</span>
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
+              asChild
+            >
+              <Link href="/landlord/leases/create">
+                <Plus className="h-5 w-5" />
+                <span className="text-sm">Create Lease</span>
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
+              asChild
+            >
+              <Link href="/landlord/payments">
+                <DollarSign className="h-5 w-5" />
+                <span className="text-sm">Record Payment</span>
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
+              asChild
+            >
+              <Link href="/landlord/reminders">
+                <Bell className="h-5 w-5" />
+                <span className="text-sm">Reminders</span>
+              </Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto py-4 flex flex-col items-center gap-2 border-navy/20 text-navy hover:bg-navy/5"
+              asChild
+            >
+              <Link href="/landlord/inbox?tab=maintenance">
+                <Wrench className="h-5 w-5" />
+                <span className="text-sm">Maintenance</span>
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
