@@ -569,7 +569,7 @@ export default function LandlordDocuments() {
                 )}
               </div>
 
-              <div className="flex gap-3 justify-end pt-2">
+              <div className="flex flex-wrap gap-3 justify-end pt-2">
                 <Button
                   variant="outline"
                   onClick={() => setShowUpload(false)}
