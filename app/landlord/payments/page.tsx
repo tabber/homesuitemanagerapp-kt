@@ -968,7 +968,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                 </Select>
               </div>
 
-              <div className="flex gap-3 justify-end pt-2">
+              <div className="flex flex-wrap gap-3 justify-end pt-2">
                 <Button
                   variant="outline"
                   onClick={() => setShowRecordModal(false)}
