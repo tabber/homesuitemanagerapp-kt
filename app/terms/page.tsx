@@ -41,14 +41,14 @@ export default function TermsPage() {
           Terms of Service
         </h1>
         <p className="text-sm text-text-muted mb-10">
-          Last updated: [DATE]
+          Last updated: 08.23.2026
         </p>
 
         <div className="space-y-2">
           <Section number="1" title="Agreement">
             <p>
               These Terms govern your use of HomeSuite Manager (&ldquo;HomeSuite&rdquo;,
-              &ldquo;the Service&rdquo;), operated by <strong>[YOUR FULL LEGAL NAME]</strong>,
+              &ldquo;the Service&rdquo;), operated by <strong> Tabitha Lewis </strong>,
               a sole proprietorship in British Columbia, Canada (&ldquo;we&rdquo;, &ldquo;us&rdquo;).
             </p>
             <p>
@@ -115,11 +115,11 @@ export default function TermsPage() {
 
           <Section number="4" title="Subscription, billing, and cancellation">
             <p>
-              <strong>Price.</strong> [CONFIRM: $79.99] CAD per month, subject to the
+              <strong>Price.</strong> $79.99 CAD per month, subject to the
               plan you select.
             </p>
             <p>
-              <strong>Trial.</strong> New subscriptions include a [CONFIRM: 7]-day
+              <strong>Trial.</strong> New subscriptions include a 7-day
               trial. You will not be charged until the trial ends. Cancel before it
               ends and you pay nothing.
             </p>
@@ -302,7 +302,7 @@ export default function TermsPage() {
               jurisdiction of the courts of British Columbia.
             </p>
             <p>
-              Before filing a claim, contact us at <strong>[YOUR EMAIL]</strong> — most
+              Before filing a claim, contact us at <strong>info@homesuitemanager.con</strong> — most
               issues can be resolved directly.
             </p>
           </Section>
@@ -338,11 +338,11 @@ export default function TermsPage() {
 
           <Section number="15" title="Contact">
             <p>
-              <strong>[YOUR NAME]</strong>
+              <strong> Homesuite Manager </strong>
               <br />
-              <strong>[YOUR EMAIL]</strong>
+              <strong>info@homesuite.com</strong>
               <br />
-              [YOUR MAILING ADDRESS]
+              Victoria
               <br />
               British Columbia, Canada
             </p>
