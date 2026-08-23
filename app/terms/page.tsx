@@ -302,7 +302,7 @@ export default function TermsPage() {
               jurisdiction of the courts of British Columbia.
             </p>
             <p>
-              Before filing a claim, contact us at <strong>info@homesuitemanager.con</strong> — most
+              Before filing a claim, contact us at <strong>team@homesuitemanager.com </strong> — most
               issues can be resolved directly.
             </p>
           </Section>
@@ -340,7 +340,7 @@ export default function TermsPage() {
             <p>
               <strong> Homesuite Manager </strong>
               <br />
-              <strong>info@homesuite.com</strong>
+              <strong>team@homesuitemanager.com </strong>
               <br />
               Victoria
               <br />
