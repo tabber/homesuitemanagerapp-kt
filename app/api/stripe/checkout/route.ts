@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 // HomeSuite Essential — $79.99 CAD/mo, early adopter pricing
-const PRICE_ID = "price_1TgfBhIRkg3kRhhvykREGt5D"
+const PRICE_ID = "price_1U7X18IRkg3kRhhvJSKfdvsF"
 const TRIAL_DAYS = 7
 
 export async function GET() {
