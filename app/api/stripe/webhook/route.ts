@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 
   const payload = await request.text()
   const signature = request.headers.get("stripe-signature") ?? ""
-
+console.error("SECRET PREFIX:", process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 12), "LEN:", process.env.STRIPE_WEBHOOK_SECRET?.length)
   if (!verifyStripeSignature(payload, signature, secret)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
