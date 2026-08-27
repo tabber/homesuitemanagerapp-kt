@@ -220,7 +220,6 @@ function PaymentsPageInner() {
         }
       })
       setLeaseOptions(leaseMapped)
-      if (leaseMapped.length > 0) setInstructionLeaseId(leaseMapped[0].id)
       // ---- Expected rent this period, per active lease ----
       // An overdue tenant has NO payment row, so we synthesize one per active
       // lease and mark it paid / overdue / upcoming.
@@ -288,12 +287,7 @@ function PaymentsPageInner() {
         chart.push({ month: monthFmt.format(mStart), collected, expected })
       }
       setRevenueData(chart)
-      console.log("PAYMENTS DEBUG:", {
-        rowsFromDB: rows.length,
-        mapped: mapped.length,
-        activeLeases: activeLeases.length,
-        unpaidExpected: unpaidExpected.length,
-      })
+
       setPayments([...mapped, ...unpaidExpected])
       setDbProperties(allProps ?? [])
       setLoading(false)
@@ -366,7 +360,7 @@ function PaymentsPageInner() {
       const withinWindow =
         needsAction || (payment.date ? new Date(payment.date) >= windowCutoff : true)
 
-            return matchesSearch && matchesProperty && matchesStatus
+      return matchesSearch && matchesProperty && matchesStatus && withinWindow
     })
     .sort((a, b) => {
       const orderDiff =
