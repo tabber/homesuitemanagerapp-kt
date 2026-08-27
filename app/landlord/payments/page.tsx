@@ -835,7 +835,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
 
       {/* How rent gets paid — reference only. Per-tenant actions live on the
           rows above, so this stays collapsed and out of the way. */}
-      <Card className="border-sage/50 mt-6">
+      <Card className="border-teal/30 bg-teal/5 mt-6">
         <button
           type="button"
           onClick={() => setShowInstructions((v) => !v)}
