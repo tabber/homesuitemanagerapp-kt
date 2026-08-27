@@ -614,14 +614,14 @@ export default function SettingsPage() {
               </div>
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Properties</p>
-                <p className="text-xl font-medium text-navy">3 of 15</p>
-                <p className="text-sm text-text-muted">maximum</p>
+                <p className="text-xl font-medium text-navy">Unlimited</p>
+                <p className="text-sm text-text-muted">during early access</p>
               </div>
             </div>
             <div className="p-4 bg-sage/10 rounded-lg">
               <p className="text-sm text-text-muted">Monthly Cost</p>
               <p className="text-xl font-medium text-navy">$0.00</p>
-              <p className="text-sm text-text-muted">$49.99/mo after trial</p>
+              <p className="text-sm text-text-muted">$79.99/mo after trial</p>
             </div>
             <Button 
               onClick={() => router.push("/pricing")}
