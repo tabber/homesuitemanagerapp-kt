@@ -34,8 +34,8 @@ const navItems: Record<PortalType, NavItem[]> = {
     { label: "Overview", href: "/landlord", icon: LayoutDashboard },
     { label: "Properties", href: "/landlord/properties", icon: Building2 },
     { label: "Payments", href: "/landlord/payments", icon: CreditCard },
-    { label: "Documents", href: "/landlord/documents", icon: FileText },
     { label: "Inbox", href: "/landlord/inbox", icon: Inbox },
+    { label: "Documents", href: "/landlord/documents", icon: FileText },
     { label: "Settings", href: "/landlord/settings", icon: Settings },
   ],
   tenant: [
