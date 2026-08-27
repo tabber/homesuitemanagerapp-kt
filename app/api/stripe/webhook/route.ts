@@ -92,7 +92,26 @@ export async function POST(request: Request) {
 
   const payload = await request.text()
   const signature = request.headers.get("stripe-signature") ?? ""
-console.error("SECRET PREFIX:", process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 12), "LEN:", process.env.STRIPE_WEBHOOK_SECRET?.length)
+  {
+    const parts = Object.fromEntries(
+      signature.split(",").map((p) => p.split("=") as [string, string])
+    )
+    const ts = parts["t"]
+    const v1 = parts["v1"]
+    const expected = ts
+      ? crypto.createHmac("sha256", secret).update(`${ts}.${payload}`).digest("hex")
+      : "NO_TIMESTAMP"
+    console.error("WEBHOOK DEBUG", {
+      payloadLength: payload.length,
+      sigHeaderPresent: signature.length > 0,
+      timestamp: ts,
+      ageSeconds: ts ? Math.round(Date.now() / 1000 - Number(ts)) : null,
+      v1Received: v1?.substring(0, 16),
+      v1Expected: expected.substring(0, 16),
+      match: v1 === expected,
+      secretLen: secret.length,
+    })
+  }
   if (!verifyStripeSignature(payload, signature, secret)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
