@@ -76,6 +76,7 @@ function CreateLeasePageInner() {
   const [leaseType, setLeaseType] = useState<LeaseType>(null)
   const [existingLeaseFile, setExistingLeaseFile] = useState<File | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
+  const [useAltLandlordContact, setUseAltLandlordContact] = useState(false)
 
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -115,7 +116,7 @@ function CreateLeasePageInner() {
     documents: [] as File[],
   })
 
-  const totalSteps = 5
+  const totalSteps = 4
   const selectedProperty = properties.find((p) => p.id === form.propertyId)
 
   useEffect(() => {
@@ -237,6 +238,20 @@ function CreateLeasePageInner() {
           landlordName: `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
           landlordPhone: profile.phone ?? "",
           landlordEmail: profile.email ?? "",
+        }))
+      }
+
+      // Default the e-Transfer address from the landlord's payment settings,
+      // so they don't retype it on every lease.
+      const { data: payCfg } = await supabase
+        .from("payment_configuration")
+        .select("etransfer_email")
+        .eq("landlord_id", user.id)
+        .maybeSingle()
+      if (isMounted && payCfg?.etransfer_email) {
+        setForm((prev) => ({
+          ...prev,
+          eTransferEmail: prev.eTransferEmail || payCfg.etransfer_email,
         }))
       }
     }
@@ -781,42 +796,81 @@ function CreateLeasePageInner() {
   )
 
   // Step 2 - Landlord Details
-  const Step2 = () => (
+  const Step3 = () => (
     <div className="space-y-6">
-      <h2 className="text-xl font-medium text-navy">Landlord Details</h2>
-      <p className="text-sm text-text-muted">Confirm your information for the lease agreement.</p>
+      <h2 className="text-xl font-medium text-navy">Tenant Details</h2>
+      <p className="text-sm text-text-muted">Enter the primary tenant information.</p>
 
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="landlordName" className="text-navy">Name</Label>
-          <Input
-            id="landlordName"
-            value={form.landlordName}
-            onChange={(e) => setForm((prev) => ({ ...prev, landlordName: e.target.value }))}
-            className="mt-1.5 border-sage"
-          />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="landlordPhone" className="text-navy">Phone</Label>
-            <Input
-              id="landlordPhone"
-              value={form.landlordPhone}
-              onChange={(e) => setForm((prev) => ({ ...prev, landlordPhone: e.target.value }))}
-              className="mt-1.5 border-sage"
-            />
+      {/* Landlord contact — collapsed by default, since it's usually just them */}
+      <div className="p-4 rounded-lg bg-sage/10 border border-sage/40 space-y-3">
+        {!useAltLandlordContact ? (
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide text-text-muted">
+                Landlord contact on this lease
+              </p>
+              <p className="text-sm text-navy mt-1 break-words">
+                {[form.landlordName, form.landlordEmail, form.landlordPhone]
+                  .filter(Boolean)
+                  .join(" · ") || "Your profile details"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUseAltLandlordContact(true)}
+              className="text-sm text-teal hover:underline flex-shrink-0"
+            >
+              Use different details
+            </button>
           </div>
-          <div>
-            <Label htmlFor="landlordEmail" className="text-navy">Email</Label>
-            <Input
-              id="landlordEmail"
-              type="email"
-              value={form.landlordEmail}
-              onChange={(e) => setForm((prev) => ({ ...prev, landlordEmail: e.target.value }))}
-              className="mt-1.5 border-sage"
-            />
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-text-muted">
+                Landlord contact on this lease
+              </p>
+              <button
+                type="button"
+                onClick={() => setUseAltLandlordContact(false)}
+                className="text-sm text-teal hover:underline"
+              >
+                Use my details
+              </button>
+            </div>
+            <div>
+              <Label htmlFor="landlordName" className="text-navy">Name</Label>
+              <Input
+                id="landlordName"
+                value={form.landlordName}
+                onChange={(e) => setForm((prev) => ({ ...prev, landlordName: e.target.value }))}
+                className="mt-1.5 border-sage"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="landlordPhone" className="text-navy">Phone</Label>
+                <Input
+                  id="landlordPhone"
+                  value={form.landlordPhone}
+                  onChange={(e) => setForm((prev) => ({ ...prev, landlordPhone: e.target.value }))}
+                  className="mt-1.5 border-sage"
+                />
+              </div>
+              <div>
+                <Label htmlFor="landlordEmail" className="text-navy">Email</Label>
+                <Input
+                  id="landlordEmail"
+                  type="email"
+                  value={form.landlordEmail}
+                  onChange={(e) => setForm((prev) => ({ ...prev, landlordEmail: e.target.value }))}
+                  className="mt-1.5 border-sage"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* e-Transfer stays editable — it legitimately varies per property */}
         <div>
           <Label htmlFor="eTransferEmail" className="text-navy">e-Transfer Email</Label>
           <Input
@@ -825,19 +879,13 @@ function CreateLeasePageInner() {
             value={form.eTransferEmail}
             onChange={(e) => setForm((prev) => ({ ...prev, eTransferEmail: e.target.value }))}
             placeholder="payments@example.com"
-            className="mt-1.5 border-sage"
+            className="mt-1.5 border-sage bg-white"
           />
-          <p className="text-xs text-text-muted mt-1">This email will be used for rent payments via e-Transfer.</p>
+          <p className="text-xs text-text-muted mt-1">
+            Where this tenant sends rent. Defaults to your payment settings.
+          </p>
         </div>
       </div>
-    </div>
-  )
-
-  // Step 3 - Tenant Details
-  const Step3 = () => (
-    <div className="space-y-6">
-      <h2 className="text-xl font-medium text-navy">Tenant Details</h2>
-      <p className="text-sm text-text-muted">Enter the primary tenant information.</p>
 
       <div className="space-y-4">
         <div>
@@ -1190,12 +1238,10 @@ function CreateLeasePageInner() {
       case 0:
         return Step1()
       case 1:
-        return Step2()
-      case 2:
         return Step3()
-      case 3:
+      case 2:
         return Step4()
-      case 4:
+      case 3:
         return Step5()
       default:
         return null
