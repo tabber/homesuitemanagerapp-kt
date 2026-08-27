@@ -361,7 +361,7 @@ function PaymentsPageInner() {
       const withinWindow =
         needsAction || (payment.date ? new Date(payment.date) >= windowCutoff : true)
 
-      return matchesSearch && matchesProperty && matchesStatus && withinWindow
+            return matchesSearch && matchesProperty && matchesStatus
     })
     .sort((a, b) => {
       const orderDiff =
