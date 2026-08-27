@@ -247,6 +247,8 @@ export default function InboxPage() {
       })
       convo.lastMessage = text
       convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
+      // Raw value for sorting — the display string above isn't sortable
+      convo.lastMessageAt = m.created_at ? new Date(m.created_at).getTime() : 0
       // Messages carry a lease_id; the property comes from that lease.
       const msgLease = m.lease_id ? leaseById.get(m.lease_id) : null
       const fallbackLease = leaseByTenant.get(otherId)
@@ -259,7 +261,11 @@ export default function InboxPage() {
       }
       if (m.recipient_id === user.id && !m.read) convo.unread = true
     })
-    const convos = Array.from(convoMap.values())
+    // Most recent conversation first — messages arrive oldest-first, so
+    // without this the stalest threads sit at the top.
+    const convos = Array.from(convoMap.values()).sort(
+      (a: any, b: any) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)
+    )
 
     // Reshape maintenance requests for the existing UI
     const mappedRequests = (requests ?? []).map((r: any) => ({
