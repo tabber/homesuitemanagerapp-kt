@@ -841,7 +841,7 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
           onClick={() => setShowInstructions((v) => !v)}
           className="w-full flex items-center justify-between p-4 text-left"
         >
-          <span className="text-sm font-medium text-navy">
+          <span className="text-lg font-medium text-navy">
             How your tenants pay rent
           </span>
           <ChevronDown
