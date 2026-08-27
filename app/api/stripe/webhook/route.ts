@@ -116,6 +116,8 @@ export async function POST(request: Request) {
       v1Expected: expected.substring(0, 16),
       match: v1 === expected,
       secretLen: secret.length,
+            secretTail: secret.slice(-6),
+      hasWhitespace: /\s/.test(secret),
     })
   }
   if (!verifyStripeSignature(payload, signature, secret)) {
