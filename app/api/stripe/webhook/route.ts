@@ -11,11 +11,15 @@ const FROM = "HomeSuite <team@homesuitemanager.com>"
 
 // --- Stripe signature verification (no SDK needed) ---
 function verifyStripeSignature(payload: string, header: string, secret: string) {
-  const parts = Object.fromEntries(
-    header.split(",").map((p) => p.split("=") as [string, string])
-  )
-  const timestamp = parts["t"]
-  const signature = parts["v1"]
+  let timestamp = ""
+  let signature = ""
+
+  for (const item of header.split(",")) {
+    const [key, value] = item.trim().split("=")
+    if (key === "t") timestamp = value
+    if (key === "v1") signature = value // Grabs the target signature
+  }
+
   if (!timestamp || !signature) return false
 
   // Reject events older than 5 minutes (replay protection)
@@ -27,12 +31,14 @@ function verifyStripeSignature(payload: string, header: string, secret: string) 
     .digest("hex")
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+    return crypto.timingSafeEqual(
+  Buffer.from(expected, "hex"),
+  Buffer.from(signature, "hex")
+    )
   } catch {
     return false
   }
 }
-
 // --- Admin notification via Resend REST (no SDK needed) ---
 async function emailAdmin(subject: string, html: string) {
   try {
