@@ -288,7 +288,12 @@ function PaymentsPageInner() {
         chart.push({ month: monthFmt.format(mStart), collected, expected })
       }
       setRevenueData(chart)
-
+      console.log("PAYMENTS DEBUG:", {
+        rowsFromDB: rows.length,
+        mapped: mapped.length,
+        activeLeases: activeLeases.length,
+        unpaidExpected: unpaidExpected.length,
+      })
       setPayments([...mapped, ...unpaidExpected])
       setDbProperties(allProps ?? [])
       setLoading(false)
