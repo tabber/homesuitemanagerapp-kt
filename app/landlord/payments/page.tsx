@@ -84,6 +84,7 @@ function PaymentsPageInner() {
   const [copiedInstructions, setCopiedInstructions] = useState(false)
   const [sendingReminder, setSendingReminder] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
   const [payments, setPayments] = useState<any[]>([])
   const [dbProperties, setDbProperties] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -298,7 +299,8 @@ function PaymentsPageInner() {
     return () => {
       isMounted = false
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-CA", {
@@ -374,33 +376,10 @@ function PaymentsPageInner() {
 const totalExpected = leaseOptions
     .filter((l) => l.status === "active")
     .reduce((sum, l) => sum + Number(l.monthly_rent ?? 0), 0)
+  // Rebuild the WHOLE list (real payments + synthesized expected rows).
+  // Replacing with only real payments would drop every overdue/upcoming row.
   const refreshPayments = async () => {
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: rows } = await supabase
-      .from("payments")
-      .select("*")
-      .eq("landlord_id", user.id)
-      .order("payment_date", { ascending: false })
-    setPayments((prev) =>
-      (rows ?? []).map((p: any) => {
-        const existing = prev.find((x) => x.id === p.id)
-        return {
-          id: p.id,
-          tenant: existing?.tenant ?? "—",
-          unit: existing?.unit ?? "—",
-          propertyId: p.property_id ?? null,
-          property: existing?.property ?? "—",
-          amount: p.amount ?? 0,
-          method: p.payment_method ?? "—",
-          date: p.payment_date,
-          status: p.status ?? "pending",
-        }
-      })
-    )
+    setRefreshTick((t) => t + 1)
   }
 
   const handleConfirmReceived = async (paymentId: string) => {
@@ -906,9 +885,32 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
               </Button>
             )}
 
-            <p className="text-xs text-text-muted">
-              Pre-authorized debit and automatic collection are coming soon.
-            </p>
+            {/* Payment methods — e-Transfer is live, others show as coming soon
+                so they can simply flip to active when built. */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[
+                { key: "etransfer", label: "e-Transfer", ready: true },
+                { key: "pad", label: "Pre-authorized debit", ready: false },
+                { key: "auto", label: "Automatic collection", ready: false },
+              ].map((m) => (
+                <div
+                  key={m.key}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border",
+                    m.ready
+                      ? "bg-teal/10 border-teal/40 text-teal-dark font-medium"
+                      : "bg-white border-sage text-text-muted"
+                  )}
+                >
+                  {m.label}
+                  {!m.ready && (
+                    <span className="text-[10px] uppercase tracking-wide bg-sage/40 text-navy rounded-full px-1.5 py-0.5">
+                      Soon
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </CardContent>
         )}
       </Card>
