@@ -7,6 +7,7 @@ import {
   CreditCard,
   Eye,
   Copy,
+  ChevronDown,
   Mail,
   CheckCircle,
   Bell,
@@ -40,6 +41,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { useSearchParams } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import {
   BarChart,
@@ -80,9 +82,8 @@ function PaymentsPageInner() {
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [showRecordModal, setShowRecordModal] = useState(false)
   const [copiedInstructions, setCopiedInstructions] = useState(false)
-  const [instructionLeaseId, setInstructionLeaseId] = useState("")
-  const [payMethodTab, setPayMethodTab] = useState<"etransfer" | "pad" | "auto">("etransfer")
   const [sendingReminder, setSendingReminder] = useState(false)
+  const [showInstructions, setShowInstructions] = useState(false)
   const [payments, setPayments] = useState<any[]>([])
   const [dbProperties, setDbProperties] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -333,12 +334,42 @@ function PaymentsPageInner() {
     setStatusFilter("all")
   }
 
-  const filteredPayments = payments.filter((payment) => {
-    const matchesSearch = payment.tenant.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesProperty = propertyFilter === "all" || payment.propertyId === propertyFilter
-    const matchesStatus = statusFilter === "all" || payment.status === statusFilter
-    return matchesSearch && matchesProperty && matchesStatus
-  })
+  // Keep the list workable: recent activity only, but NEVER hide something
+  // that still needs action. An old overdue payment is more urgent, not less.
+  const RECENT_WINDOW_DAYS = 32
+  const windowCutoff = new Date()
+  windowCutoff.setDate(windowCutoff.getDate() - RECENT_WINDOW_DAYS)
+
+  // Urgency first: overdue, then awaiting confirmation, then upcoming, then paid.
+  const STATUS_ORDER: Record<string, number> = {
+    overdue: 0,
+    pending: 1,
+    upcoming: 2,
+    completed: 3,
+  }
+
+  const filteredPayments = payments
+    .filter((payment) => {
+      const matchesSearch = payment.tenant.toLowerCase().includes(searchQuery.toLowerCase())
+      const matchesProperty = propertyFilter === "all" || payment.propertyId === propertyFilter
+      const matchesStatus = statusFilter === "all" || payment.status === statusFilter
+
+      // Anything still needing attention always shows, however old.
+      const needsAction = payment.status !== "completed"
+      const withinWindow =
+        needsAction || (payment.date ? new Date(payment.date) >= windowCutoff : true)
+
+      return matchesSearch && matchesProperty && matchesStatus && withinWindow
+    })
+    .sort((a, b) => {
+      const orderDiff =
+        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
+      if (orderDiff !== 0) return orderDiff
+      // Within a status, newest first
+      const aTime = a.date ? new Date(a.date).getTime() : 0
+      const bTime = b.date ? new Date(b.date).getTime() : 0
+      return bTime - aTime
+    })
 
 const totalExpected = leaseOptions
     .filter((l) => l.status === "active")
@@ -388,6 +419,7 @@ const totalExpected = leaseOptions
       prev.map((p) => (p.id === paymentId ? { ...p, status: "completed" } : p))
     )
     toast.success("Payment confirmed")
+    if (statusFilter !== "all") setStatusFilter("all")
   }
 
   const openRecordFor = (payment: any) => {
@@ -432,6 +464,10 @@ const totalExpected = leaseOptions
       return
     }
     toast.success("Payment recorded")
+    // If the list was filtered (e.g. arrived from the "rent overdue"
+    // notification), the row just changed status and would disappear.
+    // Reset to All so the landlord can keep working through the list.
+    if (statusFilter !== "all") setStatusFilter("all")
     setShowRecordModal(false)
     setForm({
       leaseId: "",
@@ -460,17 +496,13 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
     if (diffs.length === 0) return null
     return Math.round((diffs.reduce((a, b) => a + b, 0) / diffs.length) * 10) / 10
   })()
-  const selectedInstructionLease =
-    leaseOptions.find((l) => l.id === instructionLeaseId) || leaseOptions[0] || null
+  // Generic, landlord-level payment reference. Per-tenant actions live on the
+  // rows below (Record / Remind), so this is purely explanatory.
+  const defaultPayToEmail =
+    leaseOptions.find((l) => l.payToEmail)?.payToEmail || ""
 
-  const instructionText = selectedInstructionLease
-    ? `Send e-Transfer to: ${selectedInstructionLease.payToEmail || "(not set)"}\n` +
-      `Amount: ${formatCurrency(selectedInstructionLease.monthly_rent ?? 0)}\n` +
-      `Message: Rent - ${
-        selectedInstructionLease.propertyAddress ||
-        selectedInstructionLease.propertyName ||
-        "your rental"
-      }`
+  const instructionText = defaultPayToEmail
+    ? `Send e-Transfer to: ${defaultPayToEmail}\nMessage: Rent - [your address]`
     : ""
 
   const handleCopyInstructions = () => {
@@ -510,35 +542,6 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
     toast.success(`Reminder sent to ${payment.tenant}`)
   }
 
-  const handleSendReminder = async () => {
-    if (!selectedInstructionLease || sendingReminder) return
-    if (!selectedInstructionLease.tenant_id) {
-      toast.error("This tenant hasn't accepted their lease invitation yet")
-      return
-    }
-    setSendingReminder(true)
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setSendingReminder(false)
-      return
-    }
-    const { error } = await supabase.from("messages").insert({
-      sender_id: user.id,
-      recipient_id: selectedInstructionLease.tenant_id,
-      lease_id: selectedInstructionLease.id,
-      subject: "Rent payment reminder",
-      content: `A friendly reminder that rent is due.\n\n${instructionText}\n\nOnce you've sent it, mark it in your portal so I can confirm receipt.`,
-    })
-    setSendingReminder(false)
-    if (error) {
-      toast.error(error.message || "Could not send reminder")
-      return
-    }
-    toast.success("Reminder sent to tenant's inbox")
-  }
 
   return (
     <div className="p-6">
@@ -607,155 +610,6 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
       </Card>
 
       {/* e-Transfer Instructions */}
-      <Card className="border-sage/50 mb-6 bg-cream/30">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-teal/10 flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-teal" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <div>
-                  <h3 className="font-medium text-navy mb-1">How tenants pay rent</h3>
-                  <p className="text-sm text-text-muted">
-                    Choose a method and share the details with your tenant.
-                  </p>
-                </div>
-                {leaseOptions.length > 0 && (
-                  <Select
-                    value={selectedInstructionLease?.id || ""}
-                    onValueChange={setInstructionLeaseId}
-                  >
-                    <SelectTrigger className="w-full sm:w-56 border-sage bg-white">
-                      <SelectValue placeholder="Select a tenant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {leaseOptions.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>
-                          {l.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              {/* Method switcher */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {[
-                  { key: "etransfer", label: "e-Transfer", ready: true },
-                  { key: "pad", label: "Pre-authorized debit", ready: false },
-                  { key: "auto", label: "Automatic collection", ready: false },
-                ].map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setPayMethodTab(m.key as typeof payMethodTab)}
-                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                      payMethodTab === m.key
-                        ? "bg-teal text-white border-teal"
-                        : "bg-white text-navy border-sage hover:bg-sage/20"
-                    }`}
-                  >
-                    {m.label}
-                    {!m.ready && (
-                      <span className="ml-1.5 text-[10px] uppercase tracking-wide opacity-70">
-                        soon
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {payMethodTab === "etransfer" && (
-                <>
-                  {leaseOptions.length === 0 ? (
-                    <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm text-text-muted">
-                      Create a lease to generate payment instructions.
-                    </div>
-                  ) : (
-                    <>
-                      <div className="bg-white rounded-lg p-4 border border-sage/30">
-                        <div className="space-y-2 text-sm">
-                          <p>
-                            <span className="text-text-muted">Send e-Transfer to:</span>{" "}
-                            <span className="text-navy font-medium">
-                              {selectedInstructionLease?.payToEmail || "Not set — add one on the lease"}
-                            </span>
-                          </p>
-                          <p>
-                            <span className="text-text-muted">Amount:</span>{" "}
-                            <span className="text-navy font-medium">
-                              {formatCurrency(selectedInstructionLease?.monthly_rent ?? 0)}
-                            </span>
-                          </p>
-                          <p>
-                            <span className="text-text-muted">Message:</span>{" "}
-                            <span className="text-navy font-medium">
-                              Rent -{" "}
-                              {selectedInstructionLease?.propertyAddress ||
-                                selectedInstructionLease?.propertyName ||
-                                "your rental"}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          onClick={handleCopyInstructions}
-                          className="border-navy/20 text-navy hover:bg-navy/5"
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          {copiedInstructions ? "Copied!" : "Copy instructions"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={handleSendReminder}
-                          disabled={sendingReminder}
-                          className="border-navy/20 text-navy hover:bg-navy/5"
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          {sendingReminder ? "Sending..." : "Send reminder"}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {payMethodTab === "pad" && (
-                <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm space-y-2">
-                  <p className="text-navy font-medium">Pre-authorized debit (PAD)</p>
-                  <p className="text-text-muted">
-                    Have your tenant sign your bank&apos;s PAD agreement as part of their
-                    onboarding documents, then submit it to your bank to pull rent
-                    automatically each month.
-                  </p>
-                  <p className="text-text-muted">
-                    Coming with the document signing release — you&apos;ll upload your
-                    bank&apos;s form once and send it with every new lease.
-                  </p>
-                </div>
-              )}
-
-              {payMethodTab === "auto" && (
-                <div className="bg-white rounded-lg p-4 border border-sage/30 text-sm space-y-2">
-                  <p className="text-navy font-medium">Automatic collection</p>
-                  <p className="text-text-muted">
-                    Rent debited from your tenant&apos;s account on the due date and
-                    recorded here automatically — no reminders, no manual confirming.
-                  </p>
-                  <p className="text-text-muted">
-                    On the roadmap. For now, e-Transfer with confirmation is the
-                    fastest way to keep records accurate.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filter Bar */}
       <Card className="border-sage/50 mb-6">
@@ -1000,6 +854,64 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
           )}
         </DialogContent>
       </Dialog>
+
+      {/* How rent gets paid — reference only. Per-tenant actions live on the
+          rows above, so this stays collapsed and out of the way. */}
+      <Card className="border-sage/50 mt-6">
+        <button
+          type="button"
+          onClick={() => setShowInstructions((v) => !v)}
+          className="w-full flex items-center justify-between p-4 text-left"
+        >
+          <span className="text-sm font-medium text-navy">
+            How your tenants pay rent
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-text-muted transition-transform",
+              showInstructions && "rotate-180"
+            )}
+          />
+        </button>
+
+        {showInstructions && (
+          <CardContent className="pt-0 pb-4 px-4 space-y-3">
+            <p className="text-sm text-text-muted">
+              Tenants see these instructions in their portal and can mark rent as
+              sent. You confirm receipt from the list above.
+            </p>
+
+            <div className="bg-cream/40 rounded-lg p-3 border border-sage/30">
+              <p className="text-xs uppercase tracking-wide text-text-muted mb-1">
+                e-Transfer to
+              </p>
+              <p className="text-sm text-navy break-words">
+                {defaultPayToEmail || (
+                  <span className="text-text-muted">
+                    Not set — add a default in Settings
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {defaultPayToEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyInstructions}
+                className="border-sage text-navy hover:bg-sage/20"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                {copiedInstructions ? "Copied" : "Copy instructions"}
+              </Button>
+            )}
+
+            <p className="text-xs text-text-muted">
+              Pre-authorized debit and automatic collection are coming soon.
+            </p>
+          </CardContent>
+        )}
+      </Card>
     </div>
   )
 }
