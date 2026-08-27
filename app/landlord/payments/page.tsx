@@ -820,7 +820,19 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
               {filteredPayments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-text-muted py-12">
-                    {loading ? "Loading payments..." : "No payments yet"}
+                    {loading ? (
+                      "Loading payments..."
+                    ) : leaseOptions.length === 0 ? (
+                      <span>
+                        No payments yet. Create a lease and rent will appear here
+                        automatically each month.
+                      </span>
+                    ) : (
+                      <span>
+                        No payments match this filter. Try &ldquo;All Status&rdquo; to see
+                        expected rent for this month.
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
