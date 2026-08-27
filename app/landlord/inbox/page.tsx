@@ -820,7 +820,9 @@ export default function InboxPage() {
               <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   {filteredConversations.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                    <div className="p-6 text-center text-sm text-text-muted">
+                      No conversations yet. Use Compose to message a tenant.
+                    </div>
                   )}
                   {filteredConversations.map((conversation) => (
                     <button
@@ -1010,7 +1012,9 @@ export default function InboxPage() {
               <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   {filteredRequests.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                    <div className="p-6 text-center text-sm text-text-muted">
+                      No conversations yet. Use Compose to message a tenant.
+                    </div>
                   )}
                   {filteredRequests.map((request) => (
                     <button
