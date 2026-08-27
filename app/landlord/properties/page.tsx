@@ -1127,7 +1127,7 @@ const selectedUnitMaintenance = selectedUnitRow
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <Table>
+                    <TableBody>
                       {payments.map((payment: any) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium text-navy">{tenantName || "—"}</TableCell>
@@ -1137,7 +1137,7 @@ const selectedUnitMaintenance = selectedUnitRow
                           <TableCell><StatusBadge status={payment.status} /></TableCell>
                         </TableRow>
                       ))}
-                    </Table>
+                    </TableBody>
                   </Table>
                 ) : (
                   <EmptyState
@@ -1202,7 +1202,7 @@ const selectedUnitMaintenance = selectedUnitRow
                         <TableHead>Date</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <Table>
+                    <TableBody>
                       {maintenance.map((request: any) => (
                         <TableRow key={request.id} className="cursor-pointer hover:bg-sage/10">
                           <TableCell className="font-medium text-navy">{request.title}</TableCell>
@@ -1211,7 +1211,7 @@ const selectedUnitMaintenance = selectedUnitRow
                           <TableCell>{formatDate(request.created_at)}</TableCell>
                         </TableRow>
                       ))}
-                    </Table>
+                    </TableBody>
                   </Table>
                 ) : (
                   <EmptyState
