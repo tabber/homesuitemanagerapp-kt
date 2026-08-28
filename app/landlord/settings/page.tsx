@@ -84,6 +84,10 @@ export default function SettingsPage() {
     company: "",
   })
   const [userId, setUserId] = useState<string | null>(null)
+  const [subscription, setSubscription] = useState<{
+    status: string | null
+    trialEnd: string | null
+  }>({ status: null, trialEnd: null })
   const [savingAccount, setSavingAccount] = useState(false)
 
   useEffect(() => {
@@ -98,12 +102,16 @@ export default function SettingsPage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, company_name, notification_preferences")
+        .select("first_name, last_name, email, phone, company_name, notification_preferences, subscription_status, trial_end_date")
         .eq("id", user.id)
         .maybeSingle()
 
       if (!isMounted) return
       setUserId(user.id)
+      setSubscription({
+        status: data?.subscription_status ?? null,
+        trialEnd: data?.trial_end_date ?? null,
+      })
       setAccountForm({
         firstName: data?.first_name ?? "",
         lastName: data?.last_name ?? "",
@@ -117,7 +125,29 @@ export default function SettingsPage() {
 
     loadAccount()
 
-    return () => {
+    // Real subscription state, derived from the profile
+  const trialDaysRemaining = (() => {
+    if (!subscription.trialEnd) return null
+    const end = new Date(subscription.trialEnd)
+    const diff = Math.ceil((end.getTime() - Date.now()) / 86400000)
+    return diff > 0 ? diff : 0
+  })()
+
+  const planLabel =
+    subscription.status === "active"
+      ? "Essential"
+      : subscription.status === "trialing" || subscription.status === "trial"
+        ? "Trial"
+        : subscription.status === "canceled" || subscription.status === "cancelled"
+          ? "Cancelled"
+          : subscription.status
+            ? subscription.status
+            : "—"
+
+  const isOnTrial =
+    subscription.status === "trialing" || subscription.status === "trial"
+
+  return () => {
       isMounted = false
     }
   }, [])
@@ -609,8 +639,16 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Current Plan</p>
-                <p className="text-xl font-medium text-navy">Trial</p>
-                <p className="text-sm text-warning">12 days remaining</p>
+                <p className="text-xl font-medium text-navy">{planLabel}</p>
+                {isOnTrial && trialDaysRemaining !== null ? (
+                  <p className="text-sm text-warning">
+                    {trialDaysRemaining === 0
+                      ? "Trial ends today"
+                      : `${trialDaysRemaining} day${trialDaysRemaining === 1 ? "" : "s"} remaining`}
+                  </p>
+                ) : subscription.status === "active" ? (
+                  <p className="text-sm text-text-muted">Renews monthly</p>
+                ) : null}
               </div>
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Properties</p>
@@ -620,8 +658,12 @@ export default function SettingsPage() {
             </div>
             <div className="p-4 bg-sage/10 rounded-lg">
               <p className="text-sm text-text-muted">Monthly Cost</p>
-              <p className="text-xl font-medium text-navy">$0.00</p>
-              <p className="text-sm text-text-muted">$79.99/mo after trial</p>
+              <p className="text-xl font-medium text-navy">
+                {isOnTrial ? "$0.00" : subscription.status === "active" ? "$79.99" : "—"}
+              </p>
+              <p className="text-sm text-text-muted">
+                {isOnTrial ? "$79.99/mo after trial" : "Billed monthly"}
+              </p>
             </div>
             <Button 
               onClick={() => router.push("/pricing")}
