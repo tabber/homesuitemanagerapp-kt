@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Building2, Check, User, Home as HomeIcon, PartyPopper } from "lucide-react"
@@ -132,9 +134,61 @@ export default function LandlordOnboardingPage() {
   }
 
   const handleFinish = async () => {
+    if (isLoading) return
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      setIsLoading(false)
+      toast.error("You must be signed in to finish setup.")
+      return
+    }
+
+    // Save the profile details from step 1
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        first_name: firstName || null,
+        last_name: lastName || null,
+        phone: phone || null,
+        company_name: company || null,
+        profile_completed: true,
+      })
+      .eq("id", user.id)
+
+    if (profileError) {
+      setIsLoading(false)
+      toast.error(profileError.message)
+      return
+    }
+
+    // Save the first property from step 2, if they filled it in
+    if (propertyName && streetAddress) {
+      const { error: propertyError } = await supabase.from("properties").insert({
+        landlord_id: user.id,
+        name: propertyName,
+        property_type: propertyType || "house",
+        status: "vacant",
+        address: streetAddress,
+        city: city || null,
+        province: province || null,
+        postal_code: postalCode || null,
+        country: "Canada",
+      })
+
+      if (propertyError) {
+        setIsLoading(false)
+        toast.error(propertyError.message)
+        return
+      }
+    }
+
+    setIsLoading(false)
+    toast.success("You're all set")
     router.push("/landlord")
   }
 
