@@ -780,7 +780,35 @@ export default function InboxPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label className="text-navy">Message</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-navy">Message</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-teal hover:bg-teal/10 h-auto py-1"
+                        >
+                          Use a template
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                        {messageTemplates.map((template) => (
+                          <DropdownMenuItem
+                            key={template.id}
+                            onClick={() => setComposeText(template.preview)}
+                            className="flex flex-col items-start py-2 cursor-pointer"
+                          >
+                            <span className="font-medium text-navy">{template.name}</span>
+                            <span className="text-xs text-text-muted truncate w-full">
+                              {template.preview}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   <Textarea
                     value={composeText}
                     onChange={(e) => setComposeText(e.target.value)}
