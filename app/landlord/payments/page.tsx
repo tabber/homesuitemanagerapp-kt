@@ -54,7 +54,6 @@ import {
   Legend,
 } from "recharts"
 
-// Mock data
 function PaymentsPageInner() {
   const [searchQuery, setSearchQuery] = useState("")
   const [revenueData, setRevenueData] = useState<{ month: string; collected: number; expected: number }[]>([])
