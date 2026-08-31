@@ -125,29 +125,7 @@ export default function SettingsPage() {
 
     loadAccount()
 
-    // Real subscription state, derived from the profile
-  const trialDaysRemaining = (() => {
-    if (!subscription.trialEnd) return null
-    const end = new Date(subscription.trialEnd)
-    const diff = Math.ceil((end.getTime() - Date.now()) / 86400000)
-    return diff > 0 ? diff : 0
-  })()
-
-  const planLabel =
-    subscription.status === "active"
-      ? "Essential"
-      : subscription.status === "trialing" || subscription.status === "trial"
-        ? "Trial"
-        : subscription.status === "canceled" || subscription.status === "cancelled"
-          ? "Cancelled"
-          : subscription.status
-            ? subscription.status
-            : "—"
-
-  const isOnTrial =
-    subscription.status === "trialing" || subscription.status === "trial"
-
-  return () => {
+    return () => {
       isMounted = false
     }
   }, [])
@@ -426,6 +404,28 @@ export default function SettingsPage() {
   }
 
 
+  // Real subscription state, derived from the profile
+  const trialDaysRemaining = (() => {
+    if (!subscription.trialEnd) return null
+    const end = new Date(subscription.trialEnd)
+    const diff = Math.ceil((end.getTime() - Date.now()) / 86400000)
+    return diff > 0 ? diff : 0
+  })()
+
+  const planLabel =
+    subscription.status === "active"
+      ? "Essential"
+      : subscription.status === "trialing" || subscription.status === "trial"
+        ? "Trial"
+        : subscription.status === "canceled" || subscription.status === "cancelled"
+          ? "Cancelled"
+          : subscription.status
+            ? subscription.status
+            : "—"
+
+  const isOnTrial =
+    subscription.status === "trialing" || subscription.status === "trial"
+
   return (
     <div className="p-6 max-w-4xl">
       <h1 className="text-2xl font-medium text-navy mb-6">Settings</h1>
@@ -639,7 +639,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Current Plan</p>
-                <p className="text-xl font-medium text-navy">{planLabel}</p>
+                <p className="text-xl font-medium text-navy">{}</p>
                 {isOnTrial && trialDaysRemaining !== null ? (
                   <p className="text-sm text-warning">
                     {trialDaysRemaining === 0
