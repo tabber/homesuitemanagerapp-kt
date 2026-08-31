@@ -58,13 +58,92 @@ import { createClient } from "@/lib/supabase/client"
 
 // Static reference content (no backing table)
 
+// Templates the landlord can drop into a message. `preview` is the short
+// label shown in the dropdown; `body` is the full text inserted into the
+// message field. Square brackets mark the bits they need to fill in.
 const messageTemplates = [
-  { id: "1", icon: "DollarSign", name: "Late Rent Reminder", preview: "This is a reminder that your rent payment..." },
-  { id: "2", icon: "Wrench", name: "Maintenance Update", preview: "We wanted to update you on the status of..." },
-  { id: "3", icon: "Calendar", name: "Lease Renewal Notice", preview: "Your lease is set to expire on..." },
-  { id: "4", icon: "AlertTriangle", name: "Entry Notice (24hrs)", preview: "Please be advised that entry to..." },
-  { id: "5", icon: "DollarSign", name: "Rent Increase Notice", preview: "We are writing to inform you of..." },
-  { id: "6", icon: "FileText", name: "General Notice", preview: "We would like to inform you that..." },
+  {
+    id: "1",
+    icon: "DollarSign",
+    name: "Late Rent Reminder",
+    preview: "A friendly nudge about rent that's past due",
+    body: `Hi there,
+
+This is a friendly reminder that rent for this month is now past due. If you've already sent it, thank you — please disregard this message and let me know so I can confirm receipt.
+
+If not, could you let me know when you expect to send it? Happy to work something out if you're having difficulty.
+
+Thanks,`,
+  },
+  {
+    id: "2",
+    icon: "Wrench",
+    name: "Maintenance Update",
+    preview: "Let a tenant know where their request stands",
+    body: `Hi there,
+
+I wanted to give you an update on the maintenance request you submitted.
+
+[Describe the status — e.g. a contractor has been assigned and will attend on DATE between TIME and TIME.]
+
+Please let me know if that timing doesn't work, or if anything changes in the meantime.
+
+Thanks,`,
+  },
+  {
+    id: "3",
+    icon: "Calendar",
+    name: "Lease Renewal Notice",
+    preview: "Start the conversation about renewing",
+    body: `Hi there,
+
+Your current lease is set to end on [DATE]. I wanted to reach out early to ask whether you're planning to stay on.
+
+If you'd like to renew, let me know and I'll get the paperwork started. If you're planning to move on, that's completely fine — just let me know so we can plan accordingly.
+
+Thanks,`,
+  },
+  {
+    id: "4",
+    icon: "AlertTriangle",
+    name: "Entry Notice",
+    preview: "Give notice before entering the unit",
+    body: `Hi there,
+
+I'm writing to give notice that I (or someone on my behalf) will need to enter the unit on [DATE] between [TIME] and [TIME].
+
+Reason for entry: [e.g. repairs, inspection, showing the unit]
+
+Please let me know if this timing is a problem and we can arrange something else. Note that provincial tenancy rules set the required notice period — please check your lease or your provincial tenancy authority for specifics.
+
+Thanks,`,
+  },
+  {
+    id: "5",
+    icon: "DollarSign",
+    name: "Rent Increase Notice",
+    preview: "Notify a tenant of an upcoming rent change",
+    body: `Hi there,
+
+I'm writing to let you know that rent will be changing from [CURRENT AMOUNT] to [NEW AMOUNT], effective [DATE].
+
+Rent increases are subject to provincial rules on notice periods and allowable amounts — please confirm the requirements with your provincial tenancy authority before sending this.
+
+Please let me know if you have any questions.
+
+Thanks,`,
+  },
+  {
+    id: "6",
+    icon: "FileText",
+    name: "General Notice",
+    preview: "A blank starting point for anything else",
+    body: `Hi there,
+
+[Your message here.]
+
+Thanks,`,
+  },
 ]
 
 const contractors = {
@@ -797,7 +876,7 @@ export default function InboxPage() {
                         {messageTemplates.map((template) => (
                           <DropdownMenuItem
                             key={template.id}
-                            onClick={() => setComposeText(template.preview)}
+                            onClick={() => setComposeText(template.body)}
                             className="flex flex-col items-start py-2 cursor-pointer"
                           >
                             <span className="font-medium text-navy">{template.name}</span>
@@ -979,7 +1058,7 @@ export default function InboxPage() {
                         {messageTemplates.map((template) => (
                           <DropdownMenuItem
                             key={template.id}
-                            onClick={() => setMessageInput(template.preview)}
+                            onClick={() => setMessageInput(template.body)}
                             className="flex flex-col items-start py-2 cursor-pointer"
                           >
                             <span className="font-medium text-navy">{template.name}</span>
