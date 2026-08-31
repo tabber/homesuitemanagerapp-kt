@@ -47,7 +47,7 @@ export function UpgradeModal({
         <div className="py-4">
           <div className="bg-cream/50 rounded-lg p-4 mb-4">
             <p className="text-lg font-medium text-navy">$79.99/mo</p>
-            <p className="text-sm text-text-muted">+ $15/additional property</p>
+            <p className="text-sm text-text-muted">All your properties included during early access</p>
           </div>
           <ul className="space-y-2">
             {features.map((feature) => (
