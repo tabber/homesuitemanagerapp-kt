@@ -470,8 +470,9 @@ export default function LandlordDashboard() {
 
   setNotificationGroups(groups)
 
-      // Recent activity (payments, leases, maintenance, messages)
+// Recent activity (payments, leases, maintenance, messages)
       const activity: ActivityItem[] = []
+
       payments.forEach((p) => {
         activity.push({
           type: "payment",
@@ -482,7 +483,8 @@ export default function LandlordDashboard() {
           sortDate: p.created_at ? new Date(p.created_at).getTime() : 0,
         })
       })
-     leases.forEach((l) => {
+
+      leases.forEach((l) => {
         let actionText = "";
 
         if (l.status === "active" && l.tenant_signed_at) {
@@ -501,6 +503,7 @@ export default function LandlordDashboard() {
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
         })
       })
+
       maintenance.forEach((m) => {
         activity.push({
           type: "maintenance",
@@ -511,6 +514,9 @@ export default function LandlordDashboard() {
           sortDate: m.created_at ? new Date(m.created_at).getTime() : 0,
         })
       })
+
+      // Sort activities chronologically and assign to recentActivity
+      const recentActivity = activity.sort((a, b) => b.sortDate - a.sortDate)
       messages.forEach((msg) => {
         activity.push({
           type: "message",
