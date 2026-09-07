@@ -316,7 +316,7 @@ export default function PropertiesPage() {
         .from("leases")
         .select("*")
         .eq("property_id", selectedPropertyId)
-        .in("status", ["active", "pending"])
+        .in("status", "active", "pending")
 
       // Tenant profiles referenced by those leases
       const tenantIds = Array.from(
