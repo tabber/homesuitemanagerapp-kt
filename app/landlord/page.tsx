@@ -482,20 +482,20 @@ export default function LandlordDashboard() {
           sortDate: p.created_at ? new Date(p.created_at).getTime() : 0,
         })
       })
-        leases.forEach((l) => {
-          const actionText =
-            l.status === "active" && l.tenant_signed_at
-              ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-              : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
-        
-          activity.push({
-            type: "lease",
-            description: actionText,
-            property: propertyMap.get(l.property_id) ?? "",
-            time: l.created_at ? formatRelativeTime(l.created_at) : "",
-            sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
-          });
+      leases.forEach((l) => {
+        const actionText =
+          l.status === "active" && l.tenant_signed_at
+            ? `Lease signed by ${l.tenant_name ?? "tenant"}`
+            : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
+      
+        activity.push({
+          type: "lease",
+          description: actionText,
+          property: propertyMap.get(l.property_id) ?? "",
+          time: l.created_at ? formatRelativeTime(l.created_at) : "",
+          sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
         });
+      });
           property: propertyMap.get(l.property_id) ?? "",
           time: l.created_at ? formatRelativeTime(l.created_at) : "",
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
