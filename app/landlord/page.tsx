@@ -496,11 +496,6 @@ export default function LandlordDashboard() {
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
         });
       });
-          property: propertyMap.get(l.property_id) ?? "",
-          time: l.created_at ? formatRelativeTime(l.created_at) : "",
-          sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
-        })
-      })
       maintenance.forEach((m) => {
         activity.push({
           type: "maintenance",
