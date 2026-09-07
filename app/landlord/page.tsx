@@ -121,7 +121,7 @@ export default function LandlordDashboard() {
   const [occupancy, setOccupancy] = useState({ occupied: 0, vacant: 0, total: 0 })
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [notificationGroups, setNotificationGroups] = useState<NotificationGroup[]>([])
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
+  const [Activity, setActivity] = useState<ActivityItem[]>([])
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
   useEffect(() => {
@@ -483,9 +483,10 @@ export default function LandlordDashboard() {
         })
       })
       leases.forEach((l) => {
-        const actionText = l.status === "active" && l.tenant_signed_at
-    ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-    : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name}`:  "";}
+  const actionText =
+    l.status === "active" && l.tenant_signed_at
+      ? `Lease signed by ${l.tenant_name ?? "tenant"}`
+      : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;}
         activity.push({
           type: "lease",
           description: `Lease ${l.status === "active" ? "signed" : "created"}${
