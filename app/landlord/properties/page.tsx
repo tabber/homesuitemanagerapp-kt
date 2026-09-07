@@ -307,7 +307,7 @@ export default function PropertiesPage() {
         .from("leases")
         .select("*")
         .eq("property_id", selectedPropertyId)
-        .eq("status", "active")
+        .eq("status", ["active", "pending"])
         .limit(1)
         .maybeSingle()
 
