@@ -468,7 +468,7 @@ export default function LandlordDashboard() {
       if (openMaint > 0)
         groups.push({ key: "maintenance", label: `${openMaint} maintenance request${openMaint > 1 ? "s" : ""} open`, count: openMaint, href: "/landlord/inbox", tone: "action" })
 
-      setNotificationGroups(groups)
+  setNotificationGroups(groups)
 
       // Recent activity (payments, leases, maintenance, messages)
       const activity: ActivityItem[] = []
@@ -487,15 +487,15 @@ export default function LandlordDashboard() {
           l.status === "active" && l.tenant_signed_at
             ? `Lease signed by ${l.tenant_name ?? "tenant"}`
             : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
-      
+
         activity.push({
           type: "lease",
           description: actionText,
           property: propertyMap.get(l.property_id) ?? "",
           time: l.created_at ? formatRelativeTime(l.created_at) : "",
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
-        });
-      });
+        })
+      })
       maintenance.forEach((m) => {
         activity.push({
           type: "maintenance",
