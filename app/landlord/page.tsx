@@ -8,10 +8,7 @@ import {
   Users,
   DollarSign,
   Wrench,
-  Plus, leases.forEach((l) => {
-        const actionText = l.status === "active" && l.tenant_signed_at
-    ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-    : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name}` : ""}
+  Plus,
   FileText,
   Bell,
   Calendar,
@@ -20,7 +17,8 @@ import {
   Check,
   Circle,
   ChevronRight,
-} from "lucide-react"
+} from "lucide-react";
+
 import {
   BarChart,
   Bar,
