@@ -486,8 +486,9 @@ export default function LandlordDashboard() {
   const actionText =
     l.status === "active" && l.tenant_signed_at
       ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-      : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;}
-       activity.push({
+      : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
+    
+    activity.push({
     type: "lease",
     description: actionText,
   });
