@@ -300,24 +300,24 @@ export default function PropertiesPage() {
 
       if (!selectedPropertyId) return
 
-      const supabase = createClient()
+    const supabase = createClient()
 
-      // Lease tab: active lease for this property
-      const { data: leaseRow } = await supabase
-        .from("leases")
-        .select("*")
-        .eq("property_id", selectedPropertyId)
-        .eq("status", ["active", "pending"])
-        .limit(1)
-        .maybeSingle()
+// Lease tab: active lease for this property
+const { data: leaseRow } = await supabase
+  .from("leases")
+  .select("*")
+  .eq("property_id", selectedPropertyId)
+  .in("status", ["active", "pending"])
+  .order("created_at", { ascending: false })
+  .limit(1)
+  .maybeSingle()
 
-      // All leases for this property (used by the per-unit views)
-      const { data: allLeases } = await supabase
-        .from("leases")
-        .select("*")
-        .eq("property_id", selectedPropertyId)
-        .in("status", "active", "pending")
-
+// All leases for this property (used by the per-unit views)
+const { data: allLeases } = await supabase
+  .from("leases")
+  .select("*")
+  .eq("property_id", selectedPropertyId)
+  .in("status", ["active", "pending"])
       // Tenant profiles referenced by those leases
       const tenantIds = Array.from(
         new Set((allLeases ?? []).map((l: any) => l.tenant_id).filter(Boolean))
