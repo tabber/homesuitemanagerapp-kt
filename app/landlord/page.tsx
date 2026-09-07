@@ -487,11 +487,11 @@ export default function LandlordDashboard() {
     l.status === "active" && l.tenant_signed_at
       ? `Lease signed by ${l.tenant_name ?? "tenant"}`
       : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;}
-        activity.push({
-          type: "lease",
-          description: `Lease ${l.status === "active" ? "signed" : "created"}${
-            l.tenant_name ? ` by ${l.tenant_name}` : ""
-          }`,
+       activity.push({
+    type: "lease",
+    description: actionText,
+  });
+});
           property: propertyMap.get(l.property_id) ?? "",
           time: l.created_at ? formatRelativeTime(l.created_at) : "",
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
