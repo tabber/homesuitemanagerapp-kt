@@ -8,7 +8,10 @@ import {
   Users,
   DollarSign,
   Wrench,
-  Plus,
+  Plus, leases.forEach((l) => {
+        const actionText = l.status === "active" && l.tenant_signed_at
+    ? `Lease signed by ${l.tenant_name ?? "tenant"}`
+    : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name}` : ""}
   FileText,
   Bell,
   Calendar,
@@ -484,7 +487,7 @@ export default function LandlordDashboard() {
       leases.forEach((l) => {
         const actionText = l.status === "active" && l.tenant_signed_at
     ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-    : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name}` ; ""}
+    : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name}`:  "";}
         activity.push({
           type: "lease",
           description: `Lease ${l.status === "active" ? "signed" : "created"}${
