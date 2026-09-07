@@ -482,11 +482,16 @@ export default function LandlordDashboard() {
           sortDate: p.created_at ? new Date(p.created_at).getTime() : 0,
         })
       })
-      leases.forEach((l) => {
-        const actionText =
-          l.status === "active" && l.tenant_signed_at
-            ? `Lease signed by ${l.tenant_name ?? "tenant"}`
-            : `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
+     leases.forEach((l) => {
+        let actionText = "";
+
+        if (l.status === "active" && l.tenant_signed_at) {
+          actionText = `Lease signed by ${l.tenant_name ?? "tenant"}`;
+        } else if (l.status === "pending" || l.status === "created") {
+          actionText = `Lease pending signature from ${l.tenant_name ?? "tenant"}`;
+        } else {
+          actionText = `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
+        }
 
         activity.push({
           type: "lease",
