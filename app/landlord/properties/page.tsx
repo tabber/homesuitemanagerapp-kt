@@ -153,7 +153,9 @@ export default function PropertiesPage() {
   const [cancelLeaseOpen, setCancelLeaseOpen] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<any | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [resendingInvite, setResendingInvite] = useState(false)
   const [leaseEditForm, setLeaseEditForm] = useState({
+    
     tenant_name: "",
     tenant_email: "",
     tenant_phone: "",
@@ -867,7 +869,30 @@ const selectedUnitMaintenance = selectedUnitRow
     if (!activeLease) return
     await confirmLeaseById(activeLease.id)
   }
-
+const handleResendInvite = async (lease: any) => {
+  if (!lease?.id || resendingInvite) return
+  setResendingInvite(true)
+  try {
+    const res = await fetch("/api/landlord/invite-tenant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leaseId: lease.id }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      toast.error(data.error || "Could not resend the invite")
+    } else if (data.alreadyExisted) {
+      toast.success("This tenant already has an account — no new invite sent.")
+    } else {
+      toast.success("Invite sent")
+    }
+    await refreshLeases()
+  } catch {
+    toast.error("Could not resend the invite — check your connection and try again")
+  } finally {
+    setResendingInvite(false)
+  }
+}
   const lease = activeLease
   const tenant = tenantProfile
   const payments = propertyPayments
