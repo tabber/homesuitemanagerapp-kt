@@ -121,7 +121,7 @@ export default function LandlordDashboard() {
   const [occupancy, setOccupancy] = useState({ occupied: 0, vacant: 0, total: 0 })
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [notificationGroups, setNotificationGroups] = useState<NotificationGroup[]>([])
-  const [Activity, setActivity] = useState<ActivityItem[]>([])
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
   useEffect(() => {
@@ -516,7 +516,6 @@ export default function LandlordDashboard() {
       })
 
       // Sort activities chronologically and assign to recentActivity
-      const recentActivity = activity.sort((a, b) => b.sortDate - a.sortDate)
       messages.forEach((msg) => {
         activity.push({
           type: "message",
