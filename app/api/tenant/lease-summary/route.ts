@@ -2,15 +2,22 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
-const supabaseAdmin = createAdminClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Created per-request so the module can be evaluated at build time
+// (Next.js collects page data before runtime env vars are guaranteed).
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error("Supabase admin credentials are not configured")
+  }
+  return createAdminClient(url, key)
+}
 
 export async function GET() {
   try {
     // 1. Authenticate
     const supabase = await createClient()
+    const supabaseAdmin = getAdminClient()
     const {
       data: { user },
       error: authError,

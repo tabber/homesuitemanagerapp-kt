@@ -522,7 +522,7 @@ const selectedUnit = isApartment && selectedUnitId
               </CardHeader>
               <CardContent>
                 {payments.length > 0 ? (
-                  <>
+                  <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Tenant</TableHead>
@@ -542,7 +542,7 @@ const selectedUnit = isApartment && selectedUnitId
                           <TableCell><StatusBadge status={payment.status} /></TableCell>
                         </TableRow>
                       ))}
-                    </Table>
+                    </TableBody>
                   </Table>
                 ) : (
                   <EmptyState
