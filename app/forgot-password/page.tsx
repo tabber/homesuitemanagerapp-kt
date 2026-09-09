@@ -31,8 +31,13 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
     
     const supabase = createClient()
+    const origin =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : process.env.NEXT_PUBLIC_SITE_URL || "https://www.homesuitemanager.com"
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-     redirectTo: `https://homesuitemanager.com/auth/callback?type=recovery&next=/reset-password`,
+      redirectTo: `${origin}/auth/callback?type=recovery&next=/reset-password`,
     })
     
     if (error) {

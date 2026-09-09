@@ -91,7 +91,7 @@ export default function ResetPasswordPage() {
     // Route by role
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, profile_completed")
       .eq("id", user.id)
       .maybeSingle()
 
@@ -99,7 +99,18 @@ export default function ResetPasswordPage() {
     if (role === "tenant") {
       router.push("/tenant/lease/accept")
     } else if (role === "landlord") {
-      router.push("/landlord")
+      // Only send genuinely new landlords to onboarding. An established
+      // account resetting its password should land on the dashboard, even if
+      // profile_completed was never set (it defaults to false on older rows).
+      let goToOnboarding = !profile?.profile_completed
+      if (goToOnboarding) {
+        const { count } = await supabase
+          .from("properties")
+          .select("id", { count: "exact", head: true })
+          .eq("landlord_id", user.id)
+        if ((count ?? 0) > 0) goToOnboarding = false
+      }
+      router.push(goToOnboarding ? "/landlord/onboarding" : "/landlord")
     } else if (role === "admin") {
       router.push("/admin")
     } else {

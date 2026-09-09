@@ -1,12 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import {
-  Users,
-  Eye,
-  Mail,
-  MoreHorizontal,
-} from "lucide-react"
+import { Mail } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
@@ -23,17 +18,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
 interface LandlordRow {
@@ -49,6 +39,7 @@ interface LandlordRow {
 export default function AdminDashboard() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteNote, setInviteNote] = useState("")
 
   const [loading, setLoading] = useState(true)
   const [totalLandlords, setTotalLandlords] = useState(0)
@@ -70,6 +61,7 @@ export default function AdminDashboard() {
       const { count: propertyCount } = await supabase
         .from("properties")
         .select("id", { count: "exact", head: true })
+        .or("archived.is.null,archived.eq.false")
 
       const { count: userCount } = await supabase
         .from("profiles")
@@ -91,6 +83,7 @@ export default function AdminDashboard() {
           .from("properties")
           .select("landlord_id")
           .in("landlord_id", ids)
+          .or("archived.is.null,archived.eq.false")
         for (const p of props ?? []) {
           if (p.landlord_id) {
             propsByLandlord[p.landlord_id] = (propsByLandlord[p.landlord_id] ?? 0) + 1
@@ -124,10 +117,28 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  const handleInvite = () => {
-    // Handle invitation
-    setShowInviteModal(false)
-    setInviteEmail("")
+  const [inviting, setInviting] = useState(false)
+
+  const handleInvite = async () => {
+    if (!inviteEmail || inviting) return
+    setInviting(true)
+    try {
+      const res = await fetch("/api/admin/invite-landlord", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, note: inviteNote }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || "Failed to send invite")
+      toast.success(`Invitation sent to ${inviteEmail}`)
+      setShowInviteModal(false)
+      setInviteEmail("")
+      setInviteNote("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send invite")
+    } finally {
+      setInviting(false)
+    }
   }
 
   const getStatusBadgeStatus = (status: string | null) => {
@@ -223,7 +234,8 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           {landlords.length > 0 ? (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Landlord</TableHead>
@@ -231,7 +243,6 @@ export default function AdminDashboard() {
                   <TableHead>Plan</TableHead>
                   <TableHead>Properties</TableHead>
                   <TableHead>Joined</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -267,30 +278,12 @@ export default function AdminDashboard() {
                       <TableCell className="text-sm text-text-muted">
                         {formatDate(landlord.created_at)}
                       </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Users className="h-4 w-4 mr-2" />
-                              Impersonate
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
                     </TableRow>
                   )
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           ) : (
             <p className="text-sm text-text-muted">No data yet</p>
           )}
@@ -305,7 +298,10 @@ export default function AdminDashboard() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-text-muted">
-              Send an invitation email to a new landlord to join HomeSuite.
+              Sends an email inviting them to start a 7-day free trial. Accounts
+              are created through checkout, so everyone follows the same path.
+              For a free or discounted account, create a promotion code in
+              Stripe and mention it below.
             </p>
             <div>
               <Label htmlFor="email">Email Address</Label>
@@ -317,7 +313,16 @@ export default function AdminDashboard() {
                 placeholder="landlord@example.com"
               />
             </div>
-            <div className="flex gap-3 justify-end">
+            <div>
+              <Label htmlFor="note">Note (optional)</Label>
+              <Input
+                id="note"
+                value={inviteNote}
+                onChange={(e) => setInviteNote(e.target.value)}
+                placeholder="Use code BETA100 at checkout for your first year free"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3 justify-end">
               <Button
                 variant="outline"
                 onClick={() => setShowInviteModal(false)}
@@ -328,9 +333,9 @@ export default function AdminDashboard() {
               <Button
                 onClick={handleInvite}
                 className="bg-teal hover:bg-teal-dark text-white"
-                disabled={!inviteEmail}
+                disabled={!inviteEmail || inviting}
               >
-                Send Invitation
+                {inviting ? "Sending..." : "Send Invitation"}
               </Button>
             </div>
           </div>

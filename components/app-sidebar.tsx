@@ -14,6 +14,7 @@ import {
   LogOut,
   Clock,
   AlertTriangle,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
@@ -34,6 +35,7 @@ const navItems: Record<PortalType, NavItem[]> = {
     { label: "Properties", href: "/landlord/properties", icon: Building2 },
     { label: "Payments", href: "/landlord/payments", icon: CreditCard },
     { label: "Inbox", href: "/landlord/inbox", icon: Inbox },
+    { label: "Documents", href: "/landlord/documents", icon: FileText },
     { label: "Settings", href: "/landlord/settings", icon: Settings },
   ],
   tenant: [
@@ -45,7 +47,6 @@ const navItems: Record<PortalType, NavItem[]> = {
   admin: [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { label: "Landlords", href: "/admin/landlords", icon: Users },
-    { label: "Billing & Revenue", href: "/admin/billing", icon: DollarSign },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ],
 }

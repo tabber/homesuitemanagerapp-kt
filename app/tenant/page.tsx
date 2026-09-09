@@ -91,7 +91,19 @@ export default function TenantDashboard() {
         .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
         .eq("tenant_id", user.id)
         .limit(1)
-      const leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
+      let leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
+
+      // A lease that hasn't been accepted yet has no tenant_id, so fall back to
+      // matching on the email the landlord addressed it to.
+      if (!leaseRow && user.email) {
+        const { data: pendingRows } = await supabase
+          .from("leases")
+          .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
+          .ilike("tenant_email", user.email)
+          .eq("status", "pending")
+          .limit(1)
+        leaseRow = (pendingRows?.[0] as LeaseData | undefined) ?? null
+      }
 
       const { count: openCount } = await supabase
         .from("maintenance_requests")
@@ -227,7 +239,7 @@ export default function TenantDashboard() {
               You have a lease waiting for your review and signature
             </span>
           </div>
-          <Link href="/tenant/home">
+        <Link href="/tenant/lease/accept">
             <Button className="bg-teal hover:bg-teal-dark text-white">
               View & Sign Lease
             </Button>
@@ -382,21 +394,6 @@ export default function TenantDashboard() {
                 </div>
                 <span className="text-sm font-normal text-navy">
                   View My Lease
-                </span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-text-muted" />
-            </Link>
-
-            <Link
-              href="/tenant/inbox"
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-cream hover:bg-sage/20 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center">
-                  <Mail className="h-4 w-4 text-teal-dark" />
-                </div>
-                <span className="text-sm font-normal text-navy">
-                  Message Landlord
                 </span>
               </div>
               <ChevronRight className="h-4 w-4 text-text-muted" />

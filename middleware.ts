@@ -7,9 +7,9 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // If Supabase is not configured, skip auth and let the request through.
+  // Fail closed: if auth is not configured, do not serve the app.
   if (!supabaseUrl || !supabaseAnonKey) {
-    return supabaseResponse
+    return new NextResponse("Service unavailable", { status: 503 })
   }
 
   const supabase = createServerClient(
@@ -36,9 +36,10 @@ export async function middleware(request: NextRequest) {
   // Public routes — no auth required
   const publicRoutes = ["/", "/login", "/signup", "/signup-success", "/pricing", "/forgot-password", "/reset-password"]
 
-  const isPublicRoute = publicRoutes.some(
-    (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith("/auth"),
-  )
+  const isPublicRoute =
+    publicRoutes.some((route) => request.nextUrl.pathname === route) ||
+    request.nextUrl.pathname.startsWith("/auth") ||
+    request.nextUrl.pathname.startsWith("/api/")
 
   if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url))
@@ -46,10 +47,26 @@ export async function middleware(request: NextRequest) {
 
   if (user && !isPublicRoute) {
     // Get user role from profiles
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, subscription_status, trial_end_date")
+      .eq("id", user.id)
+      .single()
 
     const role = profile?.role
     const path = request.nextUrl.pathname
+
+    // Subscription gate for landlords: trialing/active always pass;
+    // legacy/comped "trial" passes until trial_end_date.
+    if (path.startsWith("/landlord") && role === "landlord") {
+      const status = profile?.subscription_status ?? "trial"
+      const trialEnd = profile?.trial_end_date ? new Date(profile.trial_end_date) : null
+      const trialValid = status === "trial" && trialEnd !== null && trialEnd > new Date()
+      const allowed = status === "trialing" || status === "active" || trialValid
+      if (!allowed) {
+        return NextResponse.redirect(new URL("/pricing?expired=1", request.url))
+      }
+    }
 
     // Role-based routing enforcement
     if (path.startsWith("/landlord") && role !== "landlord") {
@@ -85,5 +102,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 }

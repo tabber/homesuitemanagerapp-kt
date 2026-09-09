@@ -41,13 +41,19 @@ export default function LandingPage() {
           <Logo />
           <nav className="flex items-center gap-4">
             <Link
+              href="/pricing"
+              className="text-sm font-normal text-navy hover:text-navy/80 transition-colors"
+            >
+              Pricing
+            </Link>
+            <Link
               href="/login"
               className="text-sm font-normal text-navy hover:text-navy/80 transition-colors"
             >
               Sign In
             </Link>
             <Button asChild className="bg-teal hover:bg-teal-dark text-white">
-              <Link href="/signup">Get Started</Link>
+              <a href="/api/stripe/checkout">Get Started</a>
             </Button>
           </nav>
         </div>
@@ -60,15 +66,15 @@ export default function LandingPage() {
             Stop paying 8% to a property manager
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mx-auto mb-8">
-            HomeSuite gives you everything they do for as little as $49.99/mo
+            Everything they do for $79.99/mo — early adopter pricing
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
             <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
-              <Link href="/pricing">Start Free Trial</Link>
+              <a href="/api/stripe/checkout">Start Free Trial</a>
             </Button>
           </div>
           <p className="text-sm text-text-muted mb-16">
-            Starting at $49.99/mo — no credit card required
+            7-day free trial. Lock in early adopter pricing before launch rates increase.
           </p>
         </div>
       </section>
@@ -99,18 +105,29 @@ export default function LandingPage() {
             Ready to take control of your properties?
           </h2>
           <p className="text-text-muted mb-8">
-            No credit card required. Start your 7-day free trial today.
+            Start your 7-day free trial today and lock in early adopter pricing.
           </p>
           <Button asChild size="lg" className="bg-teal hover:bg-teal-dark text-white px-8">
-            <Link href="/signup">Get Started Free</Link>
+            <a href="/api/stripe/checkout">Get Started</a>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-sage/50 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-text-muted">
-          <p>2026 HomeSuite. All rights reserved.</p>
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-text-muted">
+          <p>&copy; 2026 HomeSuite. All rights reserved.</p>
+          <nav className="flex items-center gap-6">
+            <Link href="/pricing" className="hover:text-navy transition-colors">
+              Pricing
+            </Link>
+            <Link href="/terms" className="hover:text-navy transition-colors">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="hover:text-navy transition-colors">
+              Privacy Policy
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

@@ -12,6 +12,7 @@ import {
   Check,
   Download,
   Printer,
+  Bell,
 } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useUser } from "@/lib/context/UserContext"
@@ -35,19 +36,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
+import Link from "next/link"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 
 export default function TenantMyHome() {
   const [showLeaseModal, setShowLeaseModal] = useState(false)
   const [showETransferModal, setShowETransferModal] = useState(false)
-  const { firstName, lastName, email } = useUser()
+  const { id: userId, firstName, lastName, email } = useUser()
 
   const [loading, setLoading] = useState(true)
   const [leaseRow, setLeaseRow] = useState<any | null>(null)
   const [landlordRow, setLandlordRow] = useState<any | null>(null)
   const [propertyRow, setPropertyRow] = useState<any | null>(null)
+  const [landlordEtransfer, setLandlordEtransfer] = useState<string>("")
+  const [reminders, setReminders] = useState<any[]>([])
   const [tenantRow, setTenantRow] = useState<any | null>(null)
   const [paymentRows, setPaymentRows] = useState<any[]>([])
+  const [submittingPayment, setSubmittingPayment] = useState(false)
+  const [documents, setDocuments] = useState<any[]>([])
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null)
 
 
   const formatCurrency = (amount: number) => {
@@ -97,6 +105,15 @@ export default function TenantMyHome() {
       let landlord: any = null
       let property: any = null
       if (lease?.landlord_id) {
+        const { data: cfg } = await supabase
+          .from("payment_configuration")
+          .select("etransfer_email")
+          .eq("landlord_id", lease.landlord_id)
+          .maybeSingle()
+        if (isMounted && cfg?.etransfer_email) setLandlordEtransfer(cfg.etransfer_email)
+      }
+
+      if (lease?.landlord_id) {
         const { data } = await supabase
           .from("profiles")
           .select("*")
@@ -124,6 +141,25 @@ export default function TenantMyHome() {
       if (!isMounted) return
       setTenantRow(tenant ?? null)
       setLeaseRow(lease ?? null)
+
+      if (lease?.id) {
+        const { data: remRows } = await supabase
+          .from("maintenance_reminders")
+          .select("id, title, notes, due_date")
+          .is("completed_at", null)
+          .order("due_date", { ascending: true })
+        if (isMounted) setReminders(remRows ?? [])
+      }
+
+      // Documents attached to this lease (RLS limits this to the tenant's own lease)
+      if (lease?.id) {
+        const { data: docRows } = await supabase
+          .from("documents")
+          .select("*")
+          .eq("lease_id", lease.id)
+          .order("created_at", { ascending: false })
+        if (isMounted) setDocuments(docRows ?? [])
+      }
       setLandlordRow(landlord)
       setPropertyRow(property)
       setPaymentRows(payments ?? [])
@@ -160,7 +196,7 @@ export default function TenantMyHome() {
       "—",
     email: landlordRow?.email || leaseRow?.landlord_email || "—",
     phone: landlordRow?.phone || leaseRow?.landlord_phone || "—",
-    eTransferEmail: leaseRow?.etransfer_email || propertyRow?.etransfer_email || "—",
+    eTransferEmail: leaseRow?.etransfer_email || propertyRow?.etransfer_email || landlordEtransfer || "—",
   }
 
   const lease = leaseRow
@@ -193,6 +229,77 @@ export default function TenantMyHome() {
         landlordSignedDate: formatLongDate(leaseRow.landlord_signed_at),
       }
     : null
+
+  const handleOpenDocument = async (doc: any) => {
+    if (!doc.file_url) {
+      toast.error("This document has no stored file")
+      return
+    }
+    setOpeningDocId(doc.id)
+    const supabase = createClient()
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(doc.file_url, 60)
+    setOpeningDocId(null)
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message || "Could not open this document")
+      return
+    }
+    window.open(data.signedUrl, "_blank")
+  }
+
+  const handleConfirmSent = async () => {
+    if (!leaseRow || !userId || submittingPayment) return
+    setSubmittingPayment(true)
+    const supabase = createClient()
+    const amount = Number(leaseRow.monthly_rent ?? 0)
+
+    // Status is forced to "pending" by the database for tenant-created rows.
+    const { data: inserted, error } = await supabase
+      .from("payments")
+      .insert({
+        lease_id: leaseRow.id,
+        property_id: leaseRow.property_id ?? null,
+        unit_id: leaseRow.unit_id ?? null,
+        tenant_id: userId,
+        landlord_id: leaseRow.landlord_id ?? null,
+        amount,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: "e_transfer",
+        description: "Tenant-reported e-Transfer",
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setSubmittingPayment(false)
+      toast.error(error.message || "Could not record your payment")
+      return
+    }
+
+    // Notify the landlord in their inbox (best effort).
+    if (leaseRow.landlord_id) {
+      const tenantName =
+        [firstName, lastName].filter(Boolean).join(" ") ||
+        leaseRow.tenant_name ||
+        "Your tenant"
+      await supabase.from("messages").insert({
+        sender_id: userId,
+        recipient_id: leaseRow.landlord_id,
+        lease_id: leaseRow.id,
+        subject: "Rent payment sent",
+        content: `${tenantName} has sent a rent payment of ${new Intl.NumberFormat(
+          "en-CA",
+          { style: "currency", currency: "CAD" }
+        ).format(amount)} by e-Transfer. Please confirm receipt in your Payments page once it arrives.`,
+      })
+    }
+
+    if (inserted) setPaymentRows((prev) => [inserted, ...prev])
+    setSubmittingPayment(false)
+    setShowETransferModal(false)
+    toast.success("Payment reported — your landlord has been notified")
+  }
 
   const payments = paymentRows.map((p: any) => ({
     id: p.id,
@@ -310,7 +417,23 @@ export default function TenantMyHome() {
           <TabsTrigger value="lease">Lease</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="utilities">Utilities</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
         </TabsList>
+
+        {leaseRow?.move_out_date && (
+          <Card className="border-warning/40 bg-warning/5">
+            <CardContent className="p-4">
+              <p className="text-sm font-medium text-navy">
+                Move-out scheduled for {formatLongDate(leaseRow.move_out_date)}
+              </p>
+              <p className="text-xs text-text-muted mt-1">
+                Rent remains due until then. Your landlord will arrange a
+                condition inspection and settle your deposit after you move out.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Lease Tab */}
         <TabsContent value="lease" className="space-y-4">
@@ -402,11 +525,11 @@ export default function TenantMyHome() {
             </CardContent>
           </Card>
 
-          {/* Signature Status */}
+          {/* Lease Status */}
           <Card className="border-sage/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg font-medium text-navy">
-                Signature Status
+                Lease Status
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -427,18 +550,18 @@ export default function TenantMyHome() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-navy">
-                      Tenant Signature
+                      Your acknowledgment
                     </p>
                     <p className="text-sm text-text-muted">
                       {lease.tenantSigned
-                        ? `Signed on ${lease.tenantSignedDate}`
-                        : "Awaiting your signature"}
+                        ? `Accepted on ${lease.tenantSignedDate}`
+                        : "Review and accept your lease terms"}
                     </p>
                   </div>
                 </div>
                 {!lease.tenantSigned && (
-                  <Button className="bg-teal hover:bg-teal-dark text-white">
-                    Sign Now
+                  <Button asChild className="bg-teal hover:bg-teal-dark text-white">
+                    <Link href="/tenant/lease/accept">Review &amp; Accept</Link>
                   </Button>
                 )}
               </div>
@@ -460,12 +583,12 @@ export default function TenantMyHome() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-navy">
-                      Landlord Signature
+                      Landlord acknowledgment
                     </p>
                     <p className="text-sm text-text-muted">
                       {lease.landlordSigned
                         ? `Signed on ${lease.landlordSignedDate}`
-                        : "Awaiting landlord signature"}
+                        : "Awaiting landlord confirmation"}
                     </p>
                   </div>
                 </div>
@@ -523,7 +646,8 @@ export default function TenantMyHome() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -558,7 +682,8 @@ export default function TenantMyHome() {
                   ))
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -638,6 +763,108 @@ export default function TenantMyHome() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* Documents Tab */}
+        <TabsContent value="documents" className="space-y-4">
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-medium text-navy">
+                Your documents
+              </CardTitle>
+              <p className="text-sm text-text-muted mt-1">
+                Lease agreements, notices and receipts your landlord has shared
+              </p>
+            </CardHeader>
+            <CardContent>
+              {documents.length === 0 ? (
+                <p className="text-sm text-text-muted py-6 text-center">
+                  No documents yet. Anything your landlord attaches to your lease
+                  will appear here.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-sage/40 hover:bg-sage/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded bg-teal/10 flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-4 w-4 text-teal" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-navy truncate">
+                            {doc.file_name ?? "Document"}
+                          </p>
+                          <p className="text-xs text-text-muted capitalize">
+                            {(doc.document_type ?? "document").replace(/_/g, " ")}
+                            {doc.created_at
+                              ? ` · ${formatLongDate(doc.created_at)}`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={openingDocId === doc.id}
+                        onClick={() => handleOpenDocument(doc)}
+                        className="border-sage text-navy hover:bg-sage/20 flex-shrink-0"
+                      >
+                        {openingDocId === doc.id ? "Opening..." : "Open"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Reminders Tab */}
+        <TabsContent value="reminders" className="space-y-4">
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-medium text-navy">
+                Upkeep reminders
+              </CardTitle>
+              <p className="text-sm text-text-muted mt-1">
+                Seasonal maintenance your landlord has shared — so there are no
+                surprises
+              </p>
+            </CardHeader>
+            <CardContent>
+              {reminders.length === 0 ? (
+                <p className="text-sm text-text-muted py-6 text-center">
+                  No reminders right now. Anything your landlord shares will
+                  appear here.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {reminders.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-sage/40"
+                    >
+                      <div className="w-9 h-9 rounded bg-teal/10 flex items-center justify-center flex-shrink-0">
+                        <Bell className="h-4 w-4 text-teal" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-navy">{r.title}</p>
+                        <p className="text-xs text-text-muted">
+                          {formatLongDate(r.due_date)}
+                        </p>
+                        {r.notes && (
+                          <p className="text-xs text-text-muted mt-1">{r.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
 
       {/* Lease Agreement Summary Modal */}
@@ -655,7 +882,7 @@ export default function TenantMyHome() {
             </p>
 
             {/* Parties */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-lg bg-cream">
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
                   Landlord
@@ -700,7 +927,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Financial Terms */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 rounded-lg bg-cream">
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
                   Monthly Rent
@@ -731,7 +958,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Terms Grid */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
                   Utilities
@@ -767,7 +994,7 @@ export default function TenantMyHome() {
             </div>
 
             {/* Signatures */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-sage/30">
               <div className="text-center">
                 <div className="h-16 border-b border-navy/30 mb-2 flex items-end justify-center pb-2">
                  {lease.landlordSigned && (
@@ -799,22 +1026,16 @@ export default function TenantMyHome() {
             {/* Footer */}
             <div className="pt-4 border-t border-sage/30">
               <p className="text-xs text-text-muted text-center mb-4">
-                Generated on May 13, 2026
+                Generated on {new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}
               </p>
               <div className="flex gap-3 justify-center">
                 <Button
                   variant="outline"
+                  onClick={() => window.print()}
                   className="border-sage text-navy hover:bg-sage/20"
                 >
                   <Printer className="h-4 w-4 mr-2" />
                   Print
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-sage text-navy hover:bg-sage/20"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
                 </Button>
               </div>
             </div>
@@ -857,10 +1078,11 @@ export default function TenantMyHome() {
                 Cancel
               </Button>
               <Button
-                onClick={() => setShowETransferModal(false)}
+                onClick={handleConfirmSent}
+                disabled={submittingPayment}
                 className="flex-1 bg-teal hover:bg-teal-dark text-white"
               >
-                Confirm Sent
+                {submittingPayment ? "Recording..." : "Confirm Sent"}
               </Button>
             </div>
           </div>

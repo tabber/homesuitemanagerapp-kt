@@ -21,10 +21,6 @@ export default function AdminSettings() {
     paymentAlerts: true,
   })
 
-  const handlePlatformSave = () => {
-    // Handle save
-  }
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
       style: "currency",
@@ -84,12 +80,6 @@ export default function AdminSettings() {
                 }
               />
             </div>
-            <Button
-              onClick={handlePlatformSave}
-              className="bg-teal hover:bg-teal-dark text-white"
-            >
-              Save Changes
-            </Button>
           </CardContent>
         </Card>
 
@@ -168,7 +158,7 @@ export default function AdminSettings() {
                     Base Price
                   </p>
                   <p className="text-2xl font-medium text-navy">
-                    {formatCurrency(49.99)}
+                    {formatCurrency(79.99)}
                     <span className="text-sm text-text-muted font-normal">
                       /month
                     </span>
@@ -196,7 +186,7 @@ export default function AdminSettings() {
                     Maximum Price
                   </p>
                   <p className="text-2xl font-medium text-navy">
-                    {formatCurrency(259.99)}
+                    {formatCurrency(289.99)}
                     <span className="text-sm text-text-muted font-normal">
                       /month
                     </span>

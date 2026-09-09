@@ -15,7 +15,7 @@ interface LockedFeatureProps {
 export function LockedFeature({
   title,
   description,
-  price = "$49.99/mo",
+  price = "$79.99/mo",
   className,
   onUnlock,
 }: LockedFeatureProps) {

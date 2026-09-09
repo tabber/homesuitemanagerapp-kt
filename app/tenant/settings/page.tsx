@@ -52,7 +52,7 @@ export default function TenantSettings() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone")
+        .select("first_name, last_name, email, phone, notification_preferences")
         .eq("id", user.id)
         .maybeSingle()
 
@@ -64,6 +64,8 @@ export default function TenantSettings() {
         email: data?.email ?? user.email ?? "",
         phone: data?.phone ?? "",
       })
+      const prefs = (data?.notification_preferences ?? {}) as Record<string, boolean>
+      setNotifications((prev) => ({ ...prev, ...prefs }))
     }
 
     loadProfile()
@@ -105,6 +107,19 @@ export default function TenantSettings() {
     setPasswords({ current: "", new: "", confirm: "" })
   }
 
+
+  const saveNotificationPref = async (key: string, value: boolean) => {
+    const next = { ...notifications, [key]: value }
+    setNotifications(next)
+    if (!userId) return
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("profiles")
+      .update({ notification_preferences: next })
+      .eq("id", userId)
+    if (error) toast.error("Could not save preference")
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -126,7 +141,7 @@ export default function TenantSettings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
@@ -258,9 +273,7 @@ export default function TenantSettings() {
               </div>
               <Switch
                 checked={notifications.paymentReminders}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, paymentReminders: checked })
-                }
+                onCheckedChange={(checked) => saveNotificationPref("paymentReminders", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -274,12 +287,7 @@ export default function TenantSettings() {
               </div>
               <Switch
                 checked={notifications.maintenanceUpdates}
-                onCheckedChange={(checked) =>
-                  setNotifications({
-                    ...notifications,
-                    maintenanceUpdates: checked,
-                  })
-                }
+                onCheckedChange={(checked) => saveNotificationPref("maintenanceUpdates", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -291,9 +299,7 @@ export default function TenantSettings() {
               </div>
               <Switch
                 checked={notifications.messages}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, messages: checked })
-                }
+                onCheckedChange={(checked) => saveNotificationPref("messages", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -305,9 +311,7 @@ export default function TenantSettings() {
               </div>
               <Switch
                 checked={notifications.propertyUpdates}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, propertyUpdates: checked })
-                }
+                onCheckedChange={(checked) => saveNotificationPref("propertyUpdates", checked)}
               />
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-sage/30">

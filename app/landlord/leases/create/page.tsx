@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   FileText,
@@ -14,9 +14,10 @@ import {
   Building2,
   Plus,
   X,
+  Clock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -65,12 +66,17 @@ type TenantOption = {
   phone: string
 }
 
-type LeaseType = "create" | "upload" | null
+type LeaseType = "create" | "existing" | null
 
-export default function CreateLeasePage() {
+function CreateLeasePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const presetPropertyId = searchParams.get("property") ?? ""
+  const presetUnitId = searchParams.get("unit") ?? ""
   const [leaseType, setLeaseType] = useState<LeaseType>(null)
+  const [existingLeaseFile, setExistingLeaseFile] = useState<File | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
+  const [useAltLandlordContact, setUseAltLandlordContact] = useState(false)
 
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -110,7 +116,7 @@ export default function CreateLeasePage() {
     documents: [] as File[],
   })
 
-  const totalSteps = 5
+  const totalSteps = 4
   const selectedProperty = properties.find((p) => p.id === form.propertyId)
 
   useEffect(() => {
@@ -146,26 +152,50 @@ export default function CreateLeasePage() {
           .from("units")
           .select("id, property_id, unit_number, bedrooms, bathrooms, rent_amount, status")
           .in("property_id", propertyIds)
-          .eq("status", "vacant")
         unitRows = units ?? []
       }
 
-      const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => ({
-        id: p.id,
-        name: p.name ?? "",
-        address: p.address ?? "",
-        type: p.property_type === "building" ? "apartment" : "single",
-        monthlyRent: p.rent_amount ?? 0,
-        vacantUnits: unitRows
-          .filter((u) => u.property_id === p.id)
-          .map((u) => ({
-            id: u.id,
-            number: u.unit_number ?? "",
-            bedrooms: u.bedrooms ?? 0,
-            bathrooms: u.bathrooms ?? 0,
-            rent: u.rent_amount ?? 0,
-          })),
-      }))
+      // Units already committed to a lease (active or pending) are not
+      // available, even if the tenant hasn't accepted yet.
+      const { data: committedLeases } = await supabase
+        .from("leases")
+        .select("unit_id, status")
+        .eq("landlord_id", user.id)
+        .in("status", ["active", "pending"])
+      const committedUnitIds = new Set(
+        (committedLeases ?? []).map((l: any) => l.unit_id).filter(Boolean)
+      )
+
+      const mappedProperties: PropertyOption[] = (propertyRows ?? []).map((p) => {
+        const propertyUnits = unitRows.filter((u) => u.property_id === p.id)
+        // A property is multi-unit if it has unit records, or its type says so.
+        const isMulti =
+          propertyUnits.length > 0 ||
+          ["building", "apartment", "multi_unit", "multi", "duplex", "triplex", "fourplex"].includes(
+            String(p.property_type ?? "").toLowerCase()
+          )
+        return {
+          id: p.id,
+          name: p.name ?? "",
+          address: p.address ?? "",
+          type: isMulti ? "apartment" : "single",
+          monthlyRent: p.rent_amount ?? 0,
+          totalUnits: propertyUnits.length,
+          vacantUnits: propertyUnits
+            .filter(
+              (u) =>
+                String(u.status ?? "vacant").toLowerCase() !== "occupied" &&
+                !committedUnitIds.has(u.id)
+            )
+            .map((u) => ({
+              id: u.id,
+              number: u.unit_number ?? "",
+              bedrooms: u.bedrooms ?? 0,
+              bathrooms: u.bathrooms ?? 0,
+              rent: u.rent_amount ?? 0,
+            })),
+        }
+      })
 
       // Tenants available to assign to a lease
       const { data: tenantRows } = await supabase
@@ -183,6 +213,23 @@ export default function CreateLeasePage() {
       if (!isMounted) return
 
       setProperties(mappedProperties)
+
+      // Deep link from a unit: preselect the property and unit, and use the
+      // unit's rent as the starting monthly rent.
+      if (presetPropertyId) {
+        const preProp = mappedProperties.find((p) => p.id === presetPropertyId)
+        const preUnit = preProp?.vacantUnits.find((u) => u.id === presetUnitId)
+        setForm((prev) => ({
+          ...prev,
+          propertyId: presetPropertyId,
+          unitId: presetUnitId || prev.unitId,
+          monthlyRent: preUnit?.rent
+            ? String(preUnit.rent)
+            : preProp?.monthlyRent
+            ? String(preProp.monthlyRent)
+            : prev.monthlyRent,
+        }))
+      }
       setTenants(mappedTenants)
 
       if (profile) {
@@ -191,6 +238,20 @@ export default function CreateLeasePage() {
           landlordName: `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim(),
           landlordPhone: profile.phone ?? "",
           landlordEmail: profile.email ?? "",
+        }))
+      }
+
+      // Default the e-Transfer address from the landlord's payment settings,
+      // so they don't retype it on every lease.
+      const { data: payCfg } = await supabase
+        .from("payment_configuration")
+        .select("etransfer_email")
+        .eq("landlord_id", user.id)
+        .maybeSingle()
+      if (isMounted && payCfg?.etransfer_email) {
+        setForm((prev) => ({
+          ...prev,
+          eTransferEmail: prev.eTransferEmail || payCfg.etransfer_email,
         }))
       }
     }
@@ -291,6 +352,29 @@ export default function CreateLeasePage() {
       setIsSubmitting(false)
       return
     }
+    // Attach the signed lease document, if one was provided
+    if (existingLeaseFile && newLease?.id) {
+      try {
+        const filePath = `${newLease.id}/${Date.now()}-${existingLeaseFile.name}`
+        const { error: uploadError } = await supabase.storage
+          .from("documents")
+          .upload(filePath, existingLeaseFile, { upsert: false })
+        if (!uploadError) {
+          await supabase.from("documents").insert({
+            lease_id: newLease.id,
+            property_id: form.propertyId,
+            uploaded_by: user.id,
+            document_type: "lease",
+            file_url: filePath,
+            file_name: existingLeaseFile.name,
+            file_size: existingLeaseFile.size,
+          })
+        }
+      } catch {
+        // Non-fatal: the lease exists even if the document upload fails
+      }
+    }
+
     // Send the tenant invite (best-effort)
     if (form.tenantEmail) {
       try {
@@ -336,7 +420,7 @@ export default function CreateLeasePage() {
         <h1 className="text-2xl font-medium text-navy mb-2">Create Lease</h1>
         <p className="text-text-muted mb-8">How would you like to create the lease?</p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={() => setLeaseType("create")}
             className="p-6 rounded-lg border-2 border-sage bg-white text-left transition-all hover:border-teal"
@@ -349,19 +433,256 @@ export default function CreateLeasePage() {
           </button>
 
           <button
-            disabled
-            className="p-6 rounded-lg border-2 border-sage bg-sage/10 text-left opacity-70 cursor-not-allowed relative"
+            onClick={() => setLeaseType("existing")}
+            className="p-6 rounded-lg border-2 border-sage bg-white text-left transition-all hover:border-teal"
           >
-            <div className="absolute top-4 right-4 flex items-center gap-1 text-xs text-navy bg-sage/30 px-2 py-1 rounded-full">
-              <Lock className="h-3 w-3" />
-              Essential
-            </div>
             <div className="w-12 h-12 rounded-lg bg-sage/30 flex items-center justify-center mb-4">
               <Upload className="h-6 w-6 text-navy" />
             </div>
-            <h3 className="text-lg font-medium text-navy mb-1">Upload Existing Lease</h3>
-            <p className="text-sm text-text-muted">Upload a PDF of an existing lease document</p>
+            <h3 className="text-lg font-medium text-navy mb-1">I already have a signed lease</h3>
+            <p className="text-sm text-text-muted">
+              Enter the essentials and attach your signed document — about a minute
+            </p>
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Existing-lease flow: short form + the signed document ----
+  if (leaseType === "existing") {
+    const quickProperty = properties.find((p) => p.id === form.propertyId)
+    const quickUnits = quickProperty?.vacantUnits ?? []
+    const needsUnit = quickProperty?.type === "apartment" && quickUnits.length > 0
+
+    const canSubmit =
+      !!form.propertyId &&
+      (!needsUnit || !!form.unitId) &&
+      !!form.tenantName &&
+      !!form.tenantEmail &&
+      !!form.startDate &&
+      !!form.endDate &&
+      !!form.monthlyRent
+
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => setLeaseType(null)}
+            className="text-navy hover:bg-sage/20 -ml-4"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        </div>
+
+        <h1 className="text-2xl font-medium text-navy mb-2">Add an existing lease</h1>
+        <p className="text-text-muted mb-8">
+          Enter the essentials and attach the signed document. Terms like pets,
+          parking and utilities stay in your PDF — HomeSuite only needs what it
+          tracks for you.
+        </p>
+
+        <div className="space-y-6">
+          {/* Property & unit */}
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium text-navy">1. Which property?</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="q_property">Property</Label>
+                <Select
+                  value={form.propertyId}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({ ...prev, propertyId: v, unitId: "" }))
+                  }
+                >
+                  <SelectTrigger id="q_property">
+                    <SelectValue placeholder="Select a property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} — {p.address}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {needsUnit && (
+                <div>
+                  <Label htmlFor="q_unit">Unit</Label>
+                  <Select
+                    value={form.unitId}
+                    onValueChange={(v) => {
+                      const u = quickUnits.find((x) => x.id === v)
+                      setForm((prev) => ({
+                        ...prev,
+                        unitId: v,
+                        monthlyRent: prev.monthlyRent || (u?.rent ? String(u.rent) : ""),
+                      }))
+                    }}
+                  >
+                    <SelectTrigger id="q_unit">
+                      <SelectValue placeholder="Select a unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {quickUnits.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          Unit {u.number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tenant */}
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium text-navy">2. Who is the tenant?</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="q_tname">Full name</Label>
+                <Input
+                  id="q_tname"
+                  value={form.tenantName}
+                  onChange={(e) => setForm((p) => ({ ...p, tenantName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="q_temail">Email</Label>
+                <Input
+                  id="q_temail"
+                  type="email"
+                  value={form.tenantEmail}
+                  onChange={(e) => setForm((p) => ({ ...p, tenantEmail: e.target.value }))}
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  Their portal invitation goes here
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="q_tphone">Phone (optional)</Label>
+                <Input
+                  id="q_tphone"
+                  value={form.tenantPhone}
+                  onChange={(e) => setForm((p) => ({ ...p, tenantPhone: e.target.value }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Terms */}
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium text-navy">3. The basics</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="q_start">Start date</Label>
+                <Input
+                  id="q_start"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="q_end">End date</Label>
+                <Input
+                  id="q_end"
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="q_rent">Monthly rent</Label>
+                <Input
+                  id="q_rent"
+                  type="number"
+                  step="0.01"
+                  value={form.monthlyRent}
+                  onChange={(e) => setForm((p) => ({ ...p, monthlyRent: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="q_dep">Security deposit</Label>
+                <Input
+                  id="q_dep"
+                  type="number"
+                  step="0.01"
+                  value={form.securityDeposit}
+                  onChange={(e) => setForm((p) => ({ ...p, securityDeposit: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="q_due">Rent due day</Label>
+                <Select
+                  value={form.paymentDueDay}
+                  onValueChange={(v) => setForm((p) => ({ ...p, paymentDueDay: v }))}
+                >
+                  <SelectTrigger id="q_due">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 28 }, (_, i) => String(i + 1)).map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Document */}
+          <Card className="border-sage/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium text-navy">
+                4. Attach the signed lease
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input
+                type="file"
+                accept=".pdf,image/*"
+                onChange={(e) => setExistingLeaseFile(e.target.files?.[0] ?? null)}
+                className="border-sage"
+              />
+              {existingLeaseFile && (
+                <p className="text-xs text-text-muted mt-2">{existingLeaseFile.name}</p>
+              )}
+              <p className="text-xs text-text-muted mt-2">
+                Optional, but your tenant can view it in their portal once attached.
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-wrap justify-end gap-3 pb-10">
+            <Button
+              variant="outline"
+              onClick={() => setLeaseType(null)}
+              className="border-sage text-navy hover:bg-sage/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!canSubmit || isSubmitting}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {isSubmitting ? "Creating..." : "Create lease & invite tenant"}
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -394,7 +715,7 @@ export default function CreateLeasePage() {
       <p className="text-sm text-text-muted">Choose the property and unit for this lease.</p>
 
       <div className="space-y-3">
-        {properties.filter((p) => p.type === "single" || p.vacantUnits.length > 0).map((property) => (
+        {properties.map((property) => (
           <button
             key={property.id}
             onClick={() => setForm((prev) => ({ ...prev, propertyId: property.id, unitId: "" }))}
@@ -422,9 +743,19 @@ export default function CreateLeasePage() {
                 </div>
                 <p className="text-sm text-text-muted">{property.address}</p>
                 {property.type === "apartment" && (
-                  <p className="text-sm text-teal mt-1">
-                    {property.vacantUnits.length} units available
-                  </p>
+                  property.vacantUnits.length > 0 ? (
+                    <p className="text-sm text-teal mt-1">
+                      {property.vacantUnits.length} of {property.totalUnits || property.vacantUnits.length} units available
+                    </p>
+                  ) : property.totalUnits > 0 ? (
+                    <p className="text-sm text-warning mt-1">
+                      All units occupied
+                    </p>
+                  ) : (
+                    <p className="text-sm text-warning mt-1">
+                      No units added yet — add units to this property first
+                    </p>
+                  )
                 )}
               </div>
               {form.propertyId === property.id && (
@@ -441,7 +772,7 @@ export default function CreateLeasePage() {
       {selectedProperty?.type === "apartment" && selectedProperty.vacantUnits.length > 0 && (
         <div className="mt-6">
           <Label className="text-navy mb-3 block">Select Unit</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {selectedProperty.vacantUnits.map((unit) => (
               <button
                 key={unit.id}
@@ -465,42 +796,81 @@ export default function CreateLeasePage() {
   )
 
   // Step 2 - Landlord Details
-  const Step2 = () => (
+  const Step3 = () => (
     <div className="space-y-6">
-      <h2 className="text-xl font-medium text-navy">Landlord Details</h2>
-      <p className="text-sm text-text-muted">Confirm your information for the lease agreement.</p>
+      <h2 className="text-xl font-medium text-navy">Tenant Details</h2>
+      <p className="text-sm text-text-muted">Enter the primary tenant information.</p>
 
-      <div className="space-y-4">
-        <div>
-          <Label htmlFor="landlordName" className="text-navy">Name</Label>
-          <Input
-            id="landlordName"
-            value={form.landlordName}
-            onChange={(e) => setForm((prev) => ({ ...prev, landlordName: e.target.value }))}
-            className="mt-1.5 border-sage"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="landlordPhone" className="text-navy">Phone</Label>
-            <Input
-              id="landlordPhone"
-              value={form.landlordPhone}
-              onChange={(e) => setForm((prev) => ({ ...prev, landlordPhone: e.target.value }))}
-              className="mt-1.5 border-sage"
-            />
+      {/* Landlord contact — collapsed by default, since it's usually just them */}
+      <div className="p-4 rounded-lg bg-sage/10 border border-sage/40 space-y-3">
+        {!useAltLandlordContact ? (
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wide text-text-muted">
+                Landlord contact on this lease
+              </p>
+              <p className="text-sm text-navy mt-1 break-words">
+                {[form.landlordName, form.landlordEmail, form.landlordPhone]
+                  .filter(Boolean)
+                  .join(" · ") || "Your profile details"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUseAltLandlordContact(true)}
+              className="text-sm text-teal hover:underline flex-shrink-0"
+            >
+              Use different details
+            </button>
           </div>
-          <div>
-            <Label htmlFor="landlordEmail" className="text-navy">Email</Label>
-            <Input
-              id="landlordEmail"
-              type="email"
-              value={form.landlordEmail}
-              onChange={(e) => setForm((prev) => ({ ...prev, landlordEmail: e.target.value }))}
-              className="mt-1.5 border-sage"
-            />
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-text-muted">
+                Landlord contact on this lease
+              </p>
+              <button
+                type="button"
+                onClick={() => setUseAltLandlordContact(false)}
+                className="text-sm text-teal hover:underline"
+              >
+                Use my details
+              </button>
+            </div>
+            <div>
+              <Label htmlFor="landlordName" className="text-navy">Name</Label>
+              <Input
+                id="landlordName"
+                value={form.landlordName}
+                onChange={(e) => setForm((prev) => ({ ...prev, landlordName: e.target.value }))}
+                className="mt-1.5 border-sage"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="landlordPhone" className="text-navy">Phone</Label>
+                <Input
+                  id="landlordPhone"
+                  value={form.landlordPhone}
+                  onChange={(e) => setForm((prev) => ({ ...prev, landlordPhone: e.target.value }))}
+                  className="mt-1.5 border-sage"
+                />
+              </div>
+              <div>
+                <Label htmlFor="landlordEmail" className="text-navy">Email</Label>
+                <Input
+                  id="landlordEmail"
+                  type="email"
+                  value={form.landlordEmail}
+                  onChange={(e) => setForm((prev) => ({ ...prev, landlordEmail: e.target.value }))}
+                  className="mt-1.5 border-sage"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* e-Transfer stays editable — it legitimately varies per property */}
         <div>
           <Label htmlFor="eTransferEmail" className="text-navy">e-Transfer Email</Label>
           <Input
@@ -509,19 +879,13 @@ export default function CreateLeasePage() {
             value={form.eTransferEmail}
             onChange={(e) => setForm((prev) => ({ ...prev, eTransferEmail: e.target.value }))}
             placeholder="payments@example.com"
-            className="mt-1.5 border-sage"
+            className="mt-1.5 border-sage bg-white"
           />
-          <p className="text-xs text-text-muted mt-1">This email will be used for rent payments via e-Transfer.</p>
+          <p className="text-xs text-text-muted mt-1">
+            Where this tenant sends rent. Defaults to your payment settings.
+          </p>
         </div>
       </div>
-    </div>
-  )
-
-  // Step 3 - Tenant Details
-  const Step3 = () => (
-    <div className="space-y-6">
-      <h2 className="text-xl font-medium text-navy">Tenant Details</h2>
-      <p className="text-sm text-text-muted">Enter the primary tenant information.</p>
 
       <div className="space-y-4">
         <div>
@@ -534,7 +898,7 @@ export default function CreateLeasePage() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="tenantEmail" className="text-navy">Email *</Label>
             <Input
@@ -602,7 +966,7 @@ export default function CreateLeasePage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="numberOfVehicles" className="text-navy">Number of Vehicles</Label>
             <Input
@@ -630,7 +994,7 @@ export default function CreateLeasePage() {
 
         <div>
           <Label className="text-navy mb-3 block">Utilities Tenant is Responsible For</Label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {UTILITIES.map((utility) => (
               <label key={utility} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -660,7 +1024,7 @@ export default function CreateLeasePage() {
       <p className="text-sm text-text-muted">Set the terms and conditions of the lease.</p>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="startDate" className="text-navy">Start Date *</Label>
             <Input
@@ -683,7 +1047,7 @@ export default function CreateLeasePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="monthlyRent" className="text-navy">Monthly Rent *</Label>
             <div className="relative mt-1.5">
@@ -816,7 +1180,7 @@ export default function CreateLeasePage() {
             {/* Lease Terms */}
             <div className="pb-4 border-b border-sage/30">
               <h4 className="text-sm font-medium text-text-muted mb-2">Lease Terms</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-text-muted">Lease Period</p>
                   <p className="text-sm text-navy">
@@ -874,12 +1238,10 @@ export default function CreateLeasePage() {
       case 0:
         return Step1()
       case 1:
-        return Step2()
-      case 2:
         return Step3()
-      case 3:
+      case 2:
         return Step4()
-      case 4:
+      case 3:
         return Step5()
       default:
         return null
@@ -931,5 +1293,14 @@ export default function CreateLeasePage() {
         </Button>
       </div>
     </div>
+  )
+}
+
+
+export default function CreateLeasePage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateLeasePageInner />
+    </Suspense>
   )
 }

@@ -84,6 +84,10 @@ export default function SettingsPage() {
     company: "",
   })
   const [userId, setUserId] = useState<string | null>(null)
+  const [subscription, setSubscription] = useState<{
+    status: string | null
+    trialEnd: string | null
+  }>({ status: null, trialEnd: null })
   const [savingAccount, setSavingAccount] = useState(false)
 
   useEffect(() => {
@@ -98,12 +102,16 @@ export default function SettingsPage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, company_name")
+        .select("first_name, last_name, email, phone, company_name, notification_preferences, subscription_status, trial_end_date")
         .eq("id", user.id)
         .maybeSingle()
 
       if (!isMounted) return
       setUserId(user.id)
+      setSubscription({
+        status: data?.subscription_status ?? null,
+        trialEnd: data?.trial_end_date ?? null,
+      })
       setAccountForm({
         firstName: data?.first_name ?? "",
         lastName: data?.last_name ?? "",
@@ -111,6 +119,8 @@ export default function SettingsPage() {
         phone: data?.phone ?? "",
         company: data?.company_name ?? "",
       })
+      const prefs = ((data as any)?.notification_preferences ?? {}) as Record<string, boolean>
+      setNotifications((prev) => ({ ...prev, ...prefs }))
     }
 
     loadAccount()
@@ -129,11 +139,12 @@ export default function SettingsPage() {
     const supabase = createClient()
     const { error } = await supabase
       .from("profiles")
-      .update({
+     .update({
         first_name: accountForm.firstName,
         last_name: accountForm.lastName,
         phone: accountForm.phone,
         company_name: accountForm.company,
+        profile_completed: true,
       })
       .eq("id", userId)
     setSavingAccount(false)
@@ -146,9 +157,10 @@ export default function SettingsPage() {
 
   // Payment Settings
   const [paymentForm, setPaymentForm] = useState({
-    eTransferEmail: "payments@smithproperties.com",
+    eTransferEmail: "",
     eTransferMessage: "Rent - {property_address}",
   })
+  const [savingPayment, setSavingPayment] = useState(false)
 
   // Contractors
   const [contractors, setContractors] = useState<Contractor[]>([])
@@ -339,6 +351,81 @@ export default function SettingsPage() {
     loadContractors()
   }
 
+
+  useEffect(() => {
+    const loadPaymentConfig = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from("payment_configuration")
+        .select("etransfer_email, etransfer_message")
+        .eq("landlord_id", user.id)
+        .maybeSingle()
+      if (data) {
+        setPaymentForm({
+          eTransferEmail: data.etransfer_email ?? "",
+          eTransferMessage: data.etransfer_message ?? "Rent - {property_address}",
+        })
+      }
+    }
+    loadPaymentConfig()
+  }, [])
+
+  const handleSavePayment = async () => {
+    if (savingPayment) return
+    setSavingPayment(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSavingPayment(false)
+      return
+    }
+    const { error } = await supabase
+      .from("payment_configuration")
+      .upsert(
+        {
+          landlord_id: user.id,
+          etransfer_email: paymentForm.eTransferEmail || null,
+          etransfer_message: paymentForm.eTransferMessage || null,
+        },
+        { onConflict: "landlord_id" }
+      )
+    setSavingPayment(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success("Payment settings saved")
+  }
+
+
+  // Real subscription state, derived from the profile
+  const trialDaysRemaining = (() => {
+    if (!subscription.trialEnd) return null
+    const end = new Date(subscription.trialEnd)
+    const diff = Math.ceil((end.getTime() - Date.now()) / 86400000)
+    return diff > 0 ? diff : 0
+  })()
+
+  const planLabel =
+    subscription.status === "active"
+      ? "Essential"
+      : subscription.status === "trialing" || subscription.status === "trial"
+        ? "Trial"
+        : subscription.status === "canceled" || subscription.status === "cancelled"
+          ? "Cancelled"
+          : subscription.status
+            ? subscription.status
+            : "—"
+
+  const isOnTrial =
+    subscription.status === "trialing" || subscription.status === "trial"
+
   return (
     <div className="p-6 max-w-4xl">
       <h1 className="text-2xl font-medium text-navy mb-6">Settings</h1>
@@ -350,7 +437,7 @@ export default function SettingsPage() {
             <CardTitle className="text-lg font-medium text-navy">Account Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName" className="text-navy">First Name</Label>
                 <Input
@@ -381,7 +468,7 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-text-muted mt-1">Contact support to change your email address.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="phone" className="text-navy">Phone</Label>
                 <Input
@@ -437,6 +524,7 @@ export default function SettingsPage() {
                 className="mt-1.5 border-sage"
               />
               <p className="text-xs text-text-muted mt-1">Use {"{property_address}"} as a placeholder for the property address.</p>
+              <p className="text-xs text-text-muted mt-1">This is the default e-Transfer address tenants see, unless a specific one is set on a lease.</p>
             </div>
             <div className="flex items-center justify-between p-4 bg-sage/10 rounded-lg">
               <div>
@@ -445,8 +533,12 @@ export default function SettingsPage() {
               </div>
               <Badge variant="outline" className="border-warning text-warning">Coming Soon</Badge>
             </div>
-            <Button className="bg-teal hover:bg-teal-dark text-white">
-              Save Changes
+            <Button
+              onClick={handleSavePayment}
+              disabled={savingPayment}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {savingPayment ? "Saving..." : "Save Changes"}
             </Button>
           </CardContent>
         </Card>
@@ -544,22 +636,34 @@ export default function SettingsPage() {
             <CardTitle className="text-lg font-medium text-navy">Subscription</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Current Plan</p>
-                <p className="text-xl font-medium text-navy">Trial</p>
-                <p className="text-sm text-warning">12 days remaining</p>
+                <p className="text-xl font-medium text-navy">{}</p>
+                {isOnTrial && trialDaysRemaining !== null ? (
+                  <p className="text-sm text-warning">
+                    {trialDaysRemaining === 0
+                      ? "Trial ends today"
+                      : `${trialDaysRemaining} day${trialDaysRemaining === 1 ? "" : "s"} remaining`}
+                  </p>
+                ) : subscription.status === "active" ? (
+                  <p className="text-sm text-text-muted">Renews monthly</p>
+                ) : null}
               </div>
               <div className="p-4 bg-sage/10 rounded-lg">
                 <p className="text-sm text-text-muted">Properties</p>
-                <p className="text-xl font-medium text-navy">3 of 15</p>
-                <p className="text-sm text-text-muted">maximum</p>
+                <p className="text-xl font-medium text-navy">Unlimited</p>
+                <p className="text-sm text-text-muted">during early access</p>
               </div>
             </div>
             <div className="p-4 bg-sage/10 rounded-lg">
               <p className="text-sm text-text-muted">Monthly Cost</p>
-              <p className="text-xl font-medium text-navy">$0.00</p>
-              <p className="text-sm text-text-muted">$49.99/mo after trial</p>
+              <p className="text-xl font-medium text-navy">
+                {isOnTrial ? "$0.00" : subscription.status === "active" ? "$79.99" : "—"}
+              </p>
+              <p className="text-sm text-text-muted">
+                {isOnTrial ? "$79.99/mo after trial" : "Billed monthly"}
+              </p>
             </div>
             <Button 
               onClick={() => router.push("/pricing")}
@@ -587,7 +691,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.email}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("email", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -597,7 +701,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.maintenanceAlerts}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, maintenanceAlerts: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("maintenanceAlerts", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -607,7 +711,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.rentReceived}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, rentReceived: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("rentReceived", checked)}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -617,7 +721,7 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.leaseExpiry}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, leaseExpiry: checked })}
+                onCheckedChange={(checked) => saveNotificationPref("leaseExpiry", checked)}
               />
             </div>
             <div className="flex items-center justify-between p-4 bg-sage/10 rounded-lg">

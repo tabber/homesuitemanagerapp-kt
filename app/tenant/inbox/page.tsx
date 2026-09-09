@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import {
   Send,
@@ -56,6 +56,14 @@ export default function TenantInbox() {
   const [landlord, setLandlord] = useState<any | null>(null)
   const [propertyId, setPropertyId] = useState<string | null>(null)
   const [messages, setMessages] = useState<any[]>([])
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+
+  // Jump to the newest message whenever the thread loads or changes, so the
+  // tenant sees the latest message rather than the oldest.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" })
+  }, [messages])
+
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   // No documents table exists yet; render an empty list
@@ -136,8 +144,7 @@ export default function TenantInbox() {
       priority: r.priority ?? "medium",
       status: r.status ?? "open",
       createdAt: formatDate(r.created_at),
-      timeline: [],
-      landlordNotes: r.landlord_notes ?? "",
+      // landlord_notes is internal to the landlord — never exposed to tenants
       contractor: "",
       scheduledDate: r.scheduled_date ? formatDate(r.scheduled_date) : "",
     }))
@@ -233,7 +240,7 @@ export default function TenantInbox() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          <Card className="border-sage/50 h-[600px] flex flex-col">
+          <Card className="border-sage/50 h-[70vh] sm:h-[600px] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-sage/30 flex items-center gap-3">
               <Avatar className="h-10 w-10 bg-sage-light">
                 <AvatarFallback className="bg-sage-light text-navy text-sm">
@@ -246,7 +253,7 @@ export default function TenantInbox() {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 min-h-0 p-4">
               <div className="space-y-4">
                 {messages.length === 0 && (
                   <p className="text-sm text-text-muted text-center py-6">No data yet</p>
@@ -259,13 +266,13 @@ export default function TenantInbox() {
                     }`}
                   >
                     <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
+                      className={`max-w-[85%] sm:max-w-[70%] min-w-0 rounded-lg p-3 ${
                         message.sender === "tenant"
                           ? "bg-teal text-white"
                           : "bg-cream text-navy"
                       }`}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
                       <p
                         className={`text-xs mt-1 ${
                           message.sender === "tenant"
@@ -278,6 +285,7 @@ export default function TenantInbox() {
                     </div>
                   </div>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
@@ -318,7 +326,7 @@ export default function TenantInbox() {
                     setMaintenanceFilter(value)
                   }
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-full sm:w-32">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -373,7 +381,7 @@ export default function TenantInbox() {
                           rows={4}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label>Category</Label>
                           <Select
@@ -425,7 +433,7 @@ export default function TenantInbox() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-3 justify-end">
+                      <div className="flex flex-wrap gap-3 justify-end">
                         <Button
                           variant="outline"
                           onClick={() => setShowNewRequestModal(false)}
@@ -526,35 +534,6 @@ export default function TenantInbox() {
                       </div>
                     )}
 
-                    {selectedRequest.landlordNotes && (
-                      <div className="bg-cream rounded-lg p-4">
-                        <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
-                          Landlord Notes
-                        </p>
-                        <p className="text-sm text-navy">
-                          {selectedRequest.landlordNotes}
-                        </p>
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs text-text-muted uppercase tracking-wider mb-3">
-                        Status Timeline
-                      </p>
-                      <div className="space-y-3">
-                        {selectedRequest.timeline.map((item, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <div className="w-2 h-2 rounded-full bg-teal mt-2" />
-                            <div>
-                              <p className="text-sm text-navy">{item.event}</p>
-                              <p className="text-xs text-text-muted">
-                                {item.date} by {item.by}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               ) : (

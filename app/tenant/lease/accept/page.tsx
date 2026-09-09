@@ -193,7 +193,7 @@ export default function AcceptLeasePage() {
               Lease Terms
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-text-muted">Start date</p>
               <p className="text-navy font-medium">{formatDate(lease.start_date)}</p>
@@ -242,7 +242,7 @@ export default function AcceptLeasePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-text-muted">Pets</p>
                 <p className="text-navy font-medium">

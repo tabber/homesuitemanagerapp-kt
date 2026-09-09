@@ -119,6 +119,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
+    // 5b. Seed the tenant's profile name from the lease if it isn't set yet.
+    //     The landlord entered the tenant's name on the lease; carry it onto
+    //     the tenant's profile so it shows in Settings and everywhere the
+    //     profile is read. Never overwrites a name the tenant already set.
+    if (lease.tenant_name && (!profile.first_name || !profile.last_name)) {
+      const parts = String(lease.tenant_name).trim().split(/\s+/)
+      const firstName = profile.first_name || parts[0] || null
+      const lastName =
+        profile.last_name || (parts.length > 1 ? parts.slice(1).join(" ") : null)
+      await supabaseAdmin
+        .from("profiles")
+        .update({ first_name: firstName, last_name: lastName })
+        .eq("id", user.id)
+    }
+
     // 6. Mark the unit occupied and link the tenant (if this lease has a unit)
     if (lease.unit_id) {
       await supabaseAdmin

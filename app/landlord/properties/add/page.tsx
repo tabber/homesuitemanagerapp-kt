@@ -269,29 +269,87 @@ export default function AddPropertyPage() {
             total_floors: String(multiForm.totalFloors),
           }
 
-    const { error } = await supabase.from("properties").insert({
-      landlord_id: user.id,
-      name: formData.name,
-      property_type: formData.property_type,
-      status: formData.status || "vacant",
-      address: formData.address,
-      city: formData.city,
-      province: formData.province,
-      postal_code: formData.postal_code,
-      country: "Canada",
-      description: formData.description,
-      bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
-      bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
-      square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
-      rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
-      deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
-      total_units: formData.total_units ? parseInt(formData.total_units) : null,
-      total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
-    })
+    const { data: created, error } = await supabase
+      .from("properties")
+      .insert({
+        landlord_id: user.id,
+        name: formData.name,
+        property_type: formData.property_type,
+        status: formData.status || "vacant",
+        address: formData.address,
+        city: formData.city,
+        province: formData.province,
+        postal_code: formData.postal_code,
+        country: "Canada",
+        description: formData.description,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+        bathrooms: formData.bathrooms ? parseFloat(formData.bathrooms) : null,
+        square_feet: formData.square_feet ? parseInt(formData.square_feet) : null,
+        rent_amount: formData.rent_amount ? parseFloat(formData.rent_amount) : null,
+        deposit_amount: formData.deposit_amount ? parseFloat(formData.deposit_amount) : null,
+        total_units: formData.total_units ? parseInt(formData.total_units) : null,
+        total_floors: formData.total_floors ? parseInt(formData.total_floors) : null,
+      })
+      .select("id")
+      .single()
 
-    if (error) {
-      toast.error(error.message)
+    if (error || !created) {
+      toast.error(error?.message ?? "Could not create property")
       return
+    }
+
+    // Multi-unit: persist the unit types and the individual units that were
+    // configured in the builder (previously these were discarded).
+    if (propertyType === "multi") {
+      const typeIdMap = new Map<string, string>()
+
+      for (const ut of multiForm.unitTypes) {
+        const { data: insertedType } = await supabase
+          .from("unit_types")
+          .insert({
+            property_id: created.id,
+            bedrooms: ut.bedrooms,
+            bathrooms: ut.bathrooms,
+            rent_amount: ut.rent,
+            deposit_amount: ut.deposit || null,
+          })
+          .select("id")
+          .single()
+        if (insertedType) typeIdMap.set(ut.id, insertedType.id)
+      }
+
+      const unitRows: any[] = []
+      multiForm.floors.forEach((floor) => {
+        let unitNum = 1
+        floor.units.forEach((fu) => {
+          const ut = multiForm.unitTypes.find((t) => t.id === fu.unitTypeId)
+          for (let i = 0; i < fu.count; i++) {
+            unitRows.push({
+              property_id: created.id,
+              unit_number: `${floor.number}${String(unitNum).padStart(2, "0")}`,
+              floor: floor.number,
+              bedrooms: ut?.bedrooms ?? null,
+              bathrooms: ut?.bathrooms ?? null,
+              rent_amount: ut?.rent ?? null,
+              deposit_amount: ut?.deposit ?? null,
+              status: "vacant",
+            })
+            unitNum++
+          }
+        })
+      })
+
+      if (unitRows.length > 0) {
+        const { error: unitError } = await supabase.from("units").insert(unitRows)
+        if (unitError) {
+          toast.error(`Property saved, but units failed: ${unitError.message}`)
+          router.push("/landlord/properties")
+          return
+        }
+      }
+      toast.success(`Property created with ${unitRows.length} unit${unitRows.length === 1 ? "" : "s"}`)
+    } else {
+      toast.success("Property created")
     }
 
     router.push("/landlord/properties")
@@ -358,7 +416,7 @@ export default function AddPropertyPage() {
         <h1 className="text-2xl font-medium text-navy mb-2">Add New Property</h1>
         <p className="text-text-muted mb-8">What type of property are you adding?</p>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={() => setPropertyType("single")}
             className={cn(
@@ -470,7 +528,7 @@ export default function AddPropertyPage() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="city" className="text-navy">City *</Label>
             <Input
@@ -500,7 +558,7 @@ export default function AddPropertyPage() {
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="postalCode" className="text-navy">Postal Code *</Label>
             <Input
@@ -529,7 +587,7 @@ export default function AddPropertyPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-medium text-navy">Property Details & Amenities</h2>
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="bedrooms" className="text-navy">Bedrooms</Label>
             <Input
@@ -565,7 +623,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="parkingType" className="text-navy">Parking Type</Label>
             <Select
@@ -597,7 +655,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="laundry" className="text-navy">Laundry</Label>
             <Select
@@ -650,7 +708,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label className="text-navy mb-3 block">Amenities</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {AMENITIES.map((amenity) => (
               <label key={amenity} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -672,7 +730,7 @@ export default function AddPropertyPage() {
 
         <div>
           <Label className="text-navy mb-3 block">Utilities Included</Label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {UTILITIES.map((utility) => (
               <label key={utility} className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -700,7 +758,7 @@ export default function AddPropertyPage() {
       <h2 className="text-xl font-medium text-navy">Rental Information & Review</h2>
       
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="monthlyRent" className="text-navy">Monthly Rent *</Label>
             <div className="relative mt-1.5">
@@ -731,7 +789,7 @@ export default function AddPropertyPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="availableFrom" className="text-navy">Available From</Label>
             <Input
@@ -761,7 +819,7 @@ export default function AddPropertyPage() {
         <CardContent className="p-6">
           <h3 className="text-lg font-medium text-navy mb-4">Review Summary</h3>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Property Name</p>
                 <p className="text-sm font-medium text-navy">{singleForm.name || "—"}</p>
@@ -779,7 +837,7 @@ export default function AddPropertyPage() {
                 {singleForm.streetAddress ? `${singleForm.streetAddress}, ${singleForm.city}, ${singleForm.province} ${singleForm.postalCode}` : "—"}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Bedrooms</p>
                 <p className="text-sm font-medium text-navy">{singleForm.bedrooms}</p>
@@ -793,7 +851,7 @@ export default function AddPropertyPage() {
                 <p className="text-sm font-medium text-navy">{singleForm.squareFeet || "—"}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-text-muted">Monthly Rent</p>
                 <p className="text-sm font-medium text-navy">
@@ -889,7 +947,7 @@ export default function AddPropertyPage() {
             className="mt-1.5 border-sage"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="city" className="text-navy">City *</Label>
             <Input
@@ -919,7 +977,7 @@ export default function AddPropertyPage() {
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="postalCode" className="text-navy">Postal Code *</Label>
             <Input
@@ -954,7 +1012,7 @@ export default function AddPropertyPage() {
           <Card key={unitType.id} className="border-sage/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-4">
-                <div className="flex-1 grid grid-cols-4 gap-4">
+                <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label className="text-navy text-xs">Bedrooms</Label>
                     <Input
@@ -1061,7 +1119,7 @@ export default function AddPropertyPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-medium text-navy">Building Details & Floor Builder</h2>
       
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="totalFloors" className="text-navy">Total Floors *</Label>
           <Input
@@ -1106,7 +1164,7 @@ export default function AddPropertyPage() {
                         setMultiForm((prev) => ({ ...prev, floors: newFloors }))
                       }}
                     >
-                      <SelectTrigger className="w-48 border-sage">
+                      <SelectTrigger className="w-full sm:w-48 border-sage">
                         <SelectValue placeholder="Select unit type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1207,7 +1265,7 @@ export default function AddPropertyPage() {
       
       <div>
         <Label className="text-navy mb-3 block">Building Amenities</Label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {AMENITIES.map((amenity) => (
             <label key={amenity} className="flex items-center gap-2 cursor-pointer">
               <Checkbox
@@ -1232,7 +1290,7 @@ export default function AddPropertyPage() {
         <CardContent className="p-6">
           <h3 className="text-lg font-medium text-navy mb-4">Review Summary</h3>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-sage/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-sage/30">
               <div>
                 <p className="text-sm text-text-muted">Building Name</p>
                 <p className="text-sm font-medium text-navy">{multiForm.name || "—"}</p>

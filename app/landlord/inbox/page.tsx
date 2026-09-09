@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import {
   Send,
@@ -18,6 +18,7 @@ import {
   MapPin,
   Star,
   Wrench,
+  Bell,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,43 +53,97 @@ import { StatusBadge } from "@/components/status-badge"
 import { PriorityBadge } from "@/components/priority-badge"
 import { CreateRequestModal } from "@/components/create-request-modal"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 
 // Static reference content (no backing table)
-const provincialForms = {
-  ON: [
-    { name: "Standard Lease (OREA)", description: "Ontario Standard Form of Lease", category: "Lease", url: "#" },
-    { name: "N4 - Notice to End Tenancy", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "N11 - Agreement to End Tenancy", description: "Mutual agreement to terminate", category: "Notice", url: "#" },
-    { name: "N12 - Notice to End Tenancy", description: "Landlord's own use", category: "Notice", url: "#" },
-    { name: "N13 - Notice to End Tenancy", description: "Demolition or major repairs", category: "Notice", url: "#" },
-    { name: "N1 - Notice of Rent Increase", description: "Annual rent increase notice", category: "Notice", url: "#" },
-    { name: "N2 - Notice of Entry", description: "24-hour notice of entry", category: "Notice", url: "#" },
-    { name: "L1 - Application to Evict", description: "Non-payment of rent", category: "Application", url: "#" },
-    { name: "L2 - Application to End Tenancy", description: "Persistent late payment", category: "Application", url: "#" },
-  ],
-  BC: [
-    { name: "Standard Lease Agreement", description: "BC Residential Tenancy Agreement", category: "Lease", url: "#" },
-    { name: "RTB-33 - Ten Day Notice", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "RTB-32 - One Month Notice", description: "End of tenancy", category: "Notice", url: "#" },
-    { name: "Rent Increase Notice", description: "Annual rent increase", category: "Notice", url: "#" },
-    { name: "Notice of Entry", description: "24-hour entry notice", category: "Notice", url: "#" },
-  ],
-  AB: [
-    { name: "Residential Tenancy Agreement", description: "Alberta standard lease", category: "Lease", url: "#" },
-    { name: "14-Day Notice to Terminate", description: "Non-payment of rent", category: "Notice", url: "#" },
-    { name: "Rent Increase Notice", description: "Annual rent increase", category: "Notice", url: "#" },
-    { name: "Notice of Entry", description: "24-hour entry notice", category: "Notice", url: "#" },
-  ],
-}
 
+// Templates the landlord can drop into a message. `preview` is the short
+// label shown in the dropdown; `body` is the full text inserted into the
+// message field. Square brackets mark the bits they need to fill in.
 const messageTemplates = [
-  { id: "1", icon: "DollarSign", name: "Late Rent Reminder", preview: "This is a reminder that your rent payment..." },
-  { id: "2", icon: "Wrench", name: "Maintenance Update", preview: "We wanted to update you on the status of..." },
-  { id: "3", icon: "Calendar", name: "Lease Renewal Notice", preview: "Your lease is set to expire on..." },
-  { id: "4", icon: "AlertTriangle", name: "Entry Notice (24hrs)", preview: "Please be advised that entry to..." },
-  { id: "5", icon: "DollarSign", name: "Rent Increase Notice", preview: "We are writing to inform you of..." },
-  { id: "6", icon: "FileText", name: "General Notice", preview: "We would like to inform you that..." },
+  {
+    id: "1",
+    icon: "DollarSign",
+    name: "Late Rent Reminder",
+    preview: "A friendly nudge about rent that's past due",
+    body: `Hi there,
+
+This is a friendly reminder that rent for this month is now past due. If you've already sent it, thank you — please disregard this message and let me know so I can confirm receipt.
+
+If not, could you let me know when you expect to send it? Happy to work something out if you're having difficulty.
+
+Thanks,`,
+  },
+  {
+    id: "2",
+    icon: "Wrench",
+    name: "Maintenance Update",
+    preview: "Let a tenant know where their request stands",
+    body: `Hi there,
+
+I wanted to give you an update on the maintenance request you submitted.
+
+[Describe the status — e.g. a contractor has been assigned and will attend on DATE between TIME and TIME.]
+
+Please let me know if that timing doesn't work, or if anything changes in the meantime.
+
+Thanks,`,
+  },
+  {
+    id: "3",
+    icon: "Calendar",
+    name: "Lease Renewal Notice",
+    preview: "Start the conversation about renewing",
+    body: `Hi there,
+
+Your current lease is set to end on [DATE]. I wanted to reach out early to ask whether you're planning to stay on.
+
+If you'd like to renew, let me know and I'll get the paperwork started. If you're planning to move on, that's completely fine — just let me know so we can plan accordingly.
+
+Thanks,`,
+  },
+  {
+    id: "4",
+    icon: "AlertTriangle",
+    name: "Entry Notice",
+    preview: "Give notice before entering the unit",
+    body: `Hi there,
+
+I'm writing to give notice that I (or someone on my behalf) will need to enter the unit on [DATE] between [TIME] and [TIME].
+
+Reason for entry: [e.g. repairs, inspection, showing the unit]
+
+Please let me know if this timing is a problem and we can arrange something else. Note that provincial tenancy rules set the required notice period — please check your lease or your provincial tenancy authority for specifics.
+
+Thanks,`,
+  },
+  {
+    id: "5",
+    icon: "DollarSign",
+    name: "Rent Increase Notice",
+    preview: "Notify a tenant of an upcoming rent change",
+    body: `Hi there,
+
+I'm writing to let you know that rent will be changing from [CURRENT AMOUNT] to [NEW AMOUNT], effective [DATE].
+
+Rent increases are subject to provincial rules on notice periods and allowable amounts — please confirm the requirements with your provincial tenancy authority before sending this.
+
+Please let me know if you have any questions.
+
+Thanks,`,
+  },
+  {
+    id: "6",
+    icon: "FileText",
+    name: "General Notice",
+    preview: "A blank starting point for anything else",
+    body: `Hi there,
+
+[Your message here.]
+
+Thanks,`,
+  },
 ]
 
 const contractors = {
@@ -119,11 +174,14 @@ export default function InboxPage() {
   const documents: any[] = []
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
+  const [notesDraft, setNotesDraft] = useState("")
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
   const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState("all")
   const [showCreateRequestModal, setShowCreateRequestModal] = useState(false)
   const [showUploadDocModal, setShowUploadDocModal] = useState(false)
+  const [contractorRows, setContractorRows] = useState<any[]>([])
   const [selectedProvince, setSelectedProvince] = useState("ON")
   const [userId, setUserId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -152,6 +210,24 @@ export default function InboxPage() {
   }
 
   const loadInbox = useCallback(async () => {
+    // Contractors available for maintenance assignment
+    try {
+      const sb = createClient()
+      const {
+        data: { user: cu },
+      } = await sb.auth.getUser()
+      if (cu) {
+        const { data: crows } = await sb
+          .from("contractors")
+          .select("id, name, category")
+          .eq("landlord_id", cu.id)
+          .order("name", { ascending: true })
+        setContractorRows(crows ?? [])
+      }
+    } catch {
+      // non-fatal
+    }
+
     const supabase = createClient()
     const {
       data: { user },
@@ -179,6 +255,20 @@ export default function InboxPage() {
       .select("*")
       .eq("landlord_id", user.id)
       .order("created_at", { ascending: false })
+
+    // Leases give us tenant names and the property behind each conversation,
+    // including for tenancies that have ended.
+    const { data: leaseRows } = await supabase
+      .from("leases")
+      .select("id, tenant_id, tenant_name, tenant_email, property_id, unit_id, status")
+      .eq("landlord_id", user.id)
+
+    const leaseById = new Map<string, any>()
+    const leaseByTenant = new Map<string, any>()
+    ;(leaseRows ?? []).forEach((l: any) => {
+      leaseById.set(l.id, l)
+      if (l.tenant_id && !leaseByTenant.has(l.tenant_id)) leaseByTenant.set(l.tenant_id, l)
+    })
 
     // Collect every other-party / tenant id so we can resolve names in one query
     const profileIds = new Set<string>()
@@ -212,7 +302,12 @@ export default function InboxPage() {
           id: otherId,
           recipientId: otherId,
           propertyId: null,
-          tenant: profileNameMap.get(otherId) || "Unknown",
+          leaseId: null,
+          tenant:
+            profileNameMap.get(otherId) ||
+            leaseByTenant.get(otherId)?.tenant_name ||
+            leaseByTenant.get(otherId)?.tenant_email ||
+            "Former tenant",
           property: "",
           unit: null,
           lastMessage: "",
@@ -231,10 +326,25 @@ export default function InboxPage() {
       })
       convo.lastMessage = text
       convo.timestamp = m.created_at ? formatDate(m.created_at) : ""
-      if (m.property_id) convo.propertyId = m.property_id
+      // Raw value for sorting — the display string above isn't sortable
+      convo.lastMessageAt = m.created_at ? new Date(m.created_at).getTime() : 0
+      // Messages carry a lease_id; the property comes from that lease.
+      const msgLease = m.lease_id ? leaseById.get(m.lease_id) : null
+      const fallbackLease = leaseByTenant.get(otherId)
+      const lease = msgLease ?? fallbackLease
+      if (lease) {
+        convo.leaseId = lease.id ?? convo.leaseId
+        convo.propertyId = lease.property_id ?? convo.propertyId
+        convo.property = propertyNameMap.get(lease.property_id) ?? convo.property
+        if (lease.status && lease.status !== "active") convo.former = true
+      }
       if (m.recipient_id === user.id && !m.read) convo.unread = true
     })
-    const convos = Array.from(convoMap.values())
+    // Most recent conversation first — messages arrive oldest-first, so
+    // without this the stalest threads sit at the top.
+    const convos = Array.from(convoMap.values()).sort(
+      (a: any, b: any) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)
+    )
 
     // Reshape maintenance requests for the existing UI
     const mappedRequests = (requests ?? []).map((r: any) => ({
@@ -259,11 +369,24 @@ export default function InboxPage() {
     setConversations(convos)
     setMaintenanceRequests(mappedRequests)
     // Preserve the currently selected conversation across refreshes
+    // On desktop, auto-select the first item so the detail pane isn't empty.
+    // On mobile the list IS the first screen, so don't auto-open a thread.
+    const isDesktop =
+      typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches
+
     setSelectedConversation((prev: any) =>
-      prev ? convos.find((c) => c.id === prev.id) ?? convos[0] ?? null : convos[0] ?? null
+      prev
+        ? convos.find((c) => c.id === prev.id) ?? (isDesktop ? convos[0] ?? null : null)
+        : isDesktop
+          ? convos[0] ?? null
+          : null
     )
     setSelectedRequest((prev: any) =>
-      prev ? mappedRequests.find((r) => r.id === prev.id) ?? mappedRequests[0] ?? null : mappedRequests[0] ?? null
+      prev
+        ? mappedRequests.find((r) => r.id === prev.id) ?? (isDesktop ? mappedRequests[0] ?? null : null)
+        : isDesktop
+          ? mappedRequests[0] ?? null
+          : null
     )
   }, [])
 
@@ -271,8 +394,142 @@ export default function InboxPage() {
     loadInbox()
   }, [loadInbox])
 
+  // Keep the notes draft in sync with whichever request is open
+  useEffect(() => {
+    setNotesDraft(selectedRequest?.notes ?? "")
+  }, [selectedRequest?.id])
 
-  const handleSendMessage = async () => {
+  // Jump to the newest message when a thread opens or updates
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" })
+  }, [selectedConversation?.id, selectedConversation?.messages?.length])
+
+
+ const handleAssignContractor = async (requestId: string, contractorId: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ contractor_id: contractorId || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    // Update local state so the dropdown reflects the new selection immediately
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, contractor_id: contractorId } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, contractor_id: contractorId } : r))
+    )
+    toast.success("Contractor assigned")
+  }
+
+  const handleUpdateStatus = async (requestId: string, status: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ status })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, status } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, status } : r))
+    )
+    toast.success("Status updated")
+  }  
+  // Opening a conversation marks its incoming messages as read.
+  const openConversation = async (conversation: any) => {
+    setSelectedConversation(conversation)
+    if (!conversation?.unread || !userId) return
+
+    // Optimistically clear the badge so the UI responds immediately
+    setConversations((prev: any[]) =>
+      prev.map((c) => (c.id === conversation.id ? { ...c, unread: false } : c))
+    )
+
+    const supabase = createClient()
+    await supabase
+      .from("messages")
+      .update({ read: true })
+      .eq("recipient_id", userId)
+      .eq("sender_id", conversation.recipientId)
+      .eq("read", false)
+  }
+
+  const handleUpdatePriority = async (requestId: string, priority: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ priority })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, priority } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, priority } : r))
+    )
+    toast.success("Priority updated")
+  }
+
+  const handleUpdateSchedule = async (
+    requestId: string,
+    field: "scheduled_date" | "scheduled_time",
+    value: string
+  ) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ [field]: value || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    const localField = field === "scheduled_date" ? "scheduledDate" : "scheduledTime"
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, [localField]: value } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, [localField]: value } : r))
+    )
+    toast.success("Schedule updated")
+  }
+
+  // Notes save on blur, and only when the text actually changed, so clicking
+  // in and out of the field doesn't fire a pointless save.
+  const handleSaveNotes = async (requestId: string, notes: string) => {
+    const current = maintenanceRequests.find((r) => r.id === requestId)
+    if ((current?.notes ?? "") === notes) return
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("maintenance_requests")
+      .update({ landlord_notes: notes || null })
+      .eq("id", requestId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setSelectedRequest((prev: any) =>
+      prev && prev.id === requestId ? { ...prev, notes } : prev
+    )
+    setMaintenanceRequests((prev: any[]) =>
+      prev.map((r) => (r.id === requestId ? { ...r, notes } : r))
+    )
+    toast.success("Notes saved")
+  }
+    const handleSendMessage = async () => 
+      {
     const text = messageInput.trim()
     if (!text || sending) return
     if (!userId || !selectedConversation?.recipientId) {
@@ -284,8 +541,8 @@ export default function InboxPage() {
     const { error } = await supabase.from("messages").insert({
       sender_id: userId,
       recipient_id: selectedConversation.recipientId,
-     content: text,
-      ...(selectedConversation.propertyId ? { property_id: selectedConversation.propertyId } : {}),
+      content: text,
+      ...(selectedConversation.leaseId ? { lease_id: selectedConversation.leaseId } : {}),
     })
     setSending(false)
     if (error) {
@@ -481,6 +738,10 @@ export default function InboxPage() {
 
   const properties = [{ id: "all", name: "All Properties" }, ...dbProperties]
 
+  const filteredConversations = conversations.filter(
+    (c) => propertyFilter === "all" || c.propertyId === propertyFilter
+  )
+
   const unreadMessages = conversations.filter((c) => c.unread).length
   const openRequests = maintenanceRequests.filter((r) => r.status === "open" || r.status === "in-progress").length
 
@@ -494,10 +755,10 @@ export default function InboxPage() {
   return (
     <div className="p-6 h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-medium text-navy">Inbox</h1>
         <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-          <SelectTrigger className="w-48 border-sage">
+          <SelectTrigger className="w-full sm:w-48 border-sage">
             <SelectValue placeholder="Filter by property" />
           </SelectTrigger>
           <SelectContent>
@@ -527,9 +788,6 @@ export default function InboxPage() {
                 {openRequests}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="data-[state=active]:bg-white data-[state=active]:text-navy">
-            Documents
           </TabsTrigger>
         </TabsList>
 
@@ -601,7 +859,35 @@ export default function InboxPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label className="text-navy">Message</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-navy">Message</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-teal hover:bg-teal/10 h-auto py-1"
+                        >
+                          Use a template
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                        {messageTemplates.map((template) => (
+                          <DropdownMenuItem
+                            key={template.id}
+                            onClick={() => setComposeText(template.body)}
+                            className="flex flex-col items-start py-2 cursor-pointer"
+                          >
+                            <span className="font-medium text-navy">{template.name}</span>
+                            <span className="text-xs text-text-muted truncate w-full">
+                              {template.preview}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                   <Textarea
                     value={composeText}
                     onChange={(e) => setComposeText(e.target.value)}
@@ -629,9 +915,12 @@ export default function InboxPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <div className="flex gap-4 h-full">
-            {/* Conversation List */}
-            <Card className="w-80 border-sage/50 flex flex-col">
+          <div className="flex flex-col md:flex-row gap-4 h-full">
+            {/* Conversation List — hidden on mobile once a thread is open */}
+            <Card className={cn(
+              "w-full md:w-80 border-sage/50 flex flex-col flex-shrink-0",
+              selectedConversation && "hidden md:flex"
+            )}>
               <div className="p-3 border-b border-sage/20">
                 <Button
                   onClick={openCompose}
@@ -641,15 +930,17 @@ export default function InboxPage() {
                   Compose
                 </Button>
               </div>
-              <CardContent className="p-0 flex-1 overflow-hidden">
+              <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
-                  {conversations.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                  {filteredConversations.length === 0 && (
+                    <div className="p-6 text-center text-sm text-text-muted">
+                      No conversations yet. Use Compose to message a tenant.
+                    </div>
                   )}
-                  {conversations.map((conversation) => (
+                  {filteredConversations.map((conversation) => (
                     <button
                       key={conversation.id}
-                      onClick={() => setSelectedConversation(conversation)}
+                      onClick={() => openConversation(conversation)}
                       className={cn(
                         "w-full p-4 text-left border-b border-sage/20 hover:bg-sage/10 transition-colors",
                         selectedConversation?.id === conversation.id && "bg-sage/20"
@@ -682,7 +973,10 @@ export default function InboxPage() {
             </Card>
 
             {/* Message Thread */}
-            <Card className="flex-1 border-sage/50 flex flex-col">
+            <Card className={cn(
+              "flex-1 border-sage/50 flex flex-col",
+              !selectedConversation && "hidden md:flex"
+            )}>
               {!selectedConversation ? (
                 <CardContent className="flex-1 flex items-center justify-center text-sm text-text-muted">
                   No data yet
@@ -690,6 +984,12 @@ export default function InboxPage() {
               ) : (
               <>
               <CardHeader className="border-b border-sage/20 py-4">
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  className="md:hidden flex items-center gap-1 text-sm text-teal mb-3"
+                >
+                  ← All conversations
+                </button>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium">
                     {selectedConversation.tenant.split(" ").map((n: string) => n[0]).join("")}
@@ -702,14 +1002,14 @@ export default function InboxPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-                <ScrollArea className="flex-1 p-4">
+              <CardContent className="flex-1 min-h-0 overflow-hidden p-0 flex flex-col">
+                <ScrollArea className="flex-1 min-h-0 p-4">
                   <div className="space-y-4">
                     {selectedConversation.messages.map((message: any) => (
                       <div
                         key={message.id}
                         className={cn(
-                          "max-w-[70%]",
+                          "max-w-[70%] min-w-0",
                           message.sender === "landlord" ? "ml-auto" : "mr-auto"
                         )}
                       >
@@ -721,7 +1021,7 @@ export default function InboxPage() {
                               : "bg-sage/30 text-navy"
                           )}
                         >
-                          <p className="text-sm">{message.text}</p>
+                          <p className="text-sm break-words whitespace-pre-wrap">{message.text}</p>
                         </div>
                         <p className={cn(
                           "text-xs text-text-muted mt-1",
@@ -731,6 +1031,7 @@ export default function InboxPage() {
                         </p>
                       </div>
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
                 <div className="p-4 border-t border-sage/20">
@@ -749,14 +1050,17 @@ export default function InboxPage() {
                     />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="border-navy/20 text-navy" disabled>
+                        <Button variant="outline" className="border-navy/20 text-navy">
                           Templates
-                          <Lock className="h-3 w-3 ml-1.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-64">
                         {messageTemplates.map((template) => (
-                          <DropdownMenuItem key={template.id} className="flex flex-col items-start py-2">
+                          <DropdownMenuItem
+                            key={template.id}
+                            onClick={() => setMessageInput(template.body)}
+                            className="flex flex-col items-start py-2 cursor-pointer"
+                          >
                             <span className="font-medium text-navy">{template.name}</span>
                             <span className="text-xs text-text-muted truncate w-full">{template.preview}</span>
                           </DropdownMenuItem>
@@ -781,13 +1085,25 @@ export default function InboxPage() {
 
         {/* Maintenance Tab */}
         <TabsContent value="maintenance" className="h-[calc(100%-3rem)] mt-0">
-          <div className="flex gap-4 h-full">
-            {/* Request List */}
-            <Card className="w-80 border-sage/50 flex flex-col">
+          <div className="flex items-center justify-end mb-3">
+            <Link
+              href="/landlord/reminders"
+              className="inline-flex items-center gap-1.5 text-sm text-teal hover:underline"
+            >
+              <Bell className="h-4 w-4" />
+              Manage seasonal reminders
+            </Link>
+          </div>
+          <div className="flex flex-col md:flex-row gap-4 h-full">
+            {/* Request List — hidden on mobile once a request is open */}
+            <Card className={cn(
+              "w-full md:w-80 border-sage/50 flex flex-col flex-shrink-0",
+              selectedRequest && "hidden md:flex"
+            )}>
               <CardHeader className="py-3 border-b border-sage/20">
                 <div className="flex items-center justify-between">
                   <Select value={maintenanceStatusFilter} onValueChange={setMaintenanceStatusFilter}>
-                    <SelectTrigger className="w-32 border-sage h-8 text-sm">
+                    <SelectTrigger className="w-full sm:w-32 border-sage h-8 text-sm">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -806,10 +1122,12 @@ export default function InboxPage() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-0 flex-1 overflow-hidden">
+              <CardContent className="p-0 flex-1 min-h-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   {filteredRequests.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
+                    <div className="p-6 text-center text-sm text-text-muted">
+                      No conversations yet. Use Compose to message a tenant.
+                    </div>
                   )}
                   {filteredRequests.map((request) => (
                     <button
@@ -838,7 +1156,10 @@ export default function InboxPage() {
             </Card>
 
             {/* Request Detail */}
-            <Card className="flex-1 border-sage/50">
+            <Card className={cn(
+              "flex-1 border-sage/50",
+              !selectedRequest && "hidden md:block"
+            )}>
               {!selectedRequest ? (
                 <CardContent className="h-full flex items-center justify-center text-sm text-text-muted">
                   No data yet
@@ -847,6 +1168,12 @@ export default function InboxPage() {
               <ScrollArea className="h-full">
                 <CardContent className="p-6">
                   <div className="space-y-6">
+                    <button
+                      onClick={() => setSelectedRequest(null)}
+                      className="md:hidden flex items-center gap-1 text-sm text-teal"
+                    >
+                      ← All requests
+                    </button>
                     {/* Header */}
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -863,7 +1190,7 @@ export default function InboxPage() {
                     </div>
 
                     {/* Details Grid */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-text-muted text-xs">Category</Label>
                         <p className="text-navy mt-1">{selectedRequest.category}</p>
@@ -871,7 +1198,10 @@ export default function InboxPage() {
                       <div>
                         <Label className="text-text-muted text-xs">Priority</Label>
                         <div className="mt-1">
-                          <Select defaultValue={selectedRequest.priority}>
+                          <Select
+                            value={selectedRequest.priority}
+                            onValueChange={(v) => handleUpdatePriority(selectedRequest.id, v)}
+                          >
                             <SelectTrigger className="border-sage">
                               <SelectValue />
                             </SelectTrigger>
@@ -887,7 +1217,10 @@ export default function InboxPage() {
                       <div>
                         <Label className="text-text-muted text-xs">Status</Label>
                         <div className="mt-1">
-                          <Select defaultValue={selectedRequest.status}>
+                         <Select
+                            value={selectedRequest.status}
+                            onValueChange={(v) => handleUpdateStatus(selectedRequest.id, v)}
+                          >
                             <SelectTrigger className="border-sage">
                               <SelectValue />
                             </SelectTrigger>
@@ -925,12 +1258,19 @@ export default function InboxPage() {
                     {/* Scheduling */}
                     <div className="border-t border-sage/30 pt-4">
                       <h3 className="font-medium text-navy mb-3">Scheduling</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-text-muted text-xs">Scheduled Date</Label>
                           <Input
                             type="date"
-                            defaultValue={selectedRequest.scheduledDate}
+                            value={selectedRequest.scheduledDate || ""}
+                            onChange={(e) =>
+                              handleUpdateSchedule(
+                                selectedRequest.id,
+                                "scheduled_date",
+                                e.target.value
+                              )
+                            }
                             className="mt-1 border-sage"
                           />
                         </div>
@@ -938,7 +1278,14 @@ export default function InboxPage() {
                           <Label className="text-text-muted text-xs">Scheduled Time</Label>
                           <Input
                             type="time"
-                            defaultValue={selectedRequest.scheduledTime ? "10:00" : ""}
+                            value={selectedRequest.scheduledTime || ""}
+                            onChange={(e) =>
+                              handleUpdateSchedule(
+                                selectedRequest.id,
+                                "scheduled_time",
+                                e.target.value
+                              )
+                            }
                             className="mt-1 border-sage"
                           />
                         </div>
@@ -949,34 +1296,28 @@ export default function InboxPage() {
                     <div className="border-t border-sage/30 pt-4">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-navy">Assign Contractor</h3>
-                        <span className="flex items-center gap-1 text-xs text-navy bg-sage/30 px-2 py-1 rounded-full">
-                          <Lock className="h-3 w-3" />
-                          Essential
-                        </span>
+
                       </div>
-                      <Select disabled defaultValue={selectedRequest.contractor || ""}>
-                        <SelectTrigger className="border-sage opacity-70">
+                      <Select
+                        value={selectedRequest.contractor_id || ""}
+                        onValueChange={(v) => handleAssignContractor(selectedRequest.id, v)}
+                      >
+                        <SelectTrigger className="border-sage">
                           <SelectValue placeholder="Select contractor..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.entries(contractors).map(([category, list]) => (
-                            <div key={category}>
-                              <div className="px-2 py-1.5 text-xs font-medium text-text-muted">{category}</div>
-                              {list.map((contractor) => (
-                                <SelectItem key={contractor.id} value={contractor.name}>
-                                  <div className="flex items-center gap-2">
-                                    {contractor.starred && <Star className="h-3 w-3 text-warning fill-warning" />}
-                                    {contractor.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
+                          {contractorRows.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-text-muted">
+                              Add contractors in Settings first
                             </div>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <div className="px-2 py-1.5 text-sm text-teal cursor-pointer hover:bg-sage/10">
-                            <Plus className="h-3 w-3 inline mr-1" />
-                            Add New Contractor
-                          </div>
+                          ) : (
+                            contractorRows.map((c: any) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                                {c.category ? ` · ${c.category}` : ""}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -986,14 +1327,16 @@ export default function InboxPage() {
                       <Label className="text-navy">Landlord Notes</Label>
                       <Textarea
                         placeholder="Add internal notes about this request..."
-                        defaultValue={selectedRequest.notes}
+                        value={notesDraft}
+                        onChange={(e) => setNotesDraft(e.target.value)}
+                        onBlur={() => handleSaveNotes(selectedRequest.id, notesDraft)}
                         className="mt-2 border-sage min-h-[80px]"
                       />
+                      <p className="text-xs text-text-muted mt-1">
+                        Private to you — saves automatically when you click away.
+                      </p>
                     </div>
 
-                    <Button className="bg-teal hover:bg-teal-dark text-white">
-                      Save Changes
-                    </Button>
                   </div>
                 </CardContent>
               </ScrollArea>
@@ -1002,110 +1345,6 @@ export default function InboxPage() {
           </div>
         </TabsContent>
 
-        {/* Documents Tab */}
-        <TabsContent value="documents" className="h-[calc(100%-3rem)] mt-0">
-          <div className="space-y-6">
-            {/* Document List */}
-            <Card className="border-sage/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-medium text-navy">Documents</CardTitle>
-                  <Button
-                    onClick={openUploadDoc}
-                    className="bg-teal hover:bg-teal-dark text-white"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Document
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {documents.length === 0 && (
-                    <div className="p-6 text-center text-sm text-text-muted">No data yet</div>
-                  )}
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-3 bg-sage/10 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded bg-white border border-sage/30 flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-navy" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-navy text-sm">{doc.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <Badge variant="outline" className="text-xs border-sage">
-                              {doc.type}
-                            </Badge>
-                            <span>{doc.property}</span>
-                            <span>{formatDate(doc.date)}</span>
-                            <span>{doc.size}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" className="text-navy hover:bg-navy/5">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Provincial Forms */}
-            <Card className="border-sage/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-medium text-navy">Provincial Rental Forms</CardTitle>
-                  <Select value={selectedProvince} onValueChange={setSelectedProvince}>
-                    <SelectTrigger className="w-48 border-sage">
-                      <SelectValue placeholder="Select province" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ON">Ontario</SelectItem>
-                      <SelectItem value="BC">British Columbia</SelectItem>
-                      <SelectItem value="AB">Alberta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {provincialForms[selectedProvince as keyof typeof provincialForms]?.map((form, index) => (
-                    <a
-                      key={index}
-                      href={form.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 p-4 bg-sage/10 rounded-lg hover:bg-sage/20 transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded bg-warning/10 flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-warning" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-navy text-sm">{form.name}</p>
-                          <ExternalLink className="h-3 w-3 text-text-muted" />
-                        </div>
-                        <p className="text-xs text-text-muted mt-1">{form.description}</p>
-                        <Badge variant="outline" className="mt-2 text-xs border-sage">
-                          {form.category}
-                        </Badge>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* Create Maintenance Request Modal */}
@@ -1141,7 +1380,7 @@ export default function InboxPage() {
                 </label>
               </Button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-navy">Type</Label>
                 <Select value={uploadDocType} onValueChange={setUploadDocType}>
