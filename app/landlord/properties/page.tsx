@@ -58,6 +58,10 @@ import { PriorityBadge } from "@/components/priority-badge"
 import { EmptyState } from "@/components/empty-state"
 import { LockedFeature } from "@/components/locked-feature"
 import { CreateRequestModal } from "@/components/create-request-modal"
+import {
+  PaymentMethodSettings,
+  type PaymentMethodSettingsValues,
+} from "@/components/payment-method-settings"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
@@ -784,6 +788,45 @@ const selectedUnitMaintenance = selectedUnitRow
     loadProperties()
   }
 
+  const handleSavePaymentSettings = async (
+    leaseId: string,
+    settings: PaymentMethodSettingsValues,
+  ) => {
+    const etransferEmail = settings.etransferEmail.trim()
+    if (settings.etransferEnabled && !etransferEmail) {
+      toast.error("Enter an e-Transfer email before enabling e-Transfer.")
+      return
+    }
+
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error("You must be signed in to update payment settings.")
+      return
+    }
+
+    const { error } = await supabase
+      .from("leases")
+      .update({
+        etransfer_enabled: settings.etransferEnabled,
+        etransfer_email: settings.etransferEnabled ? etransferEmail : null,
+        stripe_enabled: settings.stripeEnabled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", leaseId)
+      .eq("landlord_id", user.id)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    toast.success("Payment settings updated")
+    await refreshLeases()
+  }
+
   const openCancelLease = (lease: any) => {
     setCancelTarget(lease)
     setCancelLeaseOpen(true)
@@ -1062,8 +1105,16 @@ const handleResendInvite = async (lease: any) => {
                     >
                       Cancel lease
                     </Button>
-              
                   </div>
+                  <PaymentMethodSettings
+                    key={lease.id}
+                    leaseId={lease.id}
+                    etransferEnabled={Boolean(lease.etransfer_enabled)}
+                    etransferEmail={lease.etransfer_email ?? ""}
+                    stripeEnabled={Boolean(lease.stripe_enabled)}
+                    automaticCollectionAvailable={false}
+                    onSave={(settings) => handleSavePaymentSettings(lease.id, settings)}
+                  />
                 </CardContent>
               </Card>
             ) : (
@@ -1531,7 +1582,17 @@ const handleResendInvite = async (lease: any) => {
                         </div>
                       )}
                     </div>
-                  
+                    <PaymentMethodSettings
+                      key={selectedUnitLease.id}
+                      leaseId={selectedUnitLease.id}
+                      etransferEnabled={Boolean(selectedUnitLease.etransfer_enabled)}
+                      etransferEmail={selectedUnitLease.etransfer_email ?? ""}
+                      stripeEnabled={Boolean(selectedUnitLease.stripe_enabled)}
+                      automaticCollectionAvailable={false}
+                      onSave={(settings) =>
+                        handleSavePaymentSettings(selectedUnitLease.id, settings)
+                      }
+                    />
                   </CardContent>
                 </Card>
               ) : (
