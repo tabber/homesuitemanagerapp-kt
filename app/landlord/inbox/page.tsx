@@ -167,6 +167,17 @@ const contractors = {
 
 export default function InboxPage() {
   const [activeTab, setActiveTab] = useState("messages")
+
+  // Honor a ?tab= deep link (e.g. from the dashboard's recent-activity list).
+  // Read from window.location to avoid the Suspense boundary that
+  // useSearchParams would require at build time.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const tab = new URLSearchParams(window.location.search).get("tab")
+    if (tab === "maintenance" || tab === "messages" || tab === "documents") {
+      setActiveTab(tab)
+    }
+  }, [])
   const [conversations, setConversations] = useState<any[]>([])
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
   const [dbProperties, setDbProperties] = useState<any[]>([])
@@ -362,6 +373,7 @@ export default function InboxPage() {
       scheduledDate: r.scheduled_date ?? "",
       scheduledTime: r.scheduled_time ?? "",
       contractor: "",
+      contractor_token: r.contractor_token ?? null,
       notes: r.landlord_notes ?? "",
     }))
 
@@ -1320,6 +1332,21 @@ export default function InboxPage() {
                           )}
                         </SelectContent>
                       </Select>
+                      {selectedRequest.contractor_id && selectedRequest.contractor_token && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 border-teal text-teal hover:bg-teal/10"
+                          onClick={() => {
+                            const link = `${window.location.origin}/contractor/${selectedRequest.contractor_token}`
+                            navigator.clipboard.writeText(link)
+                            toast.success("Contractor link copied — send it to them directly")
+                          }}
+                        >
+                          Copy contractor link
+                        </Button>
+                      )}
                     </div>
 
                     {/* Notes */}
