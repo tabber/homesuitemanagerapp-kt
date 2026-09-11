@@ -98,6 +98,7 @@ interface ActivityItem {
   amount?: string
   time: string
   sortDate: number
+  href?: string
 }
 
 interface ChecklistItem {
@@ -481,6 +482,7 @@ export default function LandlordDashboard() {
           amount: formatCurrency(Number(p.amount ?? 0)),
           time: p.created_at ? formatRelativeTime(p.created_at) : "",
           sortDate: p.created_at ? new Date(p.created_at).getTime() : 0,
+          href: "/landlord/payments",
         })
       })
 
@@ -501,6 +503,7 @@ export default function LandlordDashboard() {
           property: propertyMap.get(l.property_id) ?? "",
           time: l.created_at ? formatRelativeTime(l.created_at) : "",
           sortDate: l.created_at ? new Date(l.created_at).getTime() : 0,
+          href: "/landlord/properties",
         })
       })
 
@@ -512,6 +515,7 @@ export default function LandlordDashboard() {
           property: propertyMap.get(m.property_id) ?? "",
           time: m.created_at ? formatRelativeTime(m.created_at) : "",
           sortDate: m.created_at ? new Date(m.created_at).getTime() : 0,
+          href: "/landlord/inbox?tab=maintenance",
         })
       })
 
@@ -523,6 +527,7 @@ export default function LandlordDashboard() {
           property: msg.subject ?? "",
           time: msg.created_at ? formatRelativeTime(msg.created_at) : "",
           sortDate: msg.created_at ? new Date(msg.created_at).getTime() : 0,
+          href: "/landlord/inbox",
         })
       })
       activity.sort((a, b) => b.sortDate - a.sortDate)
@@ -751,21 +756,26 @@ export default function LandlordDashboard() {
             ) : (
               <ul className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
                 {recentActivity.map((activity, index) => (
-                  <li key={index} className="flex items-start gap-3 py-2 border-b border-sage/50 last:border-0">
-                    <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
-                      {activity.type === "payment" && <DollarSign className="h-4 w-4 text-navy" />}
-                      {activity.type === "lease" && <FileText className="h-4 w-4 text-navy" />}
-                      {activity.type === "maintenance" && <Wrench className="h-4 w-4 text-navy" />}
-                      {activity.type === "message" && <MessageSquare className="h-4 w-4 text-navy" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary">{activity.description}</p>
-                      <p className="text-xs text-text-muted">{activity.property}</p>
-                      {activity.amount && (
-                        <p className="text-xs font-medium text-teal">{activity.amount}</p>
-                      )}
-                    </div>
-                    <span className="text-xs text-text-muted whitespace-nowrap">{activity.time}</span>
+                  <li key={index} className="border-b border-sage/50 last:border-0">
+                    <Link
+                      href={activity.href ?? "#"}
+                      className="flex items-start gap-3 py-2 -mx-2 px-2 rounded-lg hover:bg-sage/20 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-sage/30 flex items-center justify-center flex-shrink-0">
+                        {activity.type === "payment" && <DollarSign className="h-4 w-4 text-navy" />}
+                        {activity.type === "lease" && <FileText className="h-4 w-4 text-navy" />}
+                        {activity.type === "maintenance" && <Wrench className="h-4 w-4 text-navy" />}
+                        {activity.type === "message" && <MessageSquare className="h-4 w-4 text-navy" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-text-primary">{activity.description}</p>
+                        <p className="text-xs text-text-muted">{activity.property}</p>
+                        {activity.amount && (
+                          <p className="text-xs font-medium text-teal">{activity.amount}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-text-muted whitespace-nowrap">{activity.time}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
