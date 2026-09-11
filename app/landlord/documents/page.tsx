@@ -52,10 +52,32 @@ interface DocRow {
 }
 
 
+// Official provincial/territorial residential-tenancy authorities. These link
+// to each government's own forms page rather than to individual PDFs on
+// purpose: government form URLs and revisions change often (e.g. Ontario's N4
+// notice period changes Sept 21, 2026), and a stale direct-PDF link can lead a
+// landlord to serve an invalid notice. Linking to the authoritative source page
+// keeps landlords on the current version. Verified current as of Sept 2026.
 const PROVINCE_RESOURCES: Record<
   string,
   { label: string; links: { name: string; description: string; url: string }[] }
 > = {
+  AB: {
+    label: "Alberta",
+    links: [
+      {
+        name: "Residential Tenancy Dispute Resolution Service (RTDRS)",
+        description:
+          "Alberta's official tribunal — forms, eFiling, and application guides for landlords and tenants",
+        url: "https://www.alberta.ca/residential-tenancy-dispute-resolution-service",
+      },
+      {
+        name: "RTDRS — how to apply",
+        description: "Step-by-step application instructions and the current fillable PDF forms",
+        url: "https://www.alberta.ca/rtdrs-apply",
+      },
+    ],
+  },
   BC: {
     label: "British Columbia",
     links: [
@@ -72,14 +94,124 @@ const PROVINCE_RESOURCES: Record<
       },
     ],
   },
+  MB: {
+    label: "Manitoba",
+    links: [
+      {
+        name: "Residential Tenancies Branch — forms",
+        description:
+          "Fill-and-print RTB forms — tenancy agreements, notices of rent increase, termination notices",
+        url: "https://www.gov.mb.ca/cca/rtb/ot/download.html",
+      },
+    ],
+  },
+  NB: {
+    label: "New Brunswick",
+    links: [
+      {
+        name: "Residential Tenancies Tribunal — find a form",
+        description:
+          "Service New Brunswick's official landlord and tenant forms, including notices of termination",
+        url: "https://www.gnb.ca/en/topic/family-home-community/housing-property/find-form.html",
+      },
+    ],
+  },
+  NL: {
+    label: "Newfoundland and Labrador",
+    links: [
+      {
+        name: "Residential Tenancies — applications and forms",
+        description:
+          "Service NL's official forms — dispute resolution applications, notices, and payment",
+        url: "https://www.gov.nl.ca/gs/landlord-tenant/residential-tenancies/",
+      },
+    ],
+  },
+  NT: {
+    label: "Northwest Territories",
+    links: [
+      {
+        name: "NWT Rental Office",
+        description:
+          "The territorial Rental Officer — forms, information, and dispute resolution under the Residential Tenancies Act",
+        url: "https://www.justice.gov.nt.ca/en/boards-agencies/rental-office/",
+      },
+    ],
+  },
+  NS: {
+    label: "Nova Scotia",
+    links: [
+      {
+        name: "Residential Tenancies — tenants and landlords",
+        description:
+          "Access Nova Scotia's official notices and forms (Form D, Form K, and more), with guides",
+        url: "https://novascotia.ca/residential-tenancies-tenants-and-landlords/",
+      },
+    ],
+  },
+  NU: {
+    label: "Nunavut",
+    links: [
+      {
+        name: "Nunavut Rental Office",
+        description:
+          "The territorial Rental Officer — information and applications under the Residential Tenancies Act",
+        url: "https://www.gov.nu.ca/en/justice-and-individual-protection/nunavut-rental-office",
+      },
+    ],
+  },
   ON: {
     label: "Ontario",
     links: [
       {
-        name: "Landlord and Tenant Board",
+        name: "Landlord and Tenant Board — forms",
         description:
-          "Official LTB forms (N-series notices, L-series applications) and filing information",
-        url: "https://tribunalsontario.ca/ltb/",
+          "Official LTB forms (N-series notices, L-series applications). Note: N4 notice period changes to 7 days on Sept 21, 2026",
+        url: "https://tribunalsontario.ca/ltb/forms-filing-and-fees/",
+      },
+    ],
+  },
+  PE: {
+    label: "Prince Edward Island",
+    links: [
+      {
+        name: "IRAC Rental Office — forms",
+        description:
+          "The Island Regulatory and Appeals Commission's official rental forms and notices",
+        url: "https://peirentaloffice.ca/forms/",
+      },
+    ],
+  },
+  QC: {
+    label: "Quebec",
+    links: [
+      {
+        name: "Tribunal administratif du logement — forms and notices",
+        description:
+          "Quebec's housing tribunal (TAL) — official forms and notices (documents are in French)",
+        url: "https://www.tal.gouv.qc.ca/en/forms-and-notices",
+      },
+    ],
+  },
+  SK: {
+    label: "Saskatchewan",
+    links: [
+      {
+        name: "Office of Residential Tenancies (ORT)",
+        description:
+          "Saskatchewan's official tenancy tribunal — notices, applications, and the online portal",
+        url: "https://www.saskatchewan.ca/government/government-structure/boards-commissions-and-agencies/office-of-residential-tenancies",
+      },
+    ],
+  },
+  YT: {
+    label: "Yukon",
+    links: [
+      {
+        name: "Residential Tenancy Office — forms for landlords and tenants",
+        description:
+          "Yukon's official forms to start and end a tenancy and for dispute resolution",
+        url: "https://yukon.ca/en/housing-and-property/landlords-and-tenants-responsibilities/forms-landlords-and-tenants",
       },
     ],
   },
