@@ -43,6 +43,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { UTILITY_OPTIONS } from "@/lib/utilities"
 import {
   BarChart,
   Bar,
@@ -80,6 +81,15 @@ function PaymentsPageInner() {
   }, [])
   const [remindingId, setRemindingId] = useState<string | null>(null)
   const [showRecordModal, setShowRecordModal] = useState(false)
+  const [showUtilityModal, setShowUtilityModal] = useState(false)
+  const [sendingUtility, setSendingUtility] = useState(false)
+  const [utilityForm, setUtilityForm] = useState({
+    leaseId: "",
+    utility: "",
+    amount: "",
+    dueDate: "",
+    note: "",
+  })
   const [copiedInstructions, setCopiedInstructions] = useState(false)
   const [sendingReminder, setSendingReminder] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
@@ -519,18 +529,91 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
     toast.success(`Reminder sent to ${payment.tenant}`)
   }
 
+  // Notify a tenant that a utility bill is due. Mirrors the rent-reminder
+  // pattern: it inserts a message that lands in the tenant's inbox. It does
+  // not create a tracked payable — this is a heads-up notification only.
+  const handleNotifyUtility = async () => {
+    if (sendingUtility) return
+    const lease = leaseOptions.find((l) => l.id === utilityForm.leaseId)
+    if (!lease) {
+      toast.error("Please choose a lease")
+      return
+    }
+    if (!lease.tenant_id) {
+      toast.error("This tenant hasn't accepted their invite yet, so they can't be notified.")
+      return
+    }
+    if (!utilityForm.utility || !utilityForm.amount) {
+      toast.error("Please choose a utility and enter an amount")
+      return
+    }
+
+    setSendingUtility(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSendingUtility(false)
+      return
+    }
+
+    const amountText = formatCurrency(Number(utilityForm.amount))
+    const dueText = utilityForm.dueDate
+      ? ` by ${new Date(utilityForm.dueDate).toLocaleDateString("en-CA", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })}`
+      : ""
+    const payText = lease.payToEmail
+      ? ` You can send it by e-Transfer to ${lease.payToEmail}.`
+      : ""
+    const noteText = utilityForm.note.trim() ? ` ${utilityForm.note.trim()}` : ""
+
+    const { error } = await supabase.from("messages").insert({
+      sender_id: user.id,
+      recipient_id: lease.tenant_id,
+      lease_id: lease.id,
+      subject: `${utilityForm.utility} bill`,
+      content:
+        `Hi ${lease.tenant_name ?? "there"}, your share of the ${utilityForm.utility.toLowerCase()} ` +
+        `bill${lease.propertyName ? ` for ${lease.propertyName}` : ""} is ${amountText} and is due${dueText}.` +
+        payText +
+        noteText,
+    })
+
+    setSendingUtility(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`${utilityForm.utility} bill notification sent to ${lease.tenant_name ?? "tenant"}`)
+    setShowUtilityModal(false)
+    setUtilityForm({ leaseId: "", utility: "", amount: "", dueDate: "", note: "" })
+  }
+
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-medium text-navy">Payments</h1>
-        <Button
-          onClick={() => setShowRecordModal(true)}
-          className="bg-teal hover:bg-teal-dark text-white"
-        >
-          Record Payment
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowUtilityModal(true)}
+            className="border-teal text-teal hover:bg-teal/10"
+          >
+            Notify Utility Bill
+          </Button>
+          <Button
+            onClick={() => setShowRecordModal(true)}
+            className="bg-teal hover:bg-teal-dark text-white"
+          >
+            Record Payment
+          </Button>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -825,6 +908,114 @@ const totalOverdue = filteredPayments.filter(p => p.status === "overdue").reduce
                   className="bg-teal hover:bg-teal-dark text-white"
                 >
                   {savingPayment ? "Saving..." : "Record Payment"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Notify Utility Bill Modal */}
+      <Dialog open={showUtilityModal} onOpenChange={setShowUtilityModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-navy font-medium">Notify about a utility bill</DialogTitle>
+          </DialogHeader>
+          {leaseOptions.length === 0 ? (
+            <p className="py-6 text-sm text-text-muted text-center">
+              You need an active lease before you can notify a tenant.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-text-muted">
+                This sends the tenant a message in their inbox. It&apos;s a heads-up
+                notification — it doesn&apos;t record a tracked payment.
+              </p>
+
+              <div>
+                <Label htmlFor="u_lease">Lease</Label>
+                <Select
+                  value={utilityForm.leaseId}
+                  onValueChange={(v) => setUtilityForm((f) => ({ ...f, leaseId: v }))}
+                >
+                  <SelectTrigger id="u_lease">
+                    <SelectValue placeholder="Select a lease" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leaseOptions.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="u_utility">Utility</Label>
+                <Select
+                  value={utilityForm.utility}
+                  onValueChange={(v) => setUtilityForm((f) => ({ ...f, utility: v }))}
+                >
+                  <SelectTrigger id="u_utility">
+                    <SelectValue placeholder="Select a utility" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UTILITY_OPTIONS.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="u_amount">Amount (CAD)</Label>
+                <Input
+                  id="u_amount"
+                  type="number"
+                  step="0.01"
+                  value={utilityForm.amount}
+                  onChange={(e) => setUtilityForm((f) => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="u_due">Due date (optional)</Label>
+                <Input
+                  id="u_due"
+                  type="date"
+                  value={utilityForm.dueDate}
+                  onChange={(e) => setUtilityForm((f) => ({ ...f, dueDate: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="u_note">Note (optional)</Label>
+                <Input
+                  id="u_note"
+                  value={utilityForm.note}
+                  onChange={(e) => setUtilityForm((f) => ({ ...f, note: e.target.value }))}
+                  placeholder="e.g. This covers Jan–Feb usage."
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-3 justify-end pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUtilityModal(false)}
+                  className="border-sage text-navy hover:bg-sage/20"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleNotifyUtility}
+                  disabled={!utilityForm.leaseId || !utilityForm.utility || !utilityForm.amount || sendingUtility}
+                  className="bg-teal hover:bg-teal-dark text-white"
+                >
+                  {sendingUtility ? "Sending..." : "Send notification"}
                 </Button>
               </div>
             </div>
