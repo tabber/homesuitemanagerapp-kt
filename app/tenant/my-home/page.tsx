@@ -39,6 +39,7 @@ import { EmptyState } from "@/components/empty-state"
 import Link from "next/link"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
+import { toUtilityList } from "@/lib/utilities"
 
 export default function TenantMyHome() {
   const [showLeaseModal, setShowLeaseModal] = useState(false)
@@ -172,16 +173,6 @@ export default function TenantMyHome() {
       isMounted = false
     }
   }, [])
-
-  // Coerce a jsonb utilities value into a string array
-  const toUtilityList = (value: any): string[] => {
-    if (!value) return []
-    if (Array.isArray(value)) return value.map((v) => String(v))
-    if (typeof value === "object") {
-      return Object.keys(value).filter((k) => value[k])
-    }
-    return []
-  }
 
   const tenantName =
     [tenantRow?.first_name, tenantRow?.last_name].filter(Boolean).join(" ").trim() ||
