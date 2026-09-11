@@ -186,6 +186,10 @@ export default function InboxPage() {
   const [selectedConversation, setSelectedConversation] = useState<any | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
   const [notesDraft, setNotesDraft] = useState("")
+  const [activityLog, setActivityLog] = useState<any[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [logDraft, setLogDraft] = useState("")
+  const [loggingUpdate, setLoggingUpdate] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [messageInput, setMessageInput] = useState("")
   const [propertyFilter, setPropertyFilter] = useState("all")
@@ -218,6 +222,22 @@ export default function InboxPage() {
       month: "long",
       day: "numeric",
     })
+  }
+
+  const formatActivityTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString("en-CA", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  }
+
+  const ACTIVITY_LABELS: Record<string, string> = {
+    status_change: "Status changed",
+    contractor_assigned: "Contractor assigned",
+    scheduled: "Scheduled",
+    note: "Update",
   }
 
   const loadInbox = useCallback(async () => {
@@ -409,6 +429,12 @@ export default function InboxPage() {
   // Keep the notes draft in sync with whichever request is open
   useEffect(() => {
     setNotesDraft(selectedRequest?.notes ?? "")
+    if (selectedRequest?.id) {
+      loadActivity(selectedRequest.id)
+    } else {
+      setActivityLog([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRequest?.id])
 
   // Jump to the newest message when a thread opens or updates
@@ -416,6 +442,51 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ block: "end" })
   }, [selectedConversation?.id, selectedConversation?.messages?.length])
 
+
+ // Append an immutable activity record for a request, and optimistically show it.
+  const logActivity = async (requestId: string, action: string, detail?: string) => {
+    if (!userId) return
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("maintenance_activity")
+      .insert({
+        request_id: requestId,
+        landlord_id: userId,
+        action,
+        detail: detail || null,
+      })
+      .select()
+      .single()
+    if (error) {
+      // History is best-effort — never block the primary action on it, but
+      // surface it so a missing table/migration doesn't fail silently.
+      console.error("Could not log maintenance activity:", error.message)
+      return
+    }
+    if (data) setActivityLog((prev) => [data, ...prev])
+  }
+
+  const loadActivity = async (requestId: string) => {
+    setActivityLoading(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("maintenance_activity")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: false })
+    setActivityLog(data ?? [])
+    setActivityLoading(false)
+  }
+
+  const handleLogUpdate = async () => {
+    const text = logDraft.trim()
+    if (!text || !selectedRequest) return
+    setLoggingUpdate(true)
+    await logActivity(selectedRequest.id, "note", text)
+    setLoggingUpdate(false)
+    setLogDraft("")
+    toast.success("Update logged")
+  }
 
  const handleAssignContractor = async (requestId: string, contractorId: string) => {
     const supabase = createClient()
@@ -434,6 +505,11 @@ export default function InboxPage() {
     setMaintenanceRequests((prev: any[]) =>
       prev.map((r) => (r.id === requestId ? { ...r, contractor_id: contractorId } : r))
     )
+    if (contractorId) {
+      const contractorName =
+        contractorRows.find((c: any) => c.id === contractorId)?.name ?? "a contractor"
+      await logActivity(requestId, "contractor_assigned", `Assigned ${contractorName}`)
+    }
     toast.success("Contractor assigned")
   }
 
@@ -453,6 +529,9 @@ export default function InboxPage() {
     setMaintenanceRequests((prev: any[]) =>
       prev.map((r) => (r.id === requestId ? { ...r, status } : r))
     )
+    const statusLabel =
+      status === "in-progress" ? "In Progress" : status.charAt(0).toUpperCase() + status.slice(1)
+    await logActivity(requestId, "status_change", `Status set to ${statusLabel}`)
     toast.success("Status updated")
   }  
   // Opening a conversation marks its incoming messages as read.
@@ -514,6 +593,10 @@ export default function InboxPage() {
     setMaintenanceRequests((prev: any[]) =>
       prev.map((r) => (r.id === requestId ? { ...r, [localField]: value } : r))
     )
+    if (value) {
+      const label = field === "scheduled_date" ? "date" : "time"
+      await logActivity(requestId, "scheduled", `Set scheduled ${label} to ${value}`)
+    }
     toast.success("Schedule updated")
   }
 
@@ -1362,6 +1445,78 @@ export default function InboxPage() {
                       <p className="text-xs text-text-muted mt-1">
                         Private to you — saves automatically when you click away.
                       </p>
+                    </div>
+
+                    {/* Activity History */}
+                    <div className="border-t border-sage/30 pt-4">
+                      <Label className="text-navy">Activity History</Label>
+                      <p className="text-xs text-text-muted mt-1 mb-3">
+                        A timestamped record of what was done — contacted a contractor,
+                        ordered a part, and so on. Status, scheduling, and contractor
+                        changes are logged automatically.
+                      </p>
+
+                      {/* Log a new update */}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="e.g. Called plumber, part ordered — ETA Friday"
+                          value={logDraft}
+                          onChange={(e) => setLogDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault()
+                              handleLogUpdate()
+                            }
+                          }}
+                          className="border-sage"
+                        />
+                        <Button
+                          onClick={handleLogUpdate}
+                          disabled={!logDraft.trim() || loggingUpdate}
+                          className="bg-teal hover:bg-teal-dark text-white shrink-0"
+                        >
+                          Log
+                        </Button>
+                      </div>
+
+                      {/* Timeline */}
+                      <div className="mt-4">
+                        {activityLoading ? (
+                          <p className="text-xs text-text-muted py-2">Loading history…</p>
+                        ) : activityLog.length === 0 ? (
+                          <p className="text-xs text-text-muted py-2">
+                            No activity logged yet.
+                          </p>
+                        ) : (
+                          <ul className="space-y-3">
+                            {activityLog.map((entry) => (
+                              <li key={entry.id} className="flex gap-3">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-2 h-2 rounded-full bg-teal mt-1.5 shrink-0" />
+                                  <div className="w-px flex-1 bg-sage/40" />
+                                </div>
+                                <div className="flex-1 min-w-0 pb-1">
+                                  <div className="flex items-baseline justify-between gap-3">
+                                    <span className="text-xs font-medium text-navy">
+                                      {ACTIVITY_LABELS[entry.action] ?? "Update"}
+                                    </span>
+                                    <span className="text-xs text-text-muted whitespace-nowrap">
+                                      {entry.created_at
+                                        ? formatActivityTime(entry.created_at)
+                                        : ""}
+                                    </span>
+                                  </div>
+                                  {entry.detail && (
+                                    <p className="text-sm text-text-primary mt-0.5 break-words">
+                                      {entry.detail}
+                                    </p>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
 
                   </div>
