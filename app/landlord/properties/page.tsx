@@ -62,11 +62,25 @@ import {
   PaymentMethodSettings,
   type PaymentMethodSettingsValues,
 } from "@/components/payment-method-settings"
+import {
+  ScreeningRequestForm,
+  type ScreeningRequestData,
+} from "@/components/screening-request-form"
 import { cn } from "@/lib/utils"
+import { UTILITY_OPTIONS, toUtilityMap, toUtilityList } from "@/lib/utilities"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
 
 // Live data is fetched from Supabase inside the component
+
+// Placeholder pricing — adjust to whatever you actually charge/pass through once
+// a real screening provider is connected.
+const SCREENING_PRICING = {
+  creditReport: 25,
+  criminalCheck: 40,
+  evictionHistory: 20,
+  incomeVerification: 15,
+}
 
 const CANADIAN_PROVINCES = [
   { value: "AB", label: "Alberta" },
@@ -158,6 +172,9 @@ export default function PropertiesPage() {
   const [cancelTarget, setCancelTarget] = useState<any | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [resendingInvite, setResendingInvite] = useState(false)
+  const [screeningUnit, setScreeningUnit] = useState<{ id: string; propertyId: string } | null>(
+    null,
+  )
   const [leaseEditForm, setLeaseEditForm] = useState({
     
     tenant_name: "",
@@ -168,6 +185,7 @@ export default function PropertiesPage() {
     payment_due_day: "1",
     start_date: "",
     end_date: "",
+    utilities: [] as string[],
   })
   const [moveOutForm, setMoveOutForm] = useState({
     date: "",
@@ -754,6 +772,7 @@ const selectedUnitMaintenance = selectedUnitRow
       payment_due_day: lease.payment_due_day != null ? String(lease.payment_due_day) : "1",
       start_date: lease.start_date ?? "",
       end_date: lease.end_date ?? "",
+      utilities: toUtilityList(lease.utilities_included),
     })
     setEditLeaseOpen(true)
   }
@@ -773,6 +792,7 @@ const selectedUnitMaintenance = selectedUnitRow
         payment_due_day: leaseEditForm.payment_due_day ? Number(leaseEditForm.payment_due_day) : null,
         start_date: leaseEditForm.start_date || null,
         end_date: leaseEditForm.end_date || null,
+        utilities_included: toUtilityMap(leaseEditForm.utilities),
         updated_at: new Date().toISOString(),
       })
       .eq("id", editingLease.id)
@@ -825,6 +845,31 @@ const selectedUnitMaintenance = selectedUnitRow
 
     toast.success("Payment settings updated")
     await refreshLeases()
+  }
+
+  const handleSubmitScreeningRequest = async (data: ScreeningRequestData) => {
+    if (!screeningUnit) throw new Error("No unit selected")
+
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error("You must be signed in to request screening.")
+
+    const { error } = await supabase.from("screening_requests").insert({
+      landlord_id: user.id,
+      property_id: screeningUnit.propertyId,
+      unit_id: screeningUnit.id,
+      applicant_name: data.name,
+      applicant_email: data.email,
+      applicant_phone: data.phone,
+      requested_checks: data.selectedChecks,
+      status: "requested",
+    })
+
+    if (error) throw new Error(error.message || "Could not submit the screening request.")
+
+    toast.success("Screening request logged")
   }
 
   const openCancelLease = (lease: any) => {
@@ -1965,17 +2010,32 @@ const handleResendInvite = async (lease: any) => {
                               Edit
                             </Button>
                             {unit.status === "vacant" && !leaseForUnit(unit.id) && (
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  router.push(
-                                    `/landlord/leases/create?property=${selectedPropertyId}&unit=${unit.id}`
-                                  )
-                                }
-                                className="bg-teal hover:bg-teal-dark text-white"
-                              >
-                                Create Lease
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setScreeningUnit({
+                                      id: unit.id,
+                                      propertyId: selectedPropertyId as string,
+                                    })
+                                  }
+                                  className="border-teal text-teal hover:bg-teal/10"
+                                >
+                                  Screen Applicant
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    router.push(
+                                      `/landlord/leases/create?property=${selectedPropertyId}&unit=${unit.id}`
+                                    )
+                                  }
+                                  className="bg-teal hover:bg-teal-dark text-white"
+                                >
+                                  Create Lease
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -2518,6 +2578,33 @@ const handleResendInvite = async (lease: any) => {
                 </Select>
               </div>
             </div>
+
+            <div className="border-t border-sage/40 pt-4">
+              <Label className="text-navy mb-1 block">Utilities tenant is responsible for</Label>
+              <p className="text-xs text-text-muted mb-3">
+                Check the utilities the tenant pays directly. Unchecked utilities are
+                treated as included in rent.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {UTILITY_OPTIONS.map((utility) => (
+                  <label key={utility} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={leaseEditForm.utilities.includes(utility)}
+                      onCheckedChange={(checked) => {
+                        setLeaseEditForm((f) => ({
+                          ...f,
+                          utilities: checked
+                            ? [...f.utilities, utility]
+                            : f.utilities.filter((u) => u !== utility),
+                        }))
+                      }}
+                    />
+                    <span className="text-sm text-navy">{utility}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-3 justify-end pt-2">
               <Button variant="outline" onClick={() => setEditLeaseOpen(false)}
                 className="border-sage text-navy hover:bg-sage/20">Cancel</Button>
@@ -2557,6 +2644,19 @@ const handleResendInvite = async (lease: any) => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Screen Applicant Dialog */}
+      <Dialog
+        open={Boolean(screeningUnit)}
+        onOpenChange={(open) => !open && setScreeningUnit(null)}
+      >
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <ScreeningRequestForm
+            pricing={SCREENING_PRICING}
+            onSubmit={handleSubmitScreeningRequest}
+          />
         </DialogContent>
       </Dialog>
 
@@ -2766,17 +2866,14 @@ const handleResendInvite = async (lease: any) => {
                     </div>
 
                     {/* Utilities */}
-                    {activeLease.utilities_included &&
-                      Object.keys(activeLease.utilities_included).some((k) => activeLease.utilities_included[k]) && (
-                        <div className="border-t border-sage/40 pt-4">
-                          <p className="text-text-muted mb-1">Utilities Covered by Tenant</p>
-                          <p className="font-medium text-navy capitalize">
-                            {Object.keys(activeLease.utilities_included)
-                              .filter((k) => activeLease.utilities_included[k])
-                              .join(", ")}
-                          </p>
-                        </div>
-                      )}
+                    {toUtilityList(activeLease.utilities_included).length > 0 && (
+                      <div className="border-t border-sage/40 pt-4">
+                        <p className="text-text-muted mb-1">Utilities Covered by Tenant</p>
+                        <p className="font-medium text-navy capitalize">
+                          {toUtilityList(activeLease.utilities_included).join(", ")}
+                        </p>
+                      </div>
+                    )}
 
                     {/* Occupants */}
                     {(activeLease.additional_tenants || activeLease.additional_occupants) && (
