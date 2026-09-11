@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client"
 import {
   Search,
   Eye,
-  Users,
   MoreHorizontal,
   AlertTriangle,
   Building2,
@@ -14,7 +13,6 @@ import {
   Mail,
   Phone,
   ArrowLeft,
-  Clock,
   Ban,
   Trash2,
 } from "lucide-react"
@@ -25,7 +23,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -73,7 +70,6 @@ interface Landlord {
   billingDate: string
   monthlyAmount: number
   activityLog: { date: string; action: string }[]
-  supportNotes: string
 }
 
 // Map a raw subscription_status to the UI status/plan used by this page
@@ -96,7 +92,6 @@ export default function AdminLandlords() {
   const [landlords, setLandlords] = useState<Landlord[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null)
-  const [supportNotes, setSupportNotes] = useState("")
   const [showSuspendDialog, setShowSuspendDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
@@ -167,7 +162,6 @@ export default function AdminLandlords() {
           billingDate: formatDate(p.trial_end_date),
           monthlyAmount: 0,
           activityLog: [],
-          supportNotes: "",
         }
       })
 
@@ -247,24 +241,6 @@ export default function AdminLandlords() {
                 </span>
               </div>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="border-teal text-teal hover:bg-teal/10"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Impersonate
-            </Button>
-            {selectedLandlord.status === "pending" && (
-              <Button
-                variant="outline"
-                className="border-warning text-warning hover:bg-warning/10"
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Extend Trial
-              </Button>
-            )}
           </div>
         </div>
 
@@ -374,26 +350,6 @@ export default function AdminLandlords() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Support Notes */}
-          <Card className="border-sage/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-medium text-navy">
-                Support Notes (Admin Only)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                value={supportNotes || selectedLandlord.supportNotes}
-                onChange={(e) => setSupportNotes(e.target.value)}
-                placeholder="Add notes about this landlord..."
-                rows={4}
-              />
-              <Button className="bg-teal hover:bg-teal-dark text-white">
-                Save Notes
-              </Button>
             </CardContent>
           </Card>
         </div>
@@ -581,10 +537,6 @@ export default function AdminLandlords() {
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Users className="h-4 w-4 mr-2" />
-                          Impersonate
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-warning">
