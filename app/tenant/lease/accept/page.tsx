@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
+import { toUtilityList } from "@/lib/utilities"
 import {
   Building2,
   Calendar,
@@ -133,10 +134,7 @@ export default function AcceptLeasePage() {
     )
   }
 
-  const utilities: Record<string, boolean> = lease.utilities_included ?? {}
-  const includedUtilities = Object.entries(utilities)
-    .filter(([, v]) => v)
-    .map(([k]) => k)
+  const includedUtilities = toUtilityList(lease.utilities_included)
 
   return (
     <div className="min-h-screen bg-background p-6">
