@@ -31,16 +31,9 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { UTILITY_OPTIONS, toUtilityMap } from "@/lib/utilities"
 
-const UTILITIES = [
-  "Water",
-  "Gas",
-  "Electricity",
-  "Heat",
-  "Internet",
-  "Cable",
-  "Trash",
-]
+const UTILITIES = UTILITY_OPTIONS
 
 type VacantUnit = {
   id: string
@@ -337,7 +330,7 @@ function CreateLeasePageInner() {
       vehicle_details: form.vehicleDetails || null,
       parking_details: form.parkingDetails || null,
       smoking_allowed: form.smokingAllowed,
-      utilities_included: form.tenantUtilities,
+      utilities_included: toUtilityMap(form.tenantUtilities),
       start_date: form.startDate,
       end_date: form.endDate,
       monthly_rent: monthlyRent,
