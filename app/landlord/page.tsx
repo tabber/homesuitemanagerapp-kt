@@ -494,7 +494,7 @@ export default function LandlordDashboard() {
         } else if (l.status === "pending" || l.status === "created") {
           actionText = `Lease pending signature from ${l.tenant_name ?? "tenant"}`;
         } else {
-          actionText = `Lease created by ${l.created_by_name ?? l.landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
+          actionText = `Lease created by ${(l as any).created_by_name ?? (l as any).landlord_name ?? "you"} for ${l.tenant_name ?? "tenant"}`;
         }
 
         activity.push({
