@@ -167,6 +167,9 @@ export default function SettingsPage() {
   const [showContractorModal, setShowContractorModal] = useState(false)
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null)
   const [savingContractor, setSavingContractor] = useState(false)
+  const [historyContractor, setHistoryContractor] = useState<Contractor | null>(null)
+  const [historyRows, setHistoryRows] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [contractorForm, setContractorForm] = useState<{
     name: string
     category: string
@@ -335,6 +338,50 @@ export default function SettingsPage() {
     toast.success("Contractor deleted")
     loadContractors()
   }
+
+  const openContractorHistory = async (contractor: Contractor) => {
+    setHistoryContractor(contractor)
+    setHistoryRows([])
+    setHistoryLoading(true)
+    const supabase = createClient()
+
+    // Requests this contractor was assigned to.
+    const { data: requests } = await supabase
+      .from("maintenance_requests")
+      .select("id, title, status, created_at, property_id")
+      .eq("contractor_id", contractor.id)
+      .order("created_at", { ascending: false })
+
+    const reqList = requests ?? []
+    const ids = reqList.map((r) => r.id)
+
+    // Costs recorded against those requests (from the activity timeline).
+    const costsByRequest: Record<string, number> = {}
+    if (ids.length > 0) {
+      const { data: costs } = await supabase
+        .from("maintenance_activity")
+        .select("request_id, cost")
+        .in("request_id", ids)
+      for (const c of costs ?? []) {
+        if (typeof c.cost === "number") {
+          costsByRequest[c.request_id] = (costsByRequest[c.request_id] ?? 0) + c.cost
+        }
+      }
+    }
+
+    setHistoryRows(
+      reqList.map((r) => ({
+        ...r,
+        totalCost: costsByRequest[r.id] ?? 0,
+      })),
+    )
+    setHistoryLoading(false)
+  }
+
+  const historyTotalPaid = historyRows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
+
+  const fmtMoney = (n: number) =>
+    new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n)
 
   const handleTogglePreferred = async (id: string) => {
     const current = contractors.find((c) => c.id === id)
@@ -603,6 +650,14 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openContractorHistory(contractor)}
+                              className="text-navy hover:bg-navy/5"
+                            >
+                              History
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -933,6 +988,72 @@ export default function SettingsPage() {
                 : "Add Contractor"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contractor Work & Payment History */}
+      <Dialog
+        open={Boolean(historyContractor)}
+        onOpenChange={(open) => !open && setHistoryContractor(null)}
+      >
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">
+              {historyContractor?.name} — work &amp; payments
+            </DialogTitle>
+          </DialogHeader>
+
+          {historyLoading ? (
+            <p className="text-sm text-text-muted py-6 text-center">Loading history…</p>
+          ) : historyRows.length === 0 ? (
+            <p className="text-sm text-text-muted py-6 text-center">
+              No jobs assigned to this contractor yet.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg bg-sage/10 p-4">
+                <div>
+                  <p className="text-xs text-text-muted uppercase tracking-wide">Total paid</p>
+                  <p className="text-lg font-medium text-navy">{fmtMoney(historyTotalPaid)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-text-muted uppercase tracking-wide">Jobs</p>
+                  <p className="text-lg font-medium text-navy">{historyRows.length}</p>
+                </div>
+              </div>
+
+              <ul className="space-y-2">
+                {historyRows.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-start justify-between gap-3 border-b border-sage/30 pb-2 last:border-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-navy truncate">{r.title}</p>
+                      <p className="text-xs text-text-muted capitalize">
+                        {(r.status ?? "").replace(/-/g, " ")}
+                        {r.created_at
+                          ? ` · ${new Date(r.created_at).toLocaleDateString("en-CA", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}`
+                          : ""}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-teal whitespace-nowrap">
+                      {r.totalCost > 0 ? fmtMoney(r.totalCost) : "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-xs text-text-muted">
+                Payments are the costs you logged against each job in the maintenance
+                request. Jobs with no logged cost show &quot;—&quot;.
+              </p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
