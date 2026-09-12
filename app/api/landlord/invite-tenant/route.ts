@@ -104,9 +104,13 @@ export async function POST(request: Request) {
         // If the user already exists in auth, Supabase refuses an invite link
         // — fall back to a magic link so they can still get in.
         if (/already.*(registered|exists)/i.test(linkError.message)) {
+          // Use a recovery link (not magiclink) so the tenant lands on the
+          // set-password page: the callback routes type=recovery to
+          // /reset-password. This covers tenants who were invited before (their
+          // auth row already exists) and still need to set a password.
           const { data: magicData, error: magicError } =
             await supabaseAdmin.auth.admin.generateLink({
-              type: "magiclink",
+              type: "recovery",
               email,
               options: { redirectTo },
             })
