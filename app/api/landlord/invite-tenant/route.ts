@@ -79,13 +79,26 @@ export async function POST(request: Request) {
       alreadyExists = !!authUserData?.user?.email_confirmed_at
     }
 
-    // Generate the invite/sign-in link ourselves and email it via Resend,
-    // rather than relying on Supabase's built-in (heavily rate-limited,
-    // poor-deliverability) email. For a brand-new tenant we generate an invite
-    // link; for an email that already has an auth row we generate a magic link.
+    // Generate a link to email the tenant. Three cases:
+    //  - brand-new email → invite link
+    //  - email exists but Supabase refuses invite → recovery link
+    //  - email already confirmed (existing account) → recovery link, so they can
+    //    sign in and reach this new lease. (Previously this case sent NOTHING,
+    //    which looked like success but delivered no email.)
     let actionLink: string | null = null
 
-    if (!alreadyExists) {
+    if (alreadyExists) {
+      const { data: recoveryData, error: recoveryError } =
+        await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email,
+          options: { redirectTo },
+        })
+      if (recoveryError) {
+        return NextResponse.json({ error: recoveryError.message }, { status: 500 })
+      }
+      actionLink = recoveryData?.properties?.action_link ?? null
+    } else {
       const { data: linkData, error: linkError } =
         await supabaseAdmin.auth.admin.generateLink({
           type: "invite",
@@ -102,12 +115,8 @@ export async function POST(request: Request) {
 
       if (linkError) {
         // If the user already exists in auth, Supabase refuses an invite link
-        // — fall back to a magic link so they can still get in.
+        // — fall back to a recovery link so they can still get in.
         if (/already.*(registered|exists)/i.test(linkError.message)) {
-          // Use a recovery link (not magiclink) so the tenant lands on the
-          // set-password page: the callback routes type=recovery to
-          // /reset-password. This covers tenants who were invited before (their
-          // auth row already exists) and still need to set a password.
           const { data: magicData, error: magicError } =
             await supabaseAdmin.auth.admin.generateLink({
               type: "recovery",
