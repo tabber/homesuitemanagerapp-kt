@@ -18,6 +18,7 @@ import { StatCard } from "@/components/stat-card"
 import { useUser } from "@/lib/context/UserContext"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -48,6 +49,8 @@ export default function TenantMyHome() {
 
   const [loading, setLoading] = useState(true)
   const [leaseRow, setLeaseRow] = useState<any | null>(null)
+  const [leaseUtilities, setLeaseUtilities] = useState<any[]>([])
+  const [savingUtilityId, setSavingUtilityId] = useState<string | null>(null)
   const [landlordRow, setLandlordRow] = useState<any | null>(null)
   const [propertyRow, setPropertyRow] = useState<any | null>(null)
   const [landlordEtransfer, setLandlordEtransfer] = useState<string>("")
@@ -150,6 +153,13 @@ export default function TenantMyHome() {
           .is("completed_at", null)
           .order("due_date", { ascending: true })
         if (isMounted) setReminders(remRows ?? [])
+
+        const { data: utilRows } = await supabase
+          .from("lease_utilities")
+          .select("*")
+          .eq("lease_id", lease.id)
+          .order("created_at", { ascending: true })
+        if (isMounted) setLeaseUtilities(utilRows ?? [])
       }
 
       // Documents attached to this lease (RLS limits this to the tenant's own lease)
@@ -303,6 +313,42 @@ export default function TenantMyHome() {
   const utilities = {
     payThroughLandlord: Array.isArray(leaseRow?.utility_costs) ? leaseRow.utility_costs : [],
     payDirectly: toUtilityList(leaseRow?.utilities_included),
+  }
+
+  // Tenant marks a tenant-held utility as set up (and optionally saves their own
+  // account number). Only these two fields are tenant-writable.
+  const handleToggleUtilitySetup = async (util: any) => {
+    setSavingUtilityId(util.id)
+    const supabase = createClient()
+    const nextStatus = util.setup_status === "set_up" ? "not_set_up" : "set_up"
+    const { error } = await supabase
+      .from("lease_utilities")
+      .update({ setup_status: nextStatus })
+      .eq("id", util.id)
+    setSavingUtilityId(null)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setLeaseUtilities((prev) =>
+      prev.map((u) => (u.id === util.id ? { ...u, setup_status: nextStatus } : u)),
+    )
+    toast.success(nextStatus === "set_up" ? "Marked as set up" : "Marked as not set up")
+  }
+
+  const handleSaveTenantAccount = async (util: any, value: string) => {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("lease_utilities")
+      .update({ tenant_account_number: value || null })
+      .eq("id", util.id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setLeaseUtilities((prev) =>
+      prev.map((u) => (u.id === util.id ? { ...u, tenant_account_number: value } : u)),
+    )
   }
 
   if (loading) {
@@ -681,78 +727,175 @@ export default function TenantMyHome() {
 
         {/* Utilities Tab */}
         <TabsContent value="utilities" className="space-y-4">
-          {/* Pay Through Landlord */}
-          <Card className="border-sage/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-medium text-navy">
-                Pay Through Landlord
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {utilities.payThroughLandlord.length === 0 && (
-                  <p className="text-sm text-text-muted">No data yet</p>
-                )}
-                {utilities.payThroughLandlord.map((utility: any) => (
-                  <div
-                    key={utility.name}
-                    className="flex items-center justify-between p-4 rounded-lg bg-cream"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-teal/10 flex items-center justify-center">
-                        <Zap className="h-5 w-5 text-teal-dark" />
+          {leaseUtilities.length > 0 ? (
+            <Card className="border-sage/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-medium text-navy">Your utilities</CardTitle>
+                <p className="text-sm text-text-muted mt-1">
+                  Who's responsible and how to set each one up. For utilities in your name,
+                  mark them once you've set up your account.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {leaseUtilities.map((u) => {
+                  const tenantHeld = u.account_holder !== "landlord"
+                  const isSetUp = u.setup_status === "set_up"
+                  return (
+                    <div key={u.id} className="rounded-lg bg-cream p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-sage/30 flex items-center justify-center shrink-0">
+                            <Zap className="h-5 w-5 text-navy" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-medium text-navy">{u.utility_type}</p>
+                              <span
+                                className={
+                                  tenantHeld
+                                    ? "text-xs rounded-full px-2 py-0.5 bg-teal/15 text-teal-dark"
+                                    : "text-xs rounded-full px-2 py-0.5 bg-navy/10 text-navy"
+                                }
+                              >
+                                {tenantHeld ? "Your responsibility" : "Landlord manages"}
+                              </span>
+                            </div>
+                            {u.provider && (
+                              <p className="text-sm text-text-muted mt-0.5">
+                                Provider: {u.provider}
+                              </p>
+                            )}
+                            {u.setup_instructions && (
+                              <p className="text-sm text-text-muted mt-0.5">
+                                {u.setup_instructions}
+                              </p>
+                            )}
+                            {u.link && (
+                              <a
+                                href={u.link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-teal hover:underline"
+                              >
+                                Provider website
+                              </a>
+                            )}
+                            {/* Landlord-held account number, only if shared */}
+                            {!tenantHeld && u.account_number && u.account_number_visible && (
+                              <p className="text-sm text-text-muted mt-0.5">
+                                Account: {u.account_number}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {tenantHeld && (
+                          <span
+                            className={
+                              isSetUp
+                                ? "text-xs rounded-full px-2 py-0.5 bg-teal/15 text-teal-dark whitespace-nowrap"
+                                : "text-xs rounded-full px-2 py-0.5 bg-warning/15 text-navy whitespace-nowrap"
+                            }
+                          >
+                            {isSetUp ? "Set up ✓" : "Not set up"}
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-navy">
-                          {utility.name}
-                        </p>
-                        <p className="text-sm text-text-muted">
-                          Due: {utility.dueDate}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-medium text-navy">
-                        {formatCurrency(utility.amount)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Pay Directly */}
-          <Card className="border-sage/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-medium text-navy">
-                Pay Directly
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {utilities.payDirectly.length === 0 && (
-                  <p className="text-sm text-text-muted">No data yet</p>
-                )}
-                {utilities.payDirectly.map((utility) => (
-                  <div
-                    key={utility}
-                    className="flex items-center justify-between p-4 rounded-lg bg-cream"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-sage/30 flex items-center justify-center">
-                        <Zap className="h-5 w-5 text-navy" />
-                      </div>
-                      <p className="text-sm font-medium text-navy">{utility}</p>
+                      {/* Tenant-held: let the tenant record their own account + mark done */}
+                      {tenantHeld && (
+                        <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+                          <Input
+                            defaultValue={u.tenant_account_number ?? ""}
+                            onBlur={(e) => handleSaveTenantAccount(u, e.target.value)}
+                            placeholder="Your account number (optional)"
+                            className="border-sage flex-1"
+                          />
+                          <Button
+                            variant={isSetUp ? "outline" : "default"}
+                            onClick={() => handleToggleUtilitySetup(u)}
+                            disabled={savingUtilityId === u.id}
+                            className={
+                              isSetUp
+                                ? "border-sage text-navy hover:bg-sage/20 shrink-0"
+                                : "bg-teal hover:bg-teal-dark text-white shrink-0"
+                            }
+                          >
+                            {isSetUp ? "Mark not set up" : "Mark as set up"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-text-muted">
-                      Contact your provider
-                    </p>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Legacy fallback for leases created before rich utilities */}
+              <Card className="border-sage/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-medium text-navy">
+                    Pay Through Landlord
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {utilities.payThroughLandlord.length === 0 && (
+                      <p className="text-sm text-text-muted">No data yet</p>
+                    )}
+                    {utilities.payThroughLandlord.map((utility: any) => (
+                      <div
+                        key={utility.name}
+                        className="flex items-center justify-between p-4 rounded-lg bg-cream"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-teal/10 flex items-center justify-center">
+                            <Zap className="h-5 w-5 text-teal-dark" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-navy">{utility.name}</p>
+                            <p className="text-sm text-text-muted">Due: {utility.dueDate}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-medium text-navy">
+                            {formatCurrency(utility.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+
+              <Card className="border-sage/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-medium text-navy">Pay Directly</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {utilities.payDirectly.length === 0 && (
+                      <p className="text-sm text-text-muted">No data yet</p>
+                    )}
+                    {utilities.payDirectly.map((utility) => (
+                      <div
+                        key={utility}
+                        className="flex items-center justify-between p-4 rounded-lg bg-cream"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-sage/30 flex items-center justify-center">
+                            <Zap className="h-5 w-5 text-navy" />
+                          </div>
+                          <p className="text-sm font-medium text-navy">{utility}</p>
+                        </div>
+                        <p className="text-sm text-text-muted">Contact your provider</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
         {/* Documents Tab */}
         <TabsContent value="documents" className="space-y-4">
