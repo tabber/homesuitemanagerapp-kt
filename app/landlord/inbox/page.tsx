@@ -1071,7 +1071,7 @@ export default function InboxPage() {
                       <div className="flex items-start gap-3">
                         <div className="relative">
                           <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white text-sm font-medium">
-                            {conversation.tenant.split(" ").map((n) => n[0]).join("")}
+                            {conversation.tenant.split(" ").map((n: string) => n[0]).join("")}
                           </div>
                           {conversation.unread && (
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-teal rounded-full" />
