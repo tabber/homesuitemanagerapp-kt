@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
+  CalendarDays,
   Building2,
   CreditCard,
   Inbox,
@@ -34,6 +35,7 @@ const navItems: Record<PortalType, NavItem[]> = {
     { label: "Overview", href: "/landlord", icon: LayoutDashboard },
     { label: "Properties", href: "/landlord/properties", icon: Building2 },
     { label: "Payments", href: "/landlord/payments", icon: CreditCard },
+    { label: "Calendar", href: "/landlord/calendar", icon: CalendarDays },
     { label: "Inbox", href: "/landlord/inbox", icon: Inbox },
     { label: "Documents", href: "/landlord/documents", icon: FileText },
     { label: "Settings", href: "/landlord/settings", icon: Settings },
@@ -67,6 +69,8 @@ interface AppSidebarProps {
   trialDaysRemaining?: number
   onUpgrade?: () => void
   onSignOut?: () => void
+  /** Optional unread/notification counts keyed by nav href, e.g. { "/tenant/inbox": 3 }. */
+  badges?: Record<string, number>
 }
 
 export function AppSidebar({
@@ -75,6 +79,7 @@ export function AppSidebar({
   trialDaysRemaining,
   onUpgrade,
   onSignOut,
+  badges,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const items = navItems[portal]
@@ -102,6 +107,7 @@ export function AppSidebar({
         <ul className="space-y-1">
           {items.map((item) => {
             const active = isActive(item.href)
+            const badgeCount = badges?.[item.href] ?? 0
             return (
               <li key={item.href}>
                 <Link
@@ -119,7 +125,18 @@ export function AppSidebar({
                       active ? "text-navy" : "text-white/70"
                     )}
                   />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {badgeCount > 0 && (
+                    <span
+                      className={cn(
+                        "min-w-5 h-5 px-1.5 rounded-full text-xs font-medium flex items-center justify-center",
+                        active ? "bg-teal text-white" : "bg-teal text-white"
+                      )}
+                      aria-label={`${badgeCount} unread`}
+                    >
+                      {badgeCount > 9 ? "9+" : badgeCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             )
