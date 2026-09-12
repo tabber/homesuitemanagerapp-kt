@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   FileText,
   Wrench,
@@ -17,23 +18,22 @@ import { StatCard } from "@/components/stat-card"
 import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { TenantPaymentCard } from "@/components/tenant-payment-card"
 import { createClient } from "@/lib/supabase/client"
 import { useUser } from "@/lib/context/UserContext"
 
 interface LeaseData {
+  id: string
   monthly_rent: number | null
   payment_due_day: number | null
   end_date: string | null
   status: string | null
   property_id: string | null
+  unit_id: string | null
   landlord_id: string | null
   etransfer_email: string | null
+  etransfer_enabled: boolean | null
+  stripe_enabled: boolean | null
 }
 
 interface PropertyData {
@@ -61,8 +61,7 @@ interface ActivityItem {
 }
 
 export default function TenantDashboard() {
-  const { firstName } = useUser()
-  const [showETransferModal, setShowETransferModal] = useState(false)
+  const { firstName, lastName } = useUser()
 
   const [loading, setLoading] = useState(true)
   const [lease, setLease] = useState<LeaseData | null>(null)
@@ -71,6 +70,10 @@ export default function TenantDashboard() {
   const [openRequests, setOpenRequests] = useState(0)
   const [paymentsMade, setPaymentsMade] = useState(0)
   const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [latestPayment, setLatestPayment] = useState<{
+    status: string
+    payment_date: string | null
+  } | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -88,7 +91,7 @@ export default function TenantDashboard() {
 
       const { data: leaseRows } = await supabase
         .from("leases")
-        .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
+        .select("id, monthly_rent, payment_due_day, end_date, status, property_id, unit_id, landlord_id, etransfer_email, etransfer_enabled, stripe_enabled, landlord_name, landlord_email, landlord_phone")
         .eq("tenant_id", user.id)
         .limit(1)
       let leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
@@ -98,7 +101,7 @@ export default function TenantDashboard() {
       if (!leaseRow && user.email) {
         const { data: pendingRows } = await supabase
           .from("leases")
-          .select("monthly_rent, payment_due_day, end_date, status, property_id, landlord_id, etransfer_email, landlord_name, landlord_email, landlord_phone")
+          .select("id, monthly_rent, payment_due_day, end_date, status, property_id, unit_id, landlord_id, etransfer_email, etransfer_enabled, stripe_enabled, landlord_name, landlord_email, landlord_phone")
           .ilike("tenant_email", user.email)
           .eq("status", "pending")
           .limit(1)
@@ -178,6 +181,11 @@ export default function TenantDashboard() {
       setOpenRequests(openCount ?? 0)
       setPaymentsMade(paymentCount ?? 0)
       setActivity(activityItems)
+      setLatestPayment(
+        recentPayments?.[0]
+          ? { status: recentPayments[0].status ?? "pending", payment_date: recentPayments[0].payment_date }
+          : null,
+      )
       setLoading(false)
     }
 
@@ -212,6 +220,72 @@ export default function TenantDashboard() {
     }
     return due
   })()
+
+  const paymentStatus = (() => {
+    const now = new Date()
+    if (latestPayment?.payment_date) {
+      const paidAt = new Date(latestPayment.payment_date)
+      const samePeriod =
+        paidAt.getFullYear() === now.getFullYear() && paidAt.getMonth() === now.getMonth()
+      if (samePeriod) {
+        return latestPayment.status === "completed" ? ("confirmed" as const) : ("sent" as const)
+      }
+    }
+    if (rentDueDay) {
+      const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), rentDueDay)
+      if (now.getTime() > dueThisMonth.getTime()) return "overdue" as const
+    }
+    return "due" as const
+  })()
+
+  const availablePaymentMethods = [
+    ...(lease?.etransfer_enabled ? (["etransfer"] as const) : []),
+    ...(lease?.stripe_enabled ? (["card"] as const) : []),
+  ]
+
+  const handleMarkRentAsSent = async () => {
+    if (!lease || !lease.id) throw new Error("No active lease found")
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error("You must be signed in")
+
+    const { data: inserted, error } = await supabase
+      .from("payments")
+      .insert({
+        lease_id: lease.id,
+        property_id: lease.property_id ?? null,
+        unit_id: lease.unit_id ?? null,
+        tenant_id: user.id,
+        landlord_id: lease.landlord_id ?? null,
+        amount: monthlyRent,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: "e_transfer",
+        description: "Tenant-reported e-Transfer",
+      })
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message || "Could not record your payment")
+
+    if (lease.landlord_id) {
+      const tenantName = [firstName, lastName].filter(Boolean).join(" ") || "Your tenant"
+      await supabase.from("messages").insert({
+        sender_id: user.id,
+        recipient_id: lease.landlord_id,
+        lease_id: lease.id,
+        subject: "Rent payment sent",
+        content: `${tenantName} has sent a rent payment of ${formatCurrency(
+          monthlyRent,
+        )} by e-Transfer. Please confirm receipt in your Payments page once it arrives.`,
+      })
+    }
+
+    setLatestPayment({ status: inserted?.status ?? "pending", payment_date: inserted?.payment_date ?? null })
+    setPaymentsMade((prev) => prev + 1)
+    toast.success("Payment reported — your landlord has been notified")
+  }
 
   const landlordName = landlord?.landlord_name ?? ""
   const propertyCityLine = property
@@ -280,6 +354,19 @@ export default function TenantDashboard() {
           sublabel="Total payments"
         />
       </div>
+
+      {/* Rent Payment */}
+      {!loading && lease && !hasPendingLease && (
+        <TenantPaymentCard
+          monthlyRent={monthlyRent}
+          dueDate={nextRentDueDate ? formatDate(nextRentDueDate.toISOString()) : "—"}
+          paymentStatus={paymentStatus}
+          availableMethods={availablePaymentMethods}
+          etransferEmail={lease.etransfer_email ?? undefined}
+          isOnAutopay={false}
+          onMarkAsSent={handleMarkRentAsSent}
+        />
+      )}
 
       {/* Property & Landlord Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -356,19 +443,6 @@ export default function TenantDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <button
-              onClick={() => setShowETransferModal(true)}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-cream hover:bg-sage/20 transition-colors text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-teal/10 flex items-center justify-center">
-                  <CreditCard className="h-4 w-4 text-teal-dark" />
-                </div>
-                <span className="text-sm font-normal text-navy">Pay Rent</span>
-              </div>
-              <ChevronRight className="h-4 w-4 text-text-muted" />
-            </button>
-
             <Link
               href="/tenant/inbox?tab=maintenance&action=new"
               className="w-full flex items-center justify-between p-3 rounded-lg bg-cream hover:bg-sage/20 transition-colors"
@@ -483,7 +557,7 @@ export default function TenantDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status as any} />
                     <span className="text-sm text-text-muted">{item.date}</span>
                   </div>
                 </div>
@@ -494,54 +568,6 @@ export default function TenantDashboard() {
           )}
         </CardContent>
       </Card>
-
-      {/* e-Transfer Instructions Modal */}
-      <Dialog open={showETransferModal} onOpenChange={setShowETransferModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-navy">
-              e-Transfer Payment Instructions
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-cream rounded-lg p-4 space-y-3">
-              <div>
-                <p className="text-xs text-text-muted uppercase tracking-wider">
-                  Send to
-                </p>
-                <p className="text-sm font-medium text-navy">
-                  {lease?.etransfer_email ?? "No data yet"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted uppercase tracking-wider">
-                  Amount
-                </p>
-                <p className="text-sm font-medium text-navy">
-                  {formatCurrency(monthlyRent)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted uppercase tracking-wider">
-                  Message
-                </p>
-                <p className="text-sm font-medium text-navy">
-                  Rent - {property?.address ?? "No data yet"}
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={() => setShowETransferModal(false)}
-              className="w-full bg-teal hover:bg-teal-dark text-white"
-            >
-              I&apos;ve Sent Payment
-            </Button>
-            <p className="text-xs text-text-muted text-center">
-              This will notify your landlord that you&apos;ve sent payment
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
