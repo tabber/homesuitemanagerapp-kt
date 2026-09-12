@@ -380,10 +380,17 @@ function CreateLeasePageInner() {
         if (res.ok) {
           toast.success("Lease created and tenant invited")
         } else {
-          toast.success("Lease created (invite could not be sent)")
+          const detail = await res.json().catch(() => null)
+          toast.error(
+            detail?.error
+              ? `Lease created — invite failed: ${detail.error}`
+              : "Lease created (invite could not be sent)"
+          )
         }
-      } catch {
-        toast.success("Lease created (invite could not be sent)")
+      } catch (err) {
+        toast.error(
+          `Lease created — invite error: ${err instanceof Error ? err.message : "unknown"}`
+        )
       }
     }
     router.push("/landlord/properties")
