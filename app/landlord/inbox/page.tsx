@@ -189,6 +189,7 @@ export default function InboxPage() {
   const [activityLog, setActivityLog] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [logDraft, setLogDraft] = useState("")
+  const [costDraft, setCostDraft] = useState("")
   const [loggingUpdate, setLoggingUpdate] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [messageInput, setMessageInput] = useState("")
@@ -233,11 +234,15 @@ export default function InboxPage() {
     })
   }
 
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount)
+
   const ACTIVITY_LABELS: Record<string, string> = {
     status_change: "Status changed",
     contractor_assigned: "Contractor assigned",
     scheduled: "Scheduled",
     note: "Update",
+    cost: "Cost recorded",
   }
 
   const loadInbox = useCallback(async () => {
@@ -444,7 +449,12 @@ export default function InboxPage() {
 
 
  // Append an immutable activity record for a request, and optimistically show it.
-  const logActivity = async (requestId: string, action: string, detail?: string) => {
+  const logActivity = async (
+    requestId: string,
+    action: string,
+    detail?: string,
+    cost?: number | null,
+  ) => {
     if (!userId) return
     const supabase = createClient()
     const { data, error } = await supabase
@@ -454,6 +464,7 @@ export default function InboxPage() {
         landlord_id: userId,
         action,
         detail: detail || null,
+        cost: cost ?? null,
       })
       .select()
       .single()
@@ -480,13 +491,29 @@ export default function InboxPage() {
 
   const handleLogUpdate = async () => {
     const text = logDraft.trim()
-    if (!text || !selectedRequest) return
+    const costValue = costDraft.trim() ? Number(costDraft) : null
+    if (!selectedRequest) return
+    // Allow an entry that has a note, a cost, or both — but not empty.
+    if (!text && costValue == null) return
+    if (costValue != null && (Number.isNaN(costValue) || costValue < 0)) {
+      toast.error("Enter a valid cost")
+      return
+    }
     setLoggingUpdate(true)
-    await logActivity(selectedRequest.id, "note", text)
+    const detail =
+      text || (costValue != null ? "Cost recorded" : "")
+    await logActivity(selectedRequest.id, costValue != null ? "cost" : "note", detail, costValue)
     setLoggingUpdate(false)
     setLogDraft("")
-    toast.success("Update logged")
+    setCostDraft("")
+    toast.success(costValue != null ? "Cost logged" : "Update logged")
   }
+
+  // Sum of all costs recorded against the open request.
+  const activityCostTotal = activityLog.reduce(
+    (sum, e) => sum + (typeof e.cost === "number" ? e.cost : 0),
+    0,
+  )
 
  const handleAssignContractor = async (requestId: string, contractorId: string) => {
     const supabase = createClient()
@@ -1449,17 +1476,24 @@ export default function InboxPage() {
 
                     {/* Activity History */}
                     <div className="border-t border-sage/30 pt-4">
-                      <Label className="text-navy">Activity History</Label>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <Label className="text-navy">Activity &amp; Costs</Label>
+                        {activityCostTotal > 0 && (
+                          <span className="text-sm font-medium text-navy">
+                            Total spent: {formatCurrency(activityCostTotal)}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-text-muted mt-1 mb-3">
-                        A timestamped record of what was done — contacted a contractor,
-                        ordered a part, and so on. Status, scheduling, and contractor
-                        changes are logged automatically.
+                        A timestamped record of what was done and what it cost. Add a
+                        note, a cost, or both. Status, scheduling, and contractor changes
+                        are logged automatically.
                       </p>
 
-                      {/* Log a new update */}
-                      <div className="flex gap-2">
+                      {/* Log a new update / cost */}
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Input
-                          placeholder="e.g. Called plumber, part ordered — ETA Friday"
+                          placeholder="e.g. Plumber replaced valve"
                           value={logDraft}
                           onChange={(e) => setLogDraft(e.target.value)}
                           onKeyDown={(e) => {
@@ -1468,15 +1502,37 @@ export default function InboxPage() {
                               handleLogUpdate()
                             }
                           }}
-                          className="border-sage"
+                          className="border-sage flex-1"
                         />
-                        <Button
-                          onClick={handleLogUpdate}
-                          disabled={!logDraft.trim() || loggingUpdate}
-                          className="bg-teal hover:bg-teal-dark text-white shrink-0"
-                        >
-                          Log
-                        </Button>
+                        <div className="flex gap-2">
+                          <div className="relative w-28 shrink-0">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                              $
+                            </span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="Cost"
+                              value={costDraft}
+                              onChange={(e) => setCostDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault()
+                                  handleLogUpdate()
+                                }
+                              }}
+                              className="border-sage pl-6"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleLogUpdate}
+                            disabled={(!logDraft.trim() && !costDraft.trim()) || loggingUpdate}
+                            className="bg-teal hover:bg-teal-dark text-white shrink-0"
+                          >
+                            Log
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Timeline */}
@@ -1509,6 +1565,11 @@ export default function InboxPage() {
                                   {entry.detail && (
                                     <p className="text-sm text-text-primary mt-0.5 break-words">
                                       {entry.detail}
+                                    </p>
+                                  )}
+                                  {typeof entry.cost === "number" && (
+                                    <p className="text-sm font-medium text-teal mt-0.5">
+                                      {formatCurrency(entry.cost)}
                                     </p>
                                   )}
                                 </div>
