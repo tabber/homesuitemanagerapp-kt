@@ -68,6 +68,11 @@ import {
 } from "@/components/screening-request-form"
 import { cn } from "@/lib/utils"
 import { UTILITY_OPTIONS, toUtilityMap, toUtilityList } from "@/lib/utilities"
+import {
+  UtilitiesEditor,
+  emptyUtility,
+  type UtilityRecord,
+} from "@/components/utilities-editor"
 import { TenantReport } from "@/components/tenant-report"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
@@ -177,6 +182,10 @@ export default function PropertiesPage() {
     null,
   )
   const [reportLease, setReportLease] = useState<any | null>(null)
+  const [leaseUtilities, setLeaseUtilities] = useState<any[]>([])
+  const [utilitiesEditOpen, setUtilitiesEditOpen] = useState(false)
+  const [utilitiesDraft, setUtilitiesDraft] = useState<UtilityRecord[]>([])
+  const [savingUtilities, setSavingUtilities] = useState(false)
   const [leaseEditForm, setLeaseEditForm] = useState({
     
     tenant_name: "",
@@ -388,6 +397,16 @@ const { data: allLeases } = await supabase
       if (!isMounted) return
 
       setActiveLease(leaseRow ?? null)
+      if (leaseRow?.id) {
+        const { data: utils } = await supabase
+          .from("lease_utilities")
+          .select("*")
+          .eq("lease_id", leaseRow.id)
+          .order("created_at", { ascending: true })
+        if (isMounted) setLeaseUtilities(utils ?? [])
+      } else if (isMounted) {
+        setLeaseUtilities([])
+      }
       setPropertyLeases(allLeases ?? [])
       setUnitTenants(tenantMap)
       setTenantProfile(tenant)
@@ -874,6 +893,89 @@ const selectedUnitMaintenance = selectedUnitRow
     toast.success("Screening request logged")
   }
 
+  const openUtilitiesEditor = () => {
+    // Seed the draft from existing records, converting to the editor's shape.
+    setUtilitiesDraft(
+      (leaseUtilities.length > 0
+        ? leaseUtilities.map((u) => ({
+            id: u.id,
+            utility_type: u.utility_type ?? "Water",
+            account_holder: (u.account_holder ?? "tenant") as "tenant" | "landlord",
+            provider: u.provider ?? "",
+            account_number: u.account_number ?? "",
+            account_number_visible: u.account_number_visible ?? true,
+            setup_instructions: u.setup_instructions ?? "",
+            link: u.link ?? "",
+            billing_day: u.billing_day != null ? String(u.billing_day) : "",
+          }))
+        : [emptyUtility()]) as UtilityRecord[],
+    )
+    setUtilitiesEditOpen(true)
+  }
+
+  const handleSaveUtilities = async () => {
+    if (!activeLease?.id) return
+    setSavingUtilities(true)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setSavingUtilities(false)
+      return
+    }
+
+    // Simplest reliable sync: replace this lease's utility rows with the draft.
+    const { error: delError } = await supabase
+      .from("lease_utilities")
+      .delete()
+      .eq("lease_id", activeLease.id)
+    if (delError) {
+      toast.error(delError.message)
+      setSavingUtilities(false)
+      return
+    }
+
+    const rows = utilitiesDraft
+      .filter((u) => u.utility_type)
+      .map((u) => {
+        const day = u.billing_day.trim() ? parseInt(u.billing_day, 10) : null
+        return {
+          lease_id: activeLease.id,
+          landlord_id: user.id,
+          utility_type: u.utility_type,
+          account_holder: u.account_holder,
+          provider: u.provider || null,
+          account_number: u.account_number || null,
+          account_number_visible: u.account_number_visible,
+          setup_instructions: u.setup_instructions || null,
+          link: u.link || null,
+          billing_day:
+            u.account_holder === "landlord" && day && day >= 1 && day <= 31 ? day : null,
+        }
+      })
+
+    if (rows.length > 0) {
+      const { error: insError } = await supabase.from("lease_utilities").insert(rows)
+      if (insError) {
+        toast.error(insError.message)
+        setSavingUtilities(false)
+        return
+      }
+    }
+
+    // Refresh the view.
+    const { data: fresh } = await supabase
+      .from("lease_utilities")
+      .select("*")
+      .eq("lease_id", activeLease.id)
+      .order("created_at", { ascending: true })
+    setLeaseUtilities(fresh ?? [])
+    setSavingUtilities(false)
+    setUtilitiesEditOpen(false)
+    toast.success("Utilities updated")
+  }
+
   const openCancelLease = (lease: any) => {
     setCancelTarget(lease)
     setCancelLeaseOpen(true)
@@ -1054,6 +1156,7 @@ const handleResendInvite = async (lease: any) => {
             <TabsTrigger value="lease" className="data-[state=active]:bg-white data-[state=active]:text-navy">Lease</TabsTrigger>
             <TabsTrigger value="tenant" className="data-[state=active]:bg-white data-[state=active]:text-navy">Tenant</TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
+            <TabsTrigger value="utilities" className="data-[state=active]:bg-white data-[state=active]:text-navy">Utilities</TabsTrigger>
             <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
           </TabsList>
 
@@ -1153,6 +1256,17 @@ const handleResendInvite = async (lease: any) => {
                       <FileText className="h-4 w-4 mr-2" />
                       Tenant report
                     </Button>
+                    {!lease.tenant_signed_at && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResendInvite(lease)}
+                        disabled={resendingInvite}
+                        className="border-sage text-navy hover:bg-sage/20"
+                      >
+                        {resendingInvite ? "Sending..." : "Resend invite"}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1282,6 +1396,94 @@ const handleResendInvite = async (lease: any) => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="utilities" className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium text-navy">Utilities</h3>
+                <p className="text-sm text-text-muted">
+                  Who's responsible, providers, and setup details for this lease.
+                </p>
+              </div>
+              {activeLease && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openUtilitiesEditor}
+                  className="border-teal text-teal hover:bg-teal/10"
+                >
+                  Edit utilities
+                </Button>
+              )}
+            </div>
+
+            {!activeLease ? (
+              <EmptyState
+                icon={Home}
+                title="No active lease"
+                description="Utilities are set per lease. Create a lease to add utility details."
+              />
+            ) : leaseUtilities.length === 0 ? (
+              <EmptyState
+                icon={Home}
+                title="No utilities added yet"
+                description="Add each utility and note who holds the account."
+              />
+            ) : (
+              <div className="space-y-3">
+                {leaseUtilities.map((u) => (
+                  <Card key={u.id} className="border-sage/50 p-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-navy">{u.utility_type}</span>
+                        <span
+                          className={cn(
+                            "text-xs rounded-full px-2 py-0.5",
+                            u.account_holder === "landlord"
+                              ? "bg-navy/10 text-navy"
+                              : "bg-teal/15 text-teal-dark"
+                          )}
+                        >
+                          {u.account_holder === "landlord" ? "Landlord's name" : "Tenant's name"}
+                        </span>
+                        {u.account_holder === "landlord" && u.billing_day && (
+                          <span className="text-xs rounded-full px-2 py-0.5 bg-warning/15 text-navy">
+                            Bills ~day {u.billing_day}
+                          </span>
+                        )}
+                      </div>
+                      {u.provider && (
+                        <p className="text-sm text-navy mt-1">
+                          Provider: <span className="text-text-muted">{u.provider}</span>
+                        </p>
+                      )}
+                      {u.account_number && (
+                        <p className="text-sm text-navy">
+                          Account: <span className="text-text-muted">{u.account_number}</span>
+                          {!u.account_number_visible && (
+                            <span className="text-xs text-text-muted italic"> (hidden from tenant)</span>
+                          )}
+                        </p>
+                      )}
+                      {u.setup_instructions && (
+                        <p className="text-sm text-text-muted mt-1">{u.setup_instructions}</p>
+                      )}
+                      {u.link && (
+                        <a
+                          href={u.link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-teal hover:underline"
+                        >
+                          Provider website
+                        </a>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="maintenance" className="mt-6">
@@ -2214,9 +2416,39 @@ const handleResendInvite = async (lease: any) => {
         onCreated={() => setTabsRefreshTick((t) => t + 1)}
       />
 
+      {/* Edit Utilities */}
+      <Dialog open={utilitiesEditOpen} onOpenChange={setUtilitiesEditOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Edit utilities</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-muted -mt-1">
+            For each utility, set who holds the account. Tenant-held utilities are
+            informational; landlord-held utilities with a billing day get an automatic
+            monthly calendar reminder.
+          </p>
+          <UtilitiesEditor value={utilitiesDraft} onChange={setUtilitiesDraft} />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setUtilitiesEditOpen(false)}
+              className="border-sage text-navy hover:bg-sage/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveUtilities}
+              disabled={savingUtilities}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {savingUtilities ? "Saving..." : "Save utilities"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Tenant Report */}
-      <Dialog open={Boolean(reportLease)} onOpenChange={(open) => !open && setReportLease(null)}>
-        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+      <Dialog open={Boolean(reportLease)} onOpenChange={(open) => !open && setReportLease(null)}>        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-navy">Tenant report</DialogTitle>
           </DialogHeader>
