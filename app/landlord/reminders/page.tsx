@@ -194,22 +194,19 @@ function RemindersPageInner() {
     load()
   }
 
-  const handleAddDefault = async (d: (typeof SEASONAL_DEFAULTS)[number]) => {
-    if (!userId) return
-    const supabase = createClient()
-    const { error } = await supabase.from("maintenance_reminders").insert({
-      landlord_id: userId,
+  const handleAddDefault = (d: (typeof SEASONAL_DEFAULTS)[number]) => {
+    // Pre-fill the dialog with the seasonal preset, but let the landlord edit
+    // the date and recurrence before saving (rather than inserting immediately).
+    setForm((f) => ({
+      ...f,
       title: d.title,
+      notes: "",
       due_date: nextSeasonalDate(d.month),
       repeat: d.repeat,
+      property_id: "",
       visible_to_tenant: true,
-    })
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-    toast.success(`Added "${d.title}"`)
-    load()
+    }))
+    setShowAdd(true)
   }
 
   const handleComplete = async (r: Reminder) => {
