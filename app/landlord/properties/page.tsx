@@ -2094,7 +2094,7 @@ const handleResendInvite = async (lease: any) => {
                 <div key={floor} className="flex items-center gap-4">
                   <span className="text-sm text-text-muted w-16">Floor {floor}</span>
                   <div className="flex flex-wrap gap-2">
-                    {units.map((unit) => (
+                    {(units as any[]).map((unit: any) => (
                       <button
                         key={unit.id}
                         onClick={() => setSelectedUnitId(unit.id)}
@@ -2350,7 +2350,7 @@ const handleResendInvite = async (lease: any) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="border-sage text-navy hover:bg-sage/20">
-               {selectedProperty?.type === "apartment" ? (
+               {(selectedProperty as any)?.type === "apartment" ? (
   <Building2 className="h-4 w-4 mr-2" />
 ) : (
   <Home className="h-4 w-4 mr-2" />
