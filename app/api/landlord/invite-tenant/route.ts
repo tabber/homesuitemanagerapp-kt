@@ -135,11 +135,20 @@ export async function POST(request: Request) {
       }
     }
 
-    // Send the invitation email via Resend (same provider/domain as the
-    // landlord invite flow). Only sends when we actually have a link.
-    if (actionLink) {
+    // If we have no link, fail loudly rather than returning silent success.
+    if (!actionLink) {
+      console.error("[invite-tenant] no action_link produced", { email, alreadyExists })
+      return NextResponse.json(
+        { error: "Could not generate an invitation link" },
+        { status: 500 }
+      )
+    }
+
+    // Send the invitation email via Resend.
+    {
       const resendKey = process.env.RESEND_API_KEY
       if (!resendKey) {
+        console.error("[invite-tenant] RESEND_API_KEY missing in this environment")
         return NextResponse.json(
           { error: "Email is not configured. Add RESEND_API_KEY." },
           { status: 500 }
@@ -168,28 +177,38 @@ export async function POST(request: Request) {
         </div>
       `
 
-      const emailRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "HomeSuite <team@homesuitemanager.com>",
-          to: email,
-          subject: "You've been invited to your HomeSuite tenant portal",
-          html,
-        }),
-      })
-
-      if (!emailRes.ok) {
-        const detail = await emailRes.text()
-        console.error("Tenant invite email failed:", detail)
+      let emailRes: Response
+      try {
+        emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "HomeSuite <team@homesuitemanager.com>",
+            to: email,
+            subject: "You've been invited to your HomeSuite tenant portal",
+            html,
+          }),
+        })
+      } catch (err) {
+        console.error("[invite-tenant] Resend fetch threw:", err)
         return NextResponse.json(
-          { error: "Could not send the invitation email" },
+          { error: `Could not reach email service: ${err instanceof Error ? err.message : "unknown"}` },
           { status: 500 }
         )
       }
+
+      if (!emailRes.ok) {
+        const detail = await emailRes.text()
+        console.error("[invite-tenant] Resend rejected send:", emailRes.status, detail)
+        return NextResponse.json(
+          { error: `Email service error (${emailRes.status}): ${detail.slice(0, 200)}` },
+          { status: 500 }
+        )
+      }
+      console.log("[invite-tenant] Resend accepted invite email for", email)
     }
 
     // 3. Record that an invitation attempt was made
