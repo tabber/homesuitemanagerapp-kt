@@ -68,6 +68,7 @@ import {
 } from "@/components/screening-request-form"
 import { cn } from "@/lib/utils"
 import { UTILITY_OPTIONS, toUtilityMap, toUtilityList } from "@/lib/utilities"
+import { TenantReport } from "@/components/tenant-report"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
 
@@ -175,6 +176,7 @@ export default function PropertiesPage() {
   const [screeningUnit, setScreeningUnit] = useState<{ id: string; propertyId: string } | null>(
     null,
   )
+  const [reportLease, setReportLease] = useState<any | null>(null)
   const [leaseEditForm, setLeaseEditForm] = useState({
     
     tenant_name: "",
@@ -1142,18 +1144,15 @@ const handleResendInvite = async (lease: any) => {
                       <FileText className="h-4 w-4 mr-2" />
                       View lease summary
                     </Button>
-
-                    {!lease.tenant_signed_at && (
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={() => handleResendInvite(lease)}
-    disabled={resendingInvite}
-    className="border-sage text-navy hover:bg-sage/20"
-  >
-    {resendingInvite ? "Sending..." : "Resend invite"}
-  </Button>
-)}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReportLease(lease)}
+                      className="border-sage text-navy hover:bg-sage/20"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Tenant report
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1626,17 +1625,6 @@ const handleResendInvite = async (lease: any) => {
                             onClick={() => openMoveOut(selectedUnitLease)}
                             className="border-sage text-navy hover:bg-sage/20"
                           >
-                            {!lease.tenant_signed_at && (
-  <Button
-    variant="outline"
-    size="sm"
-    onClick={() => handleResendInvite(lease)}
-    disabled={resendingInvite}
-    className="border-sage text-navy hover:bg-sage/20"
-  >
-    {resendingInvite ? "Sending..." : "Resend invite"}
-  </Button>
-)}
                             Schedule move-out
                           </Button>
                           <Button
@@ -2225,6 +2213,25 @@ const handleResendInvite = async (lease: any) => {
         presetPropertyName={(selectedProperty as any)?.name}
         onCreated={() => setTabsRefreshTick((t) => t + 1)}
       />
+
+      {/* Tenant Report */}
+      <Dialog open={Boolean(reportLease)} onOpenChange={(open) => !open && setReportLease(null)}>
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Tenant report</DialogTitle>
+          </DialogHeader>
+          {reportLease && (
+            <TenantReport
+              leaseId={reportLease.id}
+              landlordId={userId ?? ""}
+              landlordName={reportLease.landlord_name ?? undefined}
+              propertyName={(selectedProperty as any)?.name}
+              unitNumber={reportLease.unit_number ?? undefined}
+              onClose={() => setReportLease(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Property / Building Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
