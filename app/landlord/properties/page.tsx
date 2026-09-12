@@ -1293,7 +1293,9 @@ const handleResendInvite = async (lease: any) => {
                 title="No Active Lease"
                 description="This property doesn&apos;t have an active lease. Create one to start managing your rental."
                 actionLabel="Create Lease"
-                onAction={() => router.push("/landlord/leases/create")}
+                onAction={() =>
+                  router.push(`/landlord/leases/create?property=${selectedPropertyId}`)
+                }
               />
             )}
           </TabsContent>
@@ -1341,7 +1343,9 @@ const handleResendInvite = async (lease: any) => {
                 title="No Tenant"
                 description="This property doesn&apos;t have a tenant yet. Create a lease to add one."
                 actionLabel="Create Lease"
-                onAction={() => router.push("/landlord/leases/create")}
+                onAction={() =>
+                  router.push(`/landlord/leases/create?property=${selectedPropertyId}`)
+                }
               />
             )}
           </TabsContent>
@@ -1859,7 +1863,13 @@ const handleResendInvite = async (lease: any) => {
                   title="No Active Lease"
                   description="This unit doesn&apos;t have an active lease. Create one to start renting."
                   actionLabel="Create Lease"
-                  onAction={() => router.push("/landlord/leases/create")}
+                  onAction={() =>
+                    router.push(
+                      selectedUnitId
+                        ? `/landlord/leases/create?property=${selectedPropertyId}&unit=${selectedUnitId}`
+                        : `/landlord/leases/create?property=${selectedPropertyId}`
+                    )
+                  }
                 />
               )}
             </TabsContent>
