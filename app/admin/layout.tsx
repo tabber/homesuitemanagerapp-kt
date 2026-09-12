@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
+import { AppFooter } from "@/components/app-footer"
 import { MobileSidebarWrapper } from "@/components/mobile-sidebar-wrapper"
 import { createClient } from "@/lib/supabase/client"
 import { UserProvider, useUser } from "@/lib/context/UserContext"
@@ -30,6 +31,7 @@ function AdminLayoutInner({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full min-w-0 max-w-7xl px-4 pt-14 pb-8 sm:px-6 md:px-8 md:pt-8">
           {children}
         </div>
+        <AppFooter />
       </main>
     </div>
   )
