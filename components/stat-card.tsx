@@ -1,12 +1,13 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { TrendingUp, TrendingDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface StatCardProps {
   label: string
   value: string | number
-  sublabel?: string
+  sublabel?: ReactNode
   trend?: {
     direction: "up" | "down"
     value: string
