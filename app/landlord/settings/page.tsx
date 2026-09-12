@@ -233,6 +233,26 @@ export default function SettingsPage() {
     leaseExpiry: true,
   })
 
+  const saveNotificationPref = async (key: string, value: boolean) => {
+    // Optimistic update
+    const next = { ...notifications, [key]: value }
+    setNotifications(next)
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase
+      .from("profiles")
+      .update({ notification_preferences: next })
+      .eq("id", user.id)
+    if (error) {
+      // Roll back on failure
+      setNotifications((prev) => ({ ...prev, [key]: !value }))
+      toast.error("Couldn't save that preference")
+    }
+  }
+
   // Security
   const [securityForm, setSecurityForm] = useState({
     currentPassword: "",
