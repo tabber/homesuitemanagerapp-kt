@@ -5,7 +5,7 @@ import crypto from "node:crypto"
 // Lazily created on first use so the module can be evaluated at build time
 // (Next.js collects page data before runtime env vars are guaranteed).
 // Kept as a module-level accessor because many helpers below reference it.
-let adminClient: ReturnType<typeof createAdminClient> | null = null
+let adminClient: ReturnType<typeof createAdminClient<any>> | null = null
 function getAdminClient() {
   if (adminClient) return adminClient
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -13,10 +13,12 @@ function getAdminClient() {
   if (!url || !key) {
     throw new Error("Supabase admin credentials are not configured")
   }
-  adminClient = createAdminClient(url, key)
+  // Typed as <any> schema: this route doesn't use generated DB types, so without
+  // this the query builder infers `never` for every row and column.
+  adminClient = createAdminClient<any>(url, key)
   return adminClient
 }
-const supabaseAdmin = new Proxy({} as ReturnType<typeof createAdminClient>, {
+const supabaseAdmin = new Proxy({} as ReturnType<typeof createAdminClient<any>>, {
   get(_target, prop) {
     const client = getAdminClient()
     const value = Reflect.get(client, prop)
