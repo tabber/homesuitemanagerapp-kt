@@ -49,6 +49,7 @@ type PropertyOption = {
   address: string
   type: string
   monthlyRent: number
+  totalUnits?: number
   vacantUnits: VacantUnit[]
 }
 
@@ -740,7 +741,7 @@ function CreateLeasePageInner() {
                     <p className="text-sm text-teal mt-1">
                       {property.vacantUnits.length} of {property.totalUnits || property.vacantUnits.length} units available
                     </p>
-                  ) : property.totalUnits > 0 ? (
+                  ) : (property.totalUnits ?? 0) > 0 ? (
                     <p className="text-sm text-warning mt-1">
                       All units occupied
                     </p>
