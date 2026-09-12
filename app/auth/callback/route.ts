@@ -12,6 +12,14 @@ export async function GET(request: NextRequest) {
   // onto the redirect response, so the user stays logged in.
   const supabase = await createClient()
 
+  // If someone follows an invite/recovery/signup link while another account is
+  // still logged in on this browser (common when testing, or when a landlord
+  // and tenant share a device), that stale session can shadow the new one and
+  // send them to the logged-in area instead of set-password. Clear it first.
+  if (type === "invite" || type === "recovery" || type === "signup") {
+    await supabase.auth.signOut()
+  }
+
   let verified = false
 
   if (code) {
