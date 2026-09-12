@@ -1142,6 +1142,18 @@ const handleResendInvite = async (lease: any) => {
                       <FileText className="h-4 w-4 mr-2" />
                       View lease summary
                     </Button>
+
+                    {!lease.tenant_signed_at && (
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => handleResendInvite(lease)}
+    disabled={resendingInvite}
+    className="border-sage text-navy hover:bg-sage/20"
+  >
+    {resendingInvite ? "Sending..." : "Resend invite"}
+  </Button>
+)}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1614,6 +1626,17 @@ const handleResendInvite = async (lease: any) => {
                             onClick={() => openMoveOut(selectedUnitLease)}
                             className="border-sage text-navy hover:bg-sage/20"
                           >
+                            {!lease.tenant_signed_at && (
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => handleResendInvite(lease)}
+    disabled={resendingInvite}
+    className="border-sage text-navy hover:bg-sage/20"
+  >
+    {resendingInvite ? "Sending..." : "Resend invite"}
+  </Button>
+)}
                             Schedule move-out
                           </Button>
                           <Button
