@@ -79,38 +79,103 @@ export async function POST(request: Request) {
       alreadyExists = !!authUserData?.user?.email_confirmed_at
     }
 
+    // Generate the invite/sign-in link ourselves and email it via Resend,
+    // rather than relying on Supabase's built-in (heavily rate-limited,
+    // poor-deliverability) email. For a brand-new tenant we generate an invite
+    // link; for an email that already has an auth row we generate a magic link.
+    let actionLink: string | null = null
+
     if (!alreadyExists) {
-      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email,
-        {
-          redirectTo,
-          data: {
-            role: "tenant",
-            invited_name: lease.tenant_name ?? null,
-            lease_id: lease.id,
+      const { data: linkData, error: linkError } =
+        await supabaseAdmin.auth.admin.generateLink({
+          type: "invite",
+          email,
+          options: {
+            redirectTo,
+            data: {
+              role: "tenant",
+              invited_name: lease.tenant_name ?? null,
+              lease_id: lease.id,
+            },
           },
-        }
-      )
-      if (inviteError) {
-        // Supabase refuses to re-invite an email that already has an
-        // auth.users row, even if it was never confirmed. In that case,
-        // generate a fresh link ourselves instead of failing outright.
-        if (/already.*(registered|exists)/i.test(inviteError.message)) {
-          const { data: linkData, error: linkError } =
+        })
+
+      if (linkError) {
+        // If the user already exists in auth, Supabase refuses an invite link
+        // — fall back to a magic link so they can still get in.
+        if (/already.*(registered|exists)/i.test(linkError.message)) {
+          const { data: magicData, error: magicError } =
             await supabaseAdmin.auth.admin.generateLink({
               type: "magiclink",
               email,
               options: { redirectTo },
             })
-          if (linkError) {
-            return NextResponse.json({ error: linkError.message }, { status: 500 })
+          if (magicError) {
+            return NextResponse.json({ error: magicError.message }, { status: 500 })
           }
-          // TODO: send linkData.properties.action_link via your Resend
-          // transactional email function, using your invite template.
-          alreadyExists = false
+          actionLink = magicData?.properties?.action_link ?? null
         } else {
-          return NextResponse.json({ error: inviteError.message }, { status: 500 })
+          return NextResponse.json({ error: linkError.message }, { status: 500 })
         }
+      } else {
+        actionLink = linkData?.properties?.action_link ?? null
+      }
+    }
+
+    // Send the invitation email via Resend (same provider/domain as the
+    // landlord invite flow). Only sends when we actually have a link.
+    if (actionLink) {
+      const resendKey = process.env.RESEND_API_KEY
+      if (!resendKey) {
+        return NextResponse.json(
+          { error: "Email is not configured. Add RESEND_API_KEY." },
+          { status: 500 }
+        )
+      }
+
+      const greetingName = lease.tenant_name ? lease.tenant_name.split(" ")[0] : "there"
+      const html = `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 520px;">
+          <h2 style="color:#1B3A6B; font-weight:500;">You've been invited to your tenant portal</h2>
+          <p style="color:#2C3A30; line-height:1.6;">
+            Hi ${greetingName}, your landlord has set up your lease on HomeSuite.
+            Accept your invitation to view your lease, make payments, and send
+            maintenance requests.
+          </p>
+          <p style="margin:28px 0;">
+            <a href="${actionLink}"
+               style="background:#5BC8AF; color:#fff; padding:12px 24px; border-radius:8px;
+                      text-decoration:none; font-weight:500;">
+              Accept your invitation
+            </a>
+          </p>
+          <p style="color:#6B8C7D; font-size:13px; line-height:1.6;">
+            If you weren't expecting this, you can safely ignore this email.
+          </p>
+        </div>
+      `
+
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "HomeSuite <team@homesuitemanager.com>",
+          to: email,
+          subject: "You've been invited to your HomeSuite tenant portal",
+          html,
+        }),
+      })
+
+      if (!emailRes.ok) {
+        const detail = await emailRes.text()
+        console.error("Tenant invite email failed:", detail)
+        return NextResponse.json(
+          { error: "Could not send the invitation email" },
+          { status: 500 }
+        )
       }
     }
 
