@@ -73,6 +73,12 @@ import {
   emptyUtility,
   type UtilityRecord,
 } from "@/components/utilities-editor"
+import {
+  BuildingSettingsEditor,
+  emptyBuildingFacts,
+  type BuildingUtility,
+  type BuildingFacts,
+} from "@/components/building-settings-editor"
 import { TenantReport } from "@/components/tenant-report"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
@@ -186,6 +192,10 @@ export default function PropertiesPage() {
   const [utilitiesEditOpen, setUtilitiesEditOpen] = useState(false)
   const [utilitiesDraft, setUtilitiesDraft] = useState<UtilityRecord[]>([])
   const [savingUtilities, setSavingUtilities] = useState(false)
+  const [buildingSettingsOpen, setBuildingSettingsOpen] = useState(false)
+  const [buildingUtilDraft, setBuildingUtilDraft] = useState<BuildingUtility[]>([])
+  const [buildingFactsDraft, setBuildingFactsDraft] = useState<BuildingFacts>(emptyBuildingFacts())
+  const [savingBuilding, setSavingBuilding] = useState(false)
   const [leaseEditForm, setLeaseEditForm] = useState({
     
     tenant_name: "",
@@ -423,6 +433,54 @@ const { data: allLeases } = await supabase
 
 const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?? dbProperties[0] ?? null
   const isApartment = isMultiUnitProperty(selectedProperty, unitRows.length)
+
+  const buildingUtilities: any[] = Array.isArray((selectedProperty as any)?.building_utilities)
+    ? (selectedProperty as any).building_utilities
+    : []
+  const buildingFacts: BuildingFacts = {
+    ...emptyBuildingFacts(),
+    ...((selectedProperty as any)?.building_facts ?? {}),
+  }
+  const hasBuildingFacts = Boolean(
+    buildingFacts.garbage_day ||
+      buildingFacts.recycling_day ||
+      buildingFacts.telecoms_wired ||
+      buildingFacts.notes,
+  )
+
+  const openBuildingSettings = () => {
+    setBuildingUtilDraft(buildingUtilities.length > 0 ? buildingUtilities.map((u) => ({ ...u })) : [])
+    setBuildingFactsDraft({ ...buildingFacts })
+    setBuildingSettingsOpen(true)
+  }
+
+  const handleSaveBuildingSettings = async () => {
+    if (!selectedPropertyId) return
+    setSavingBuilding(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("properties")
+      .update({
+        building_utilities: buildingUtilDraft,
+        building_facts: buildingFactsDraft,
+      })
+      .eq("id", selectedPropertyId)
+    setSavingBuilding(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    // Reflect the change locally without a full reload.
+    setDbProperties((prev: any[]) =>
+      prev.map((p) =>
+        p.id === selectedPropertyId
+          ? { ...p, building_utilities: buildingUtilDraft, building_facts: buildingFactsDraft }
+          : p,
+      ),
+    )
+    setBuildingSettingsOpen(false)
+    toast.success("Building settings saved")
+  }
 
   // Lease/tenant/payment/maintenance data scoped to the selected unit
   const leaseForUnit = (unitId: string | null) =>
@@ -1708,6 +1766,7 @@ const handleResendInvite = async (lease: any) => {
               <TabsTrigger value="tenant" className="data-[state=active]:bg-white data-[state=active]:text-navy">Tenant</TabsTrigger>
               <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
+              <TabsTrigger value="building" className="data-[state=active]:bg-white data-[state=active]:text-navy">Building</TabsTrigger>
             </TabsList>
             <TabsContent value="lease" className="mt-6 space-y-4">
               {selectedUnitLease?.move_out_date && (
@@ -2021,6 +2080,75 @@ const handleResendInvite = async (lease: any) => {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="building" className="mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-medium text-navy">Building settings</h3>
+                  <p className="text-sm text-text-muted">
+                    Utilities and details for the whole building. New leases inherit these.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openBuildingSettings}
+                  className="border-teal text-teal hover:bg-teal/10"
+                >
+                  Edit building settings
+                </Button>
+              </div>
+
+              {buildingUtilities.length === 0 && !hasBuildingFacts ? (
+                <EmptyState
+                  icon={Home}
+                  title="No building settings yet"
+                  description="Set utilities and building details once — every unit's lease will inherit them."
+                />
+              ) : (
+                <div className="space-y-4">
+                  {buildingUtilities.length > 0 && (
+                    <Card className="border-sage/50 p-4">
+                      <h4 className="font-medium text-navy mb-3">Utilities</h4>
+                      <div className="space-y-2">
+                        {buildingUtilities.map((u: any, i: number) => (
+                          <div key={i} className="flex items-start justify-between gap-3 border-b border-sage/20 pb-2 last:border-0">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-navy">{u.utility_type}</span>
+                                <span className={cn(
+                                  "text-xs rounded-full px-2 py-0.5",
+                                  u.policy === "included" ? "bg-teal/15 text-teal-dark"
+                                    : u.policy === "landlord" ? "bg-navy/10 text-navy"
+                                    : "bg-warning/15 text-navy"
+                                )}>
+                                  {u.policy === "included" ? "Included in rent"
+                                    : u.policy === "landlord" ? "Landlord-managed"
+                                    : "Tenant sets up"}
+                                </span>
+                              </div>
+                              {u.provider && <p className="text-sm text-text-muted">Provider: {u.provider}</p>}
+                              {u.setup_instructions && <p className="text-sm text-text-muted">{u.setup_instructions}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+                  {hasBuildingFacts && (
+                    <Card className="border-sage/50 p-4">
+                      <h4 className="font-medium text-navy mb-3">Building details</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        {buildingFacts.garbage_day && <p className="text-navy">Garbage: <span className="text-text-muted">{buildingFacts.garbage_day}</span></p>}
+                        {buildingFacts.recycling_day && <p className="text-navy">Recycling: <span className="text-text-muted">{buildingFacts.recycling_day}</span></p>}
+                        {buildingFacts.telecoms_wired && <p className="text-navy sm:col-span-2">Wired for: <span className="text-text-muted">{buildingFacts.telecoms_wired}</span></p>}
+                        {buildingFacts.notes && <p className="text-navy sm:col-span-2">Notes: <span className="text-text-muted">{buildingFacts.notes}</span></p>}
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -2425,6 +2553,41 @@ const handleResendInvite = async (lease: any) => {
         presetPropertyName={(selectedProperty as any)?.name}
         onCreated={() => setTabsRefreshTick((t) => t + 1)}
       />
+
+      {/* Edit Building Settings */}
+      <Dialog open={buildingSettingsOpen} onOpenChange={setBuildingSettingsOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Building settings</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-text-muted -mt-1">
+            Set utilities and details for the whole building. When you create a lease
+            for a unit, its utilities are pre-filled from here.
+          </p>
+          <BuildingSettingsEditor
+            utilities={buildingUtilDraft}
+            facts={buildingFactsDraft}
+            onUtilitiesChange={setBuildingUtilDraft}
+            onFactsChange={setBuildingFactsDraft}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setBuildingSettingsOpen(false)}
+              className="border-sage text-navy hover:bg-sage/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveBuildingSettings}
+              disabled={savingBuilding}
+              className="bg-teal hover:bg-teal-dark text-white"
+            >
+              {savingBuilding ? "Saving..." : "Save building settings"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Utilities */}
       <Dialog open={utilitiesEditOpen} onOpenChange={setUtilitiesEditOpen}>
