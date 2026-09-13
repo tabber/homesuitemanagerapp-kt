@@ -97,11 +97,18 @@ function CreateLeasePageInner() {
     vehicleDetails: "",
     tenantUtilities: [] as string[],
     // Step 4 - Lease Terms
+    tenancyType: "fixed", // "periodic" | "fixed"
+    periodicType: "monthly", // when periodic: monthly | weekly | biweekly | other
     startDate: "",
     endDate: "",
+    endOfTermAction: "periodic", // fixed-term: what happens at end — "periodic" | "vacate"
     monthlyRent: "",
     securityDeposit: "",
+    petDeposit: "",
+    rentIncludes: "",
     paymentDueDay: "1",
+    landlordAddressForService: "",
+    tenantAddressForService: "",
     parkingDetails: "",
     smokingAllowed: false,
     additionalTerms: "",
@@ -295,8 +302,13 @@ function CreateLeasePageInner() {
       setIsSubmitting(false)
       return
     }
-    if (!form.startDate || !form.endDate) {
-      toast.error("Please set both a start date and an end date.")
+    if (!form.startDate) {
+      toast.error("Please set a start date.")
+      setIsSubmitting(false)
+      return
+    }
+    if (form.tenancyType === "fixed" && !form.endDate) {
+      toast.error("Please set an end date for a fixed-term tenancy.")
       setIsSubmitting(false)
       return
     }
@@ -332,8 +344,15 @@ function CreateLeasePageInner() {
       parking_details: form.parkingDetails || null,
       smoking_allowed: form.smokingAllowed,
       utilities_included: toUtilityMap(form.tenantUtilities),
+      tenancy_type: form.tenancyType,
+      periodic_type: form.tenancyType === "periodic" ? form.periodicType : null,
+      end_of_term_action: form.tenancyType === "fixed" ? form.endOfTermAction : null,
+      pet_deposit: form.petDeposit ? parseFloat(form.petDeposit) : null,
+      rent_includes: form.rentIncludes || null,
+      landlord_address_for_service: form.landlordAddressForService || null,
+      tenant_address_for_service: form.tenantAddressForService || null,
       start_date: form.startDate,
-      end_date: form.endDate,
+      end_date: form.tenancyType === "fixed" ? form.endDate : null,
       monthly_rent: monthlyRent,
       security_deposit: form.securityDeposit ? parseFloat(form.securityDeposit) : null,
       payment_due_day: form.paymentDueDay ? parseInt(form.paymentDueDay) : null,
@@ -366,6 +385,40 @@ function CreateLeasePageInner() {
         }
       } catch {
         // Non-fatal: the lease exists even if the document upload fails
+      }
+    }
+
+    // Copy the building's utility settings down onto this lease (if any). This
+    // is what makes "set once for the building" work: each new lease inherits
+    // the building template, which the landlord can then tweak per unit.
+    if (newLease?.id) {
+      try {
+        const { data: propRow } = await supabase
+          .from("properties")
+          .select("building_utilities")
+          .eq("id", form.propertyId)
+          .maybeSingle()
+        const bUtils = Array.isArray(propRow?.building_utilities)
+          ? propRow!.building_utilities
+          : []
+        if (bUtils.length > 0) {
+          const rows = bUtils.map((u: any) => ({
+            lease_id: newLease.id,
+            landlord_id: user.id,
+            utility_type: u.utility_type,
+            // Map building policy → per-lease account holder / status.
+            // included = landlord's responsibility, nothing for tenant to set up.
+            account_holder: u.policy === "tenant" ? "tenant" : "landlord",
+            provider: u.provider || null,
+            setup_instructions: u.setup_instructions || null,
+            link: u.link || null,
+            account_number_visible: true,
+            setup_status: "not_set_up",
+          }))
+          await supabase.from("lease_utilities").insert(rows)
+        }
+      } catch {
+        // Non-fatal: the lease still exists; utilities can be set on the unit later.
       }
     }
 
@@ -587,6 +640,42 @@ function CreateLeasePageInner() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
+                <Label htmlFor="q_ttype">Tenancy type</Label>
+                <Select
+                  value={form.tenancyType}
+                  onValueChange={(v) => setForm((p) => ({ ...p, tenancyType: v }))}
+                >
+                  <SelectTrigger id="q_ttype">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">Fixed term</SelectItem>
+                    <SelectItem value="periodic">Periodic (month-to-month)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.tenancyType === "periodic" ? (
+                <div>
+                  <Label htmlFor="q_ptype">Renews</Label>
+                  <Select
+                    value={form.periodicType}
+                    onValueChange={(v) => setForm((p) => ({ ...p, periodicType: v }))}
+                  >
+                    <SelectTrigger id="q_ptype">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div />
+              )}
+              <div>
                 <Label htmlFor="q_start">Start date</Label>
                 <Input
                   id="q_start"
@@ -595,15 +684,17 @@ function CreateLeasePageInner() {
                   onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
                 />
               </div>
-              <div>
-                <Label htmlFor="q_end">End date</Label>
-                <Input
-                  id="q_end"
-                  type="date"
-                  value={form.endDate}
-                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
-                />
-              </div>
+              {form.tenancyType === "fixed" && (
+                <div>
+                  <Label htmlFor="q_end">End date</Label>
+                  <Input
+                    id="q_end"
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                  />
+                </div>
+              )}
               <div>
                 <Label htmlFor="q_rent">Monthly rent</Label>
                 <Input
@@ -625,6 +716,16 @@ function CreateLeasePageInner() {
                 />
               </div>
               <div>
+                <Label htmlFor="q_petdep">Pet deposit (optional)</Label>
+                <Input
+                  id="q_petdep"
+                  type="number"
+                  step="0.01"
+                  value={form.petDeposit}
+                  onChange={(e) => setForm((p) => ({ ...p, petDeposit: e.target.value }))}
+                />
+              </div>
+              <div>
                 <Label htmlFor="q_due">Rent due day</Label>
                 <Select
                   value={form.paymentDueDay}
@@ -641,6 +742,33 @@ function CreateLeasePageInner() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="q_includes">Rent includes (optional)</Label>
+                <Input
+                  id="q_includes"
+                  value={form.rentIncludes}
+                  onChange={(e) => setForm((p) => ({ ...p, rentIncludes: e.target.value }))}
+                  placeholder="e.g. Heat, water, one parking stall"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="q_llserv">Landlord address for service (optional)</Label>
+                <Input
+                  id="q_llserv"
+                  value={form.landlordAddressForService}
+                  onChange={(e) => setForm((p) => ({ ...p, landlordAddressForService: e.target.value }))}
+                  placeholder="Where legal notices to the landlord should be sent"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="q_tserv">Tenant address for service (optional)</Label>
+                <Input
+                  id="q_tserv"
+                  value={form.tenantAddressForService}
+                  onChange={(e) => setForm((p) => ({ ...p, tenantAddressForService: e.target.value }))}
+                  placeholder="Usually the rental unit; where notices to the tenant should be sent"
+                />
               </div>
             </CardContent>
           </Card>
