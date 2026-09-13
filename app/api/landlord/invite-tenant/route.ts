@@ -79,137 +79,50 @@ export async function POST(request: Request) {
       alreadyExists = !!authUserData?.user?.email_confirmed_at
     }
 
-    // Generate a link to email the tenant. Three cases:
-    //  - brand-new email → invite link
-    //  - email exists but Supabase refuses invite → recovery link
-    //  - email already confirmed (existing account) → recovery link, so they can
-    //    sign in and reach this new lease. (Previously this case sent NOTHING,
-    //    which looked like success but delivered no email.)
-    let actionLink: string | null = null
-
+    // Send the email VIA SUPABASE (which delivers through your configured SMTP
+    // pairing). We don't call Resend's API directly — that required a key in
+    // Vercel that isn't set. Supabase's own senders send seamlessly through SMTP.
     if (alreadyExists) {
-      const { data: recoveryData, error: recoveryError } =
-        await supabaseAdmin.auth.admin.generateLink({
-          type: "recovery",
-          email,
-          options: { redirectTo },
-        })
-      if (recoveryError) {
-        return NextResponse.json({ error: recoveryError.message }, { status: 500 })
+      // Existing, confirmed account: send a password-reset/recovery email so they
+      // can sign in and reach this new lease. The callback routes recovery →
+      // /reset-password.
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
+      if (resetError) {
+        console.error("[invite-tenant] resetPasswordForEmail failed:", resetError.message)
+        return NextResponse.json({ error: resetError.message }, { status: 500 })
       }
-      actionLink = recoveryData?.properties?.action_link ?? null
     } else {
-      const { data: linkData, error: linkError } =
-        await supabaseAdmin.auth.admin.generateLink({
-          type: "invite",
-          email,
-          options: {
+      // New (or invited-but-never-confirmed) email: send the invite. Supabase
+      // sends this through SMTP using its "Invite user" template.
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: {
+          role: "tenant",
+          invited_name: lease.tenant_name ?? null,
+          lease_id: lease.id,
+        },
+      })
+
+      if (inviteError) {
+        // If the user already exists in auth but wasn't confirmed, invite is
+        // refused — fall back to a password-reset email so they can still get in.
+        if (/already.*(registered|exists)/i.test(inviteError.message)) {
+          const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo,
-            data: {
-              role: "tenant",
-              invited_name: lease.tenant_name ?? null,
-              lease_id: lease.id,
-            },
-          },
-        })
-
-      if (linkError) {
-        // If the user already exists in auth, Supabase refuses an invite link
-        // — fall back to a recovery link so they can still get in.
-        if (/already.*(registered|exists)/i.test(linkError.message)) {
-          const { data: magicData, error: magicError } =
-            await supabaseAdmin.auth.admin.generateLink({
-              type: "recovery",
-              email,
-              options: { redirectTo },
-            })
-          if (magicError) {
-            return NextResponse.json({ error: magicError.message }, { status: 500 })
+          })
+          if (resetError) {
+            console.error("[invite-tenant] fallback reset failed:", resetError.message)
+            return NextResponse.json({ error: resetError.message }, { status: 500 })
           }
-          actionLink = magicData?.properties?.action_link ?? null
         } else {
-          return NextResponse.json({ error: linkError.message }, { status: 500 })
+          console.error("[invite-tenant] inviteUserByEmail failed:", inviteError.message)
+          return NextResponse.json({ error: inviteError.message }, { status: 500 })
         }
-      } else {
-        actionLink = linkData?.properties?.action_link ?? null
       }
     }
 
-    // If we have no link, fail loudly rather than returning silent success.
-    if (!actionLink) {
-      console.error("[invite-tenant] no action_link produced", { email, alreadyExists })
-      return NextResponse.json(
-        { error: "Could not generate an invitation link" },
-        { status: 500 }
-      )
-    }
-
-    // Send the invitation email via Resend.
-    {
-      const resendKey = process.env.RESEND_API_KEY
-      if (!resendKey) {
-        console.error("[invite-tenant] RESEND_API_KEY missing in this environment")
-        return NextResponse.json(
-          { error: "Email is not configured. Add RESEND_API_KEY." },
-          { status: 500 }
-        )
-      }
-
-      const greetingName = lease.tenant_name ? lease.tenant_name.split(" ")[0] : "there"
-      const html = `
-        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 520px;">
-          <h2 style="color:#1B3A6B; font-weight:500;">You've been invited to your tenant portal</h2>
-          <p style="color:#2C3A30; line-height:1.6;">
-            Hi ${greetingName}, your landlord has set up your lease on HomeSuite.
-            Accept your invitation to view your lease, make payments, and send
-            maintenance requests.
-          </p>
-          <p style="margin:28px 0;">
-            <a href="${actionLink}"
-               style="background:#5BC8AF; color:#fff; padding:12px 24px; border-radius:8px;
-                      text-decoration:none; font-weight:500;">
-              Accept your invitation
-            </a>
-          </p>
-          <p style="color:#6B8C7D; font-size:13px; line-height:1.6;">
-            If you weren't expecting this, you can safely ignore this email.
-          </p>
-        </div>
-      `
-
-      let emailRes: Response
-      try {
-        emailRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: "HomeSuite <team@homesuitemanager.com>",
-            to: email,
-            subject: "You've been invited to your HomeSuite tenant portal",
-            html,
-          }),
-        })
-      } catch (err) {
-        console.error("[invite-tenant] Resend fetch threw:", err)
-        return NextResponse.json(
-          { error: `Could not reach email service: ${err instanceof Error ? err.message : "unknown"}` },
-          { status: 500 }
-        )
-      }
-
-      if (!emailRes.ok) {
-        const detail = await emailRes.text()
-        console.error("[invite-tenant] Resend rejected send:", emailRes.status, detail)
-        return NextResponse.json(
-          { error: `Email service error (${emailRes.status}): ${detail.slice(0, 200)}` },
-          { status: 500 }
-        )
-      }
-      console.log("[invite-tenant] Resend accepted invite email for", email)
-    }
 
     // 3. Record that an invitation attempt was made
     await supabaseAdmin
