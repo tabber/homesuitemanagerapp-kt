@@ -1,13 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
-import { fillRTB1, type RTB1Data, type RTB1Party } from "@/lib/rtb1"
-import { readFile } from "fs/promises"
-import path from "path"
+import { generateLeaseForm } from "@/lib/lease-forms"
+import type { LeaseFormData, LeaseParty } from "@/lib/lease-forms/types"
 import { NextResponse } from "next/server"
 
 // Split a stored full name into { last, first } for the RTB-1's split boxes.
 // Business names go entirely in the last-name box (per the form's instructions),
 // which we approximate: if there's no space, treat it as last name.
-function splitName(full: string | null | undefined, isBusiness = false): RTB1Party {
+function splitName(full: string | null | undefined, isBusiness = false): LeaseParty {
   const name = (full ?? "").trim()
   if (!name) return { last: "", first: "" }
   if (isBusiness || !name.includes(" ")) return { last: name, first: "" }
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const data: RTB1Data = {
+  const data: LeaseFormData = {
     landlords: [splitName(lease.landlord_name, true)],
     tenants: [splitName(lease.tenant_name)],
     tenant_phone: lease.tenant_phone ?? undefined,
@@ -91,7 +90,7 @@ export async function POST(request: Request) {
       unit: unitNumber || undefined,
       street: property?.address ?? undefined,
       city: property?.city ?? undefined,
-      province: property?.province ?? "BC",
+      province: property?.province ?? undefined,
       postal: property?.postal_code ?? undefined,
     },
     service_address: lease.landlord_address_for_service
@@ -110,21 +109,26 @@ export async function POST(request: Request) {
     parking_spaces: lease.num_vehicles ?? undefined,
     security_deposit: lease.security_deposit ?? undefined,
     pet_deposit: lease.pet_deposit ?? undefined,
+    additional_terms: lease.terms ?? undefined,
   }
 
-  // Fill the form.
+  // Pick the province from the property; the engine fills the official form if
+  // registered, else generates the generic fallback.
+  const provinceCode = (property?.province ?? "").toString().toUpperCase()
+
   let filled: Uint8Array
+  let formLabel = "lease agreement"
   try {
-    const templatePath = path.join(process.cwd(), "public", "forms", "rtb1_chrome.pdf")
-    const template = await readFile(templatePath)
-    filled = await fillRTB1(new Uint8Array(template), data)
+    const result = await generateLeaseForm(provinceCode, data)
+    filled = result.bytes
+    formLabel = result.formLabel
   } catch (err) {
     console.error("[generate-rtb1] fill failed:", err)
     return NextResponse.json({ error: "Could not generate the agreement" }, { status: 500 })
   }
 
   // Upload to storage and record it as a document on the lease.
-  const fileName = `RTB-1 Tenancy Agreement${lease.tenant_name ? ` - ${lease.tenant_name}` : ""}.pdf`
+  const fileName = `${formLabel}${lease.tenant_name ? ` - ${lease.tenant_name}` : ""}.pdf`
   const filePath = `${lease.id}/${Date.now()}-rtb1.pdf`
   const { error: uploadErr } = await supabase.storage
     .from("documents")
