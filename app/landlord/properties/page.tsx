@@ -188,6 +188,7 @@ export default function PropertiesPage() {
     null,
   )
   const [reportLease, setReportLease] = useState<any | null>(null)
+  const [generatingRTB1, setGeneratingRTB1] = useState(false)
   const [leaseUtilities, setLeaseUtilities] = useState<any[]>([])
   const [utilitiesEditOpen, setUtilitiesEditOpen] = useState(false)
   const [utilitiesDraft, setUtilitiesDraft] = useState<UtilityRecord[]>([])
@@ -447,6 +448,28 @@ const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?
       buildingFacts.telecoms_wired ||
       buildingFacts.notes,
   )
+
+  const handleGenerateRTB1 = async (leaseId: string) => {
+    if (generatingRTB1) return
+    setGeneratingRTB1(true)
+    try {
+      const res = await fetch("/api/landlord/generate-rtb1", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leaseId }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        toast.error(data?.error || "Could not generate the RTB-1")
+      } else {
+        toast.success("RTB-1 agreement saved to Documents")
+      }
+    } catch {
+      toast.error("Could not generate the RTB-1")
+    } finally {
+      setGeneratingRTB1(false)
+    }
+  }
 
   const openBuildingSettings = () => {
     setBuildingUtilDraft(buildingUtilities.length > 0 ? buildingUtilities.map((u) => ({ ...u })) : [])
@@ -1313,6 +1336,16 @@ const handleResendInvite = async (lease: any) => {
                     >
                       <FileText className="h-4 w-4 mr-2" />
                       Tenant report
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleGenerateRTB1(lease.id)}
+                      disabled={generatingRTB1}
+                      className="border-teal text-teal hover:bg-teal/10"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {generatingRTB1 ? "Generating..." : "Generate RTB-1"}
                     </Button>
                     {!lease.tenant_signed_at && (
                       <Button
