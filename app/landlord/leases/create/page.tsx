@@ -446,6 +446,21 @@ function CreateLeasePageInner() {
         )
       }
     }
+    // Auto-generate the lease agreement PDF and save it to the lease's
+    // Documents, so it's ready without a separate button click. Best-effort:
+    // never blocks lease creation if generation fails.
+    if (newLease?.id) {
+      try {
+        await fetch("/api/landlord/generate-rtb1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leaseId: newLease.id }),
+        })
+      } catch {
+        // ignore — the landlord can still generate it manually from the lease
+      }
+    }
+
     router.push("/landlord/properties")
   }
 
