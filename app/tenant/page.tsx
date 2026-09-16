@@ -96,16 +96,27 @@ export default function TenantDashboard() {
         .limit(1)
       let leaseRow = (leaseRows?.[0] as LeaseData | undefined) ?? null
 
-      // A lease that hasn't been accepted yet has no tenant_id, so fall back to
-      // matching on the email the landlord addressed it to.
+      // Fall back to matching on the email the landlord addressed the lease to.
+      // Broadened to ANY status (not just pending) so a lease can't go invisible
+      // if its status changed but the tenant_id link was never written.
       if (!leaseRow && user.email) {
-        const { data: pendingRows } = await supabase
+        const { data: emailRows } = await supabase
           .from("leases")
           .select("id, monthly_rent, payment_due_day, end_date, status, property_id, unit_id, landlord_id, etransfer_email, etransfer_enabled, stripe_enabled, landlord_name, landlord_email, landlord_phone")
           .ilike("tenant_email", user.email)
-          .eq("status", "pending")
+          .order("created_at", { ascending: false })
           .limit(1)
-        leaseRow = (pendingRows?.[0] as LeaseData | undefined) ?? null
+        leaseRow = (emailRows?.[0] as LeaseData | undefined) ?? null
+
+        // Auto-heal: if we matched a lease by email but it has no tenant_id,
+        // link it to this account now so future logins find it directly.
+        if (leaseRow?.id) {
+          await supabase
+            .from("leases")
+            .update({ tenant_id: user.id })
+            .eq("id", leaseRow.id)
+            .is("tenant_id", null)
+        }
       }
 
       const { count: openCount } = await supabase
