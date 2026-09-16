@@ -99,12 +99,32 @@ export default function TenantMyHome() {
         .maybeSingle()
 
       // Tenant's lease
-      const { data: lease } = await supabase
+      let { data: lease } = await supabase
         .from("leases")
         .select("*")
         .eq("tenant_id", user.id)
         .limit(1)
         .maybeSingle()
+
+      // Fallback + auto-heal: match by email at any status, and link the
+      // tenant_id if it was never written (e.g. an interrupted acceptance).
+      if (!lease && user.email) {
+        const { data: emailLease } = await supabase
+          .from("leases")
+          .select("*")
+          .ilike("tenant_email", user.email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        lease = emailLease ?? null
+        if (lease?.id) {
+          await supabase
+            .from("leases")
+            .update({ tenant_id: user.id })
+            .eq("id", lease.id)
+            .is("tenant_id", null)
+        }
+      }
 
       let landlord: any = null
       let property: any = null
