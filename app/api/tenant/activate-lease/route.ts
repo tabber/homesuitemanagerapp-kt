@@ -101,11 +101,14 @@ export async function POST(request: Request) {
       )
     }
 
-    if (lease.status === "active") {
+    // Idempotent: if the lease is already active AND correctly linked to this
+    // tenant, we're done. But if status is active yet tenant_id was never
+    // written (an interrupted acceptance), fall through and repair the link.
+    if (lease.status === "active" && alreadyLinked) {
       return NextResponse.json({ success: true, message: "Lease already active" })
     }
 
-    // 5. Link the tenant and activate the lease
+    // 5. Link the tenant and activate the lease (safe to run repeatedly)
     const { error: updateError } = await supabaseAdmin
       .from("leases")
       .update({
