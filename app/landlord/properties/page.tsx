@@ -1345,7 +1345,7 @@ const handleResendInvite = async (lease: any) => {
                       className="border-teal text-teal hover:bg-teal/10"
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      {generatingRTB1 ? "Generating..." : "Generate RTB-1"}
+                      {generatingRTB1 ? "Generating..." : "Generate agreement"}
                     </Button>
                     {!lease.tenant_signed_at && (
                       <Button
@@ -1367,15 +1367,6 @@ const handleResendInvite = async (lease: any) => {
                       Cancel lease
                     </Button>
                   </div>
-                  <PaymentMethodSettings
-                    key={lease.id}
-                    leaseId={lease.id}
-                    etransferEnabled={Boolean(lease.etransfer_enabled)}
-                    etransferEmail={lease.etransfer_email ?? ""}
-                    stripeEnabled={Boolean(lease.stripe_enabled)}
-                    automaticCollectionAvailable={false}
-                    onSave={(settings) => handleSavePaymentSettings(lease.id, settings)}
-                  />
                 </CardContent>
               </Card>
             ) : (
@@ -1442,6 +1433,19 @@ const handleResendInvite = async (lease: any) => {
           </TabsContent>
 
           <TabsContent value="payments" className="mt-6">
+            {activeLease && (
+              <div className="mb-6">
+                <PaymentMethodSettings
+                  key={activeLease.id}
+                  leaseId={activeLease.id}
+                  etransferEnabled={Boolean(activeLease.etransfer_enabled)}
+                  etransferEmail={activeLease.etransfer_email ?? ""}
+                  stripeEnabled={Boolean(activeLease.stripe_enabled)}
+                  automaticCollectionAvailable={false}
+                  onSave={(settings) => handleSavePaymentSettings(activeLease.id, settings)}
+                />
+              </div>
+            )}
             <Card className="border-sage/50">
               <CardHeader>
                 <div className="flex items-center justify-between">
