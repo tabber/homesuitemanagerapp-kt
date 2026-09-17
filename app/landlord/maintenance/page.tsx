@@ -50,13 +50,20 @@ export default function MaintenancePage() {
   const [requests, setRequests] = useState<any[]>([])
   const [selected, setSelected] = useState<any | null>(null)
   const [contractorRows, setContractorRows] = useState<any[]>([])
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
+  const [propertyFilter, setPropertyFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "completed">("all")
+  const [calCursor, setCalCursor] = useState(() => {
+    const n = new Date()
+    return { year: n.getFullYear(), month: n.getMonth() }
+  })
 
   const [notesDraft, setNotesDraft] = useState("")
   const [activityLog, setActivityLog] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [logDraft, setLogDraft] = useState("")
   const [costDraft, setCostDraft] = useState("")
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [loggingUpdate, setLoggingUpdate] = useState(false)
 
   const load = useCallback(async () => {
@@ -69,7 +76,7 @@ export default function MaintenancePage() {
 
     const { data: crows } = await supabase
       .from("contractors")
-      .select("id, name, category")
+      .select("id, name, category, phone, email, preferred, notes")
       .eq("landlord_id", user.id)
       .order("name", { ascending: true })
     setContractorRows(crows ?? [])
@@ -79,6 +86,7 @@ export default function MaintenancePage() {
       .select("id, name")
       .eq("landlord_id", user.id)
     const propertyNameMap = new Map<string, string>((props ?? []).map((p: any) => [p.id, p.name]))
+    setProperties((props ?? []).map((p: any) => ({ id: p.id, name: p.name })))
 
     const { data: reqs } = await supabase
       .from("maintenance_requests")
@@ -154,12 +162,25 @@ export default function MaintenancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id])
 
-  const logActivity = async (requestId: string, action: string, detail?: string, cost?: number | null) => {
+  const logActivity = async (
+    requestId: string,
+    action: string,
+    detail?: string,
+    cost?: number | null,
+    receiptUrl?: string | null,
+  ) => {
     if (!userId) return
     const supabase = createClient()
     const { data, error } = await supabase
       .from("maintenance_activity")
-      .insert({ request_id: requestId, landlord_id: userId, action, detail: detail || null, cost: cost ?? null })
+      .insert({
+        request_id: requestId,
+        landlord_id: userId,
+        action,
+        detail: detail || null,
+        cost: cost ?? null,
+        receipt_url: receiptUrl ?? null,
+      })
       .select()
       .single()
     if (error) {
@@ -178,18 +199,45 @@ export default function MaintenancePage() {
     const text = logDraft.trim()
     const costValue = costDraft.trim() ? Number(costDraft) : null
     if (!selected) return
-    if (!text && costValue == null) return
+    if (!text && costValue == null && !receiptFile) return
     if (costValue != null && (Number.isNaN(costValue) || costValue < 0)) {
       toast.error("Enter a valid cost")
       return
     }
     setLoggingUpdate(true)
-    const detail = text || (costValue != null ? "Cost recorded" : "")
-    await logActivity(selected.id, costValue != null ? "cost" : "note", detail, costValue)
+
+    // Upload the receipt file (if any) to the documents bucket.
+    let receiptUrl: string | null = null
+    if (receiptFile) {
+      const supabase = createClient()
+      const ext = receiptFile.name.split(".").pop() || "jpg"
+      const path = `maintenance-receipts/${selected.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from("documents")
+        .upload(path, receiptFile, { contentType: receiptFile.type || undefined })
+      if (upErr) {
+        toast.error("Could not upload the receipt")
+        setLoggingUpdate(false)
+        return
+      }
+      receiptUrl = path
+    }
+
+    const detail = text || (costValue != null ? "Cost recorded" : receiptFile ? "Receipt added" : "")
+    const action = costValue != null || receiptUrl ? "cost" : "note"
+    await logActivity(selected.id, action, detail, costValue, receiptUrl)
     setLoggingUpdate(false)
     setLogDraft("")
     setCostDraft("")
-    toast.success(costValue != null ? "Cost logged" : "Update logged")
+    setReceiptFile(null)
+    toast.success(receiptUrl ? "Logged with receipt" : costValue != null ? "Cost logged" : "Update logged")
+  }
+
+  const openReceipt = async (path: string) => {
+    const supabase = createClient()
+    const { data } = await supabase.storage.from("documents").createSignedUrl(path, 60)
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank")
+    else toast.error("Could not open receipt")
   }
 
   const patchRequest = (id: string, patch: any) => {
@@ -254,12 +302,50 @@ export default function MaintenancePage() {
   }
 
   const filtered = requests.filter((r) => {
+    if (propertyFilter !== "all" && r.property_id !== propertyFilter) return false
     if (statusFilter === "open") return r.status === "open" || r.status === "in-progress"
     if (statusFilter === "completed") return r.status === "completed"
     return true
   })
 
   const openCount = requests.filter((r) => r.status === "open" || r.status === "in-progress").length
+
+  // --- Mini calendar ---
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+  const scheduledByDate = new Map<string, any[]>()
+  for (const r of requests) {
+    if (r.scheduledDate) {
+      const arr = scheduledByDate.get(r.scheduledDate) ?? []
+      arr.push(r)
+      scheduledByDate.set(r.scheduledDate, arr)
+    }
+  }
+  const calCells = (() => {
+    const first = new Date(calCursor.year, calCursor.month, 1)
+    const startPad = first.getDay()
+    const days = new Date(calCursor.year, calCursor.month + 1, 0).getDate()
+    const cells: (string | null)[] = []
+    for (let i = 0; i < startPad; i++) cells.push(null)
+    for (let d = 1; d <= days; d++) {
+      const mm = String(calCursor.month + 1).padStart(2, "0")
+      const dd = String(d).padStart(2, "0")
+      cells.push(`${calCursor.year}-${mm}-${dd}`)
+    }
+    return cells
+  })()
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const calPrev = () =>
+    setCalCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { ...c, month: c.month - 1 }))
+  const calNext = () =>
+    setCalCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { ...c, month: c.month + 1 }))
+
+  const scheduleOnDate = (dateStr: string) => {
+    if (!selected) {
+      toast.error("Select a request first, then click a date to schedule it")
+      return
+    }
+    handleUpdateSchedule(selected.id, "scheduled_date", dateStr)
+  }
 
   return (
     <div className="space-y-6">
@@ -270,7 +356,20 @@ export default function MaintenancePage() {
             {openCount} open {openCount === 1 ? "request" : "requests"}
           </p>
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+            <SelectTrigger className="w-[180px] border-sage">
+              <SelectValue placeholder="All properties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All properties</SelectItem>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {(["all", "open", "completed"] as const).map((f) => (
             <Button
               key={f}
@@ -288,6 +387,50 @@ export default function MaintenancePage() {
           ))}
         </div>
       </div>
+
+      {/* Mini calendar — click a day to schedule the selected request */}
+      <Card className="border-sage/50 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-navy">
+            {MONTHS[calCursor.month]} {calCursor.year}
+            {selected && (
+              <span className="ml-2 text-xs font-normal text-text-muted">
+                — click a day to schedule &ldquo;{selected.title}&rdquo;
+              </span>
+            )}
+          </h3>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={calPrev} className="text-navy h-7 px-2">‹</Button>
+            <Button variant="ghost" size="sm" onClick={calNext} className="text-navy h-7 px-2">›</Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center">
+          {["S","M","T","W","T","F","S"].map((d, i) => (
+            <div key={i} className="text-[10px] uppercase text-text-muted py-1">{d}</div>
+          ))}
+          {calCells.map((ds, i) => {
+            if (!ds) return <div key={i} />
+            const day = Number(ds.slice(-2))
+            const jobs = scheduledByDate.get(ds) ?? []
+            const isToday = ds === todayStr
+            return (
+              <button
+                key={i}
+                onClick={() => scheduleOnDate(ds)}
+                className={`aspect-square rounded-md text-xs flex flex-col items-center justify-center hover:bg-teal/10 ${
+                  isToday ? "bg-teal text-white font-medium" : "text-navy"
+                }`}
+                title={jobs.length ? jobs.map((j) => j.title).join(", ") : "Click to schedule"}
+              >
+                {day}
+                {jobs.length > 0 && (
+                  <span className={`h-1 w-1 rounded-full mt-0.5 ${isToday ? "bg-white" : "bg-warning"}`} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-[340px_1fr] gap-4">
         {/* List */}
@@ -443,6 +586,22 @@ export default function MaintenancePage() {
                         Copy contractor link
                       </Button>
                     )}
+                    {(() => {
+                      const c = contractorRows.find((x: any) => x.id === selected.contractor_id)
+                      if (!c) return null
+                      return (
+                        <div className="mt-3 rounded-lg bg-cream p-3 text-sm space-y-0.5">
+                          <p className="font-medium text-navy">
+                            {c.name}
+                            {c.preferred && <span className="ml-2 text-xs text-teal">★ Preferred</span>}
+                          </p>
+                          {c.category && <p className="text-text-muted">{c.category}</p>}
+                          {c.phone && <p className="text-text-muted">{c.phone}</p>}
+                          {c.email && <p className="text-text-muted">{c.email}</p>}
+                          {c.notes && <p className="text-text-muted italic mt-1">{c.notes}</p>}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Notes */}
@@ -499,10 +658,26 @@ export default function MaintenancePage() {
                             className="border-sage pl-6"
                           />
                         </div>
-                        <Button onClick={handleLogUpdate} disabled={(!logDraft.trim() && !costDraft.trim()) || loggingUpdate} className="bg-teal hover:bg-teal-dark text-white shrink-0">
+                        <Button onClick={handleLogUpdate} disabled={(!logDraft.trim() && !costDraft.trim() && !receiptFile) || loggingUpdate} className="bg-teal hover:bg-teal-dark text-white shrink-0">
                           Log
                         </Button>
                       </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-xs text-teal cursor-pointer hover:underline">
+                        {receiptFile ? "Change receipt" : "Attach receipt"}
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      {receiptFile && (
+                        <span className="text-xs text-text-muted truncate max-w-[200px]">
+                          {receiptFile.name}
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-4">
@@ -525,6 +700,14 @@ export default function MaintenancePage() {
                                 </div>
                                 {entry.detail && <p className="text-sm text-text-primary mt-0.5 break-words">{entry.detail}</p>}
                                 {typeof entry.cost === "number" && <p className="text-sm font-medium text-teal mt-0.5">{formatCurrency(entry.cost)}</p>}
+                                {entry.receipt_url && (
+                                  <button
+                                    onClick={() => openReceipt(entry.receipt_url)}
+                                    className="text-xs text-teal hover:underline mt-0.5"
+                                  >
+                                    View receipt
+                                  </button>
+                                )}
                               </div>
                             </li>
                           ))}
