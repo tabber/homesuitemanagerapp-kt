@@ -66,8 +66,20 @@ export default function TenantInbox() {
 
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([])
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null)
-  // No documents table exists yet; render an empty list
-  const documents: any[] = []
+  const [documents, setDocuments] = useState<any[]>([])
+
+  const handleDownloadDoc = async (doc: any) => {
+    if (!doc.filePath) return
+    const supabase = createClient()
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(doc.filePath, 60)
+    if (error || !data?.signedUrl) {
+      toast.error("Could not open this document")
+      return
+    }
+    window.open(data.signedUrl, "_blank")
+  }
 
   const formatDateTime = (value?: string | null) => {
     if (!value) return ""
@@ -100,7 +112,7 @@ export default function TenantInbox() {
     // Tenant's lease -> landlord + property
     const { data: lease } = await supabase
       .from("leases")
-      .select("landlord_id, property_id")
+      .select("id, landlord_id, property_id")
       .eq("tenant_id", user.id)
       .limit(1)
       .maybeSingle()
@@ -149,11 +161,29 @@ export default function TenantInbox() {
       scheduledDate: r.scheduled_date ? formatDate(r.scheduled_date) : "",
     }))
 
+    // Documents shared on this tenant's lease
+    let mappedDocs: any[] = []
+    if (lease?.id) {
+      const { data: docRows } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("lease_id", lease.id)
+        .order("created_at", { ascending: false })
+      mappedDocs = (docRows ?? []).map((d: any) => ({
+        id: d.id,
+        name: d.file_name ?? "Document",
+        filePath: d.file_url ?? "",
+        uploadedAt: d.created_at ? formatDate(d.created_at) : "",
+        size: d.file_size ? `${(d.file_size / 1024).toFixed(0)} KB` : "",
+      }))
+    }
+
     setLandlord(landlordProfile)
     setPropertyId(lease?.property_id ?? null)
     setMessages(mappedMessages)
     setMaintenanceRequests(mappedRequests)
     setSelectedRequest(mappedRequests[0] ?? null)
+    setDocuments(mappedDocs)
   }
 
   useEffect(() => {
@@ -582,6 +612,7 @@ export default function TenantInbox() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => handleDownloadDoc(doc)}
                         className="border-sage text-navy hover:bg-sage/20"
                       >
                         <Download className="h-4 w-4 mr-1" />
