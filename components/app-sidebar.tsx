@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   CalendarDays,
+  Wrench,
   Building2,
   CreditCard,
   Inbox,
@@ -35,8 +36,9 @@ const navItems: Record<PortalType, NavItem[]> = {
     { label: "Overview", href: "/landlord", icon: LayoutDashboard },
     { label: "Properties", href: "/landlord/properties", icon: Building2 },
     { label: "Payments", href: "/landlord/payments", icon: CreditCard },
-    { label: "Calendar", href: "/landlord/calendar", icon: CalendarDays },
     { label: "Inbox", href: "/landlord/inbox", icon: Inbox },
+    { label: "Maintenance", href: "/landlord/maintenance", icon: Wrench },
+    { label: "Calendar", href: "/landlord/calendar", icon: CalendarDays },
     { label: "Documents", href: "/landlord/documents", icon: FileText },
     { label: "Settings", href: "/landlord/settings", icon: Settings },
   ],
