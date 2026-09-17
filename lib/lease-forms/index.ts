@@ -3,13 +3,14 @@ import path from "path"
 import type { LeaseFormData, ProvinceForm } from "./types"
 import { generateGenericLease } from "./generic"
 import { BC } from "./provinces/bc"
+import { ON } from "./provinces/on"
 
 // Registered provinces. Add a province by adding its module here — the engine
 // and the app don't change. Provinces not listed fall back to the generic
 // HomeSuite agreement.
 const REGISTRY: Record<string, ProvinceForm> = {
   BC,
-  // ON: Ontario Form 2229 — add when its PDF + mapping are built.
+  ON,
   // AB, MB, SK, QC, ... — add over time.
 }
 
