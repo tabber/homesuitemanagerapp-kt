@@ -450,7 +450,7 @@ const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?
       buildingFacts.notes,
   )
 
-  const handleGenerateRTB1 = async (leaseId: string) => {
+   const handleGenerateRTB1 = async (leaseId: string) => {
     if (generatingRTB1) return
     setGeneratingRTB1(true)
     try {
@@ -461,12 +461,12 @@ const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        toast.error(data?.error || "Could not generate the RTB-1")
+        toast.error(data?.error || "Could not generate the agreement")
       } else {
-        toast.success("RTB-1 agreement saved to Documents")
+        toast.success("Lease agreement saved to Documents")
       }
     } catch {
-      toast.error("Could not generate the RTB-1")
+      toast.error("Could not generate the agreement")
     } finally {
       setGeneratingRTB1(false)
     }
