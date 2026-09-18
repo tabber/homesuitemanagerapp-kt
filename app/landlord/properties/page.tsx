@@ -80,6 +80,7 @@ import {
   type BuildingFacts,
 } from "@/components/building-settings-editor"
 import { TenantReport } from "@/components/tenant-report"
+import { PropertyImprovements } from "@/components/property-improvements"
 import { createClient } from "@/lib/supabase/client"
 import type { Property } from "@/lib/supabase/types"
 
@@ -1239,6 +1240,7 @@ const handleResendInvite = async (lease: any) => {
             <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
             <TabsTrigger value="utilities" className="data-[state=active]:bg-white data-[state=active]:text-navy">Utilities</TabsTrigger>
             <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
+            <TabsTrigger value="improvements" className="data-[state=active]:bg-white data-[state=active]:text-navy">Improvements</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lease" className="mt-6">
@@ -1656,6 +1658,14 @@ const handleResendInvite = async (lease: any) => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="improvements" className="mt-6">
+            {selectedPropertyId ? (
+              <PropertyImprovements propertyId={selectedPropertyId} />
+            ) : (
+              <p className="text-sm text-text-muted">Select a property.</p>
+            )}
+          </TabsContent>
+
         </Tabs>
       </div>
     ) : null
@@ -1804,6 +1814,7 @@ const handleResendInvite = async (lease: any) => {
               <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
               <TabsTrigger value="building" className="data-[state=active]:bg-white data-[state=active]:text-navy">Building</TabsTrigger>
+              <TabsTrigger value="improvements" className="data-[state=active]:bg-white data-[state=active]:text-navy">Improvements</TabsTrigger>
             </TabsList>
             <TabsContent value="lease" className="mt-6 space-y-4">
               {selectedUnitLease?.move_out_date && (
@@ -2185,6 +2196,14 @@ const handleResendInvite = async (lease: any) => {
                     </Card>
                   )}
                 </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="improvements" className="mt-6">
+              {selectedPropertyId ? (
+                <PropertyImprovements propertyId={selectedPropertyId} />
+              ) : (
+                <p className="text-sm text-text-muted">Select a property.</p>
               )}
             </TabsContent>
           </Tabs>
