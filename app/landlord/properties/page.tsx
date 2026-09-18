@@ -1813,8 +1813,6 @@ const handleResendInvite = async (lease: any) => {
               <TabsTrigger value="tenant" className="data-[state=active]:bg-white data-[state=active]:text-navy">Tenant</TabsTrigger>
               <TabsTrigger value="payments" className="data-[state=active]:bg-white data-[state=active]:text-navy">Payments</TabsTrigger>
               <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
-              <TabsTrigger value="building" className="data-[state=active]:bg-white data-[state=active]:text-navy">Building</TabsTrigger>
-              <TabsTrigger value="improvements" className="data-[state=active]:bg-white data-[state=active]:text-navy">Improvements</TabsTrigger>
             </TabsList>
             <TabsContent value="lease" className="mt-6 space-y-4">
               {selectedUnitLease?.move_out_date && (
@@ -1939,6 +1937,25 @@ const handleResendInvite = async (lease: any) => {
                             className="border-sage text-navy hover:bg-sage/20"
                           >
                             Schedule move-out
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setReportLease(selectedUnitLease)}
+                            className="border-sage text-navy hover:bg-sage/20"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Tenant report
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleGenerateRTB1(selectedUnitLease.id)}
+                            disabled={generatingRTB1}
+                            className="border-teal text-teal hover:bg-teal/10"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            {generatingRTB1 ? "Generating..." : "Generate agreement"}
                           </Button>
                           <Button
                             variant="outline"
@@ -2129,83 +2146,6 @@ const handleResendInvite = async (lease: any) => {
                 </CardContent>
               </Card>
             </TabsContent>
-
-            <TabsContent value="building" className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-medium text-navy">Building settings</h3>
-                  <p className="text-sm text-text-muted">
-                    Utilities and details for the whole building. New leases inherit these.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openBuildingSettings}
-                  className="border-teal text-teal hover:bg-teal/10"
-                >
-                  Edit building settings
-                </Button>
-              </div>
-
-              {buildingUtilities.length === 0 && !hasBuildingFacts ? (
-                <EmptyState
-                  icon={Home}
-                  title="No building settings yet"
-                  description="Set utilities and building details once — every unit's lease will inherit them."
-                />
-              ) : (
-                <div className="space-y-4">
-                  {buildingUtilities.length > 0 && (
-                    <Card className="border-sage/50 p-4">
-                      <h4 className="font-medium text-navy mb-3">Utilities</h4>
-                      <div className="space-y-2">
-                        {buildingUtilities.map((u: any, i: number) => (
-                          <div key={i} className="flex items-start justify-between gap-3 border-b border-sage/20 pb-2 last:border-0">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-navy">{u.utility_type}</span>
-                                <span className={cn(
-                                  "text-xs rounded-full px-2 py-0.5",
-                                  u.policy === "included" ? "bg-teal/15 text-teal-dark"
-                                    : u.policy === "landlord" ? "bg-navy/10 text-navy"
-                                    : "bg-warning/15 text-navy"
-                                )}>
-                                  {u.policy === "included" ? "Included in rent"
-                                    : u.policy === "landlord" ? "Landlord-managed"
-                                    : "Tenant sets up"}
-                                </span>
-                              </div>
-                              {u.provider && <p className="text-sm text-text-muted">Provider: {u.provider}</p>}
-                              {u.setup_instructions && <p className="text-sm text-text-muted">{u.setup_instructions}</p>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  )}
-                  {hasBuildingFacts && (
-                    <Card className="border-sage/50 p-4">
-                      <h4 className="font-medium text-navy mb-3">Building details</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                        {buildingFacts.garbage_day && <p className="text-navy">Garbage: <span className="text-text-muted">{buildingFacts.garbage_day}</span></p>}
-                        {buildingFacts.recycling_day && <p className="text-navy">Recycling: <span className="text-text-muted">{buildingFacts.recycling_day}</span></p>}
-                        {buildingFacts.telecoms_wired && <p className="text-navy sm:col-span-2">Wired for: <span className="text-text-muted">{buildingFacts.telecoms_wired}</span></p>}
-                        {buildingFacts.notes && <p className="text-navy sm:col-span-2">Notes: <span className="text-text-muted">{buildingFacts.notes}</span></p>}
-                      </div>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="improvements" className="mt-6">
-              {selectedPropertyId ? (
-                <PropertyImprovements propertyId={selectedPropertyId} />
-              ) : (
-                <p className="text-sm text-text-muted">Select a property.</p>
-              )}
-            </TabsContent>
           </Tabs>
         </div>
       )
@@ -2315,6 +2255,8 @@ const handleResendInvite = async (lease: any) => {
             <TabsTrigger value="units" className="data-[state=active]:bg-white data-[state=active]:text-navy">Units</TabsTrigger>
             <TabsTrigger value="financials" className="data-[state=active]:bg-white data-[state=active]:text-navy">Financials</TabsTrigger>
             <TabsTrigger value="maintenance" className="data-[state=active]:bg-white data-[state=active]:text-navy">Maintenance</TabsTrigger>
+            <TabsTrigger value="building" className="data-[state=active]:bg-white data-[state=active]:text-navy">Building</TabsTrigger>
+            <TabsTrigger value="improvements" className="data-[state=active]:bg-white data-[state=active]:text-navy">Improvements</TabsTrigger>
           </TabsList>
 
           <TabsContent value="units" className="mt-6">
@@ -2527,6 +2469,83 @@ const handleResendInvite = async (lease: any) => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="building" className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-medium text-navy">Building settings</h3>
+                <p className="text-sm text-text-muted">
+                  Utilities and details for the whole building. New leases inherit these.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openBuildingSettings}
+                className="border-teal text-teal hover:bg-teal/10"
+              >
+                Edit building settings
+              </Button>
+            </div>
+
+            {buildingUtilities.length === 0 && !hasBuildingFacts ? (
+              <EmptyState
+                icon={Home}
+                title="No building settings yet"
+                description="Set utilities and building details once — every unit's lease will inherit them."
+              />
+            ) : (
+              <div className="space-y-4">
+                {buildingUtilities.length > 0 && (
+                  <Card className="border-sage/50 p-4">
+                    <h4 className="font-medium text-navy mb-3">Utilities</h4>
+                    <div className="space-y-2">
+                      {buildingUtilities.map((u: any, i: number) => (
+                        <div key={i} className="flex items-start justify-between gap-3 border-b border-sage/20 pb-2 last:border-0">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-navy">{u.utility_type}</span>
+                              <span className={cn(
+                                "text-xs rounded-full px-2 py-0.5",
+                                u.policy === "included" ? "bg-teal/15 text-teal-dark"
+                                  : u.policy === "landlord" ? "bg-navy/10 text-navy"
+                                  : "bg-warning/15 text-navy"
+                              )}>
+                                {u.policy === "included" ? "Included in rent"
+                                  : u.policy === "landlord" ? "Landlord-managed"
+                                  : "Tenant sets up"}
+                              </span>
+                            </div>
+                            {u.provider && <p className="text-sm text-text-muted">Provider: {u.provider}</p>}
+                            {u.setup_instructions && <p className="text-sm text-text-muted">{u.setup_instructions}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+                {hasBuildingFacts && (
+                  <Card className="border-sage/50 p-4">
+                    <h4 className="font-medium text-navy mb-3">Building details</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      {buildingFacts.garbage_day && <p className="text-navy">Garbage: <span className="text-text-muted">{buildingFacts.garbage_day}</span></p>}
+                      {buildingFacts.recycling_day && <p className="text-navy">Recycling: <span className="text-text-muted">{buildingFacts.recycling_day}</span></p>}
+                      {buildingFacts.telecoms_wired && <p className="text-navy sm:col-span-2">Wired for: <span className="text-text-muted">{buildingFacts.telecoms_wired}</span></p>}
+                      {buildingFacts.notes && <p className="text-navy sm:col-span-2">Notes: <span className="text-text-muted">{buildingFacts.notes}</span></p>}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="improvements" className="mt-6">
+            {selectedPropertyId ? (
+              <PropertyImprovements propertyId={selectedPropertyId} />
+            ) : (
+              <p className="text-sm text-text-muted">Select a property.</p>
+            )}
           </TabsContent>
 
         </Tabs>
