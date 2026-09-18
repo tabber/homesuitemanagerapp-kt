@@ -110,7 +110,15 @@ async function fill2229(template: Uint8Array, data: LeaseFormData): Promise<Uint
   for (const [id, val] of Object.entries(text)) {
     if (!val) continue
     try {
-      form.getTextField(id).setText(val)
+      const f = form.getTextField(id)
+      // Font size 0 = auto-shrink text to fit the field box, preventing cutoff
+      // on long names/addresses.
+      try {
+        f.setFontSize(0)
+      } catch {
+        /* some fields don't allow it; ignore */
+      }
+      f.setText(val)
     } catch {
       /* skip unknown field */
     }
