@@ -53,9 +53,11 @@ export default function MaintenancePage() {
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
   const [propertyFilter, setPropertyFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "completed">("all")
-  const [calCursor, setCalCursor] = useState(() => {
+  const [weekAnchor, setWeekAnchor] = useState(() => {
     const n = new Date()
-    return { year: n.getFullYear(), month: n.getMonth() }
+    n.setDate(n.getDate() - n.getDay()) // back to Sunday
+    n.setHours(0, 0, 0, 0)
+    return n
   })
 
   const [notesDraft, setNotesDraft] = useState("")
@@ -310,8 +312,7 @@ export default function MaintenancePage() {
 
   const openCount = requests.filter((r) => r.status === "open" || r.status === "in-progress").length
 
-  // --- Mini calendar ---
-  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+  // --- Mini calendar (week strip) ---
   const scheduledByDate = new Map<string, any[]>()
   for (const r of requests) {
     if (r.scheduledDate) {
@@ -320,24 +321,23 @@ export default function MaintenancePage() {
       scheduledByDate.set(r.scheduledDate, arr)
     }
   }
-  const calCells = (() => {
-    const first = new Date(calCursor.year, calCursor.month, 1)
-    const startPad = first.getDay()
-    const days = new Date(calCursor.year, calCursor.month + 1, 0).getDate()
-    const cells: (string | null)[] = []
-    for (let i = 0; i < startPad; i++) cells.push(null)
-    for (let d = 1; d <= days; d++) {
-      const mm = String(calCursor.month + 1).padStart(2, "0")
-      const dd = String(d).padStart(2, "0")
-      cells.push(`${calCursor.year}-${mm}-${dd}`)
-    }
-    return cells
-  })()
+  const weekDays = Array.from({ length: 21 }, (_, i) => {
+    const d = new Date(weekAnchor)
+    d.setDate(weekAnchor.getDate() + i)
+    return d
+  })
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
   const todayStr = new Date().toISOString().slice(0, 10)
-  const calPrev = () =>
-    setCalCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { ...c, month: c.month - 1 }))
-  const calNext = () =>
-    setCalCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { ...c, month: c.month + 1 }))
+  const weekLabel = `${weekDays[0].toLocaleDateString("en-CA", { month: "short", day: "numeric" })} – ${weekDays[weekDays.length - 1].toLocaleDateString("en-CA", { month: "short", day: "numeric" })}`
+  const calPrev = () => setWeekAnchor((a) => { const n = new Date(a); n.setDate(a.getDate() - 7); return n })
+  const calNext = () => setWeekAnchor((a) => { const n = new Date(a); n.setDate(a.getDate() + 7); return n })
+  const calToday = () => {
+    const n = new Date()
+    n.setDate(n.getDate() - n.getDay())
+    n.setHours(0, 0, 0, 0)
+    setWeekAnchor(n)
+  }
 
   const scheduleOnDate = (dateStr: string) => {
     if (!selected) {
@@ -388,43 +388,43 @@ export default function MaintenancePage() {
         </div>
       </div>
 
-      {/* Mini calendar — click a day to schedule the selected request */}
-      <Card className="border-sage/50 p-4">
+      {/* Week strip — click a day to schedule the selected request */}
+      <Card className="border-sage/50 p-3">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-navy">
-            {MONTHS[calCursor.month]} {calCursor.year}
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-navy">{weekLabel}</h3>
             {selected && (
-              <span className="ml-2 text-xs font-normal text-text-muted">
+              <span className="text-xs text-text-muted hidden sm:inline">
                 — click a day to schedule &ldquo;{selected.title}&rdquo;
               </span>
             )}
-          </h3>
-          <div className="flex gap-1">
+          </div>
+          <div className="flex gap-1 items-center">
             <Button variant="ghost" size="sm" onClick={calPrev} className="text-navy h-7 px-2">‹</Button>
+            <Button variant="ghost" size="sm" onClick={calToday} className="text-navy h-7 px-2 text-xs">Today</Button>
             <Button variant="ghost" size="sm" onClick={calNext} className="text-navy h-7 px-2">›</Button>
           </div>
         </div>
-        <div className="grid grid-cols-7 gap-1 text-center">
-          {["S","M","T","W","T","F","S"].map((d, i) => (
-            <div key={i} className="text-[10px] uppercase text-text-muted py-1">{d}</div>
-          ))}
-          {calCells.map((ds, i) => {
-            if (!ds) return <div key={i} />
-            const day = Number(ds.slice(-2))
+        <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+          {weekDays.map((d) => {
+            const ds = iso(d)
             const jobs = scheduledByDate.get(ds) ?? []
             const isToday = ds === todayStr
             return (
               <button
-                key={i}
+                key={ds}
                 onClick={() => scheduleOnDate(ds)}
-                className={`aspect-square rounded-md text-xs flex flex-col items-center justify-center hover:bg-teal/10 ${
-                  isToday ? "bg-teal text-white font-medium" : "text-navy"
+                className={`shrink-0 w-12 rounded-md py-1.5 flex flex-col items-center hover:bg-teal/10 ${
+                  isToday ? "bg-teal text-white" : "text-navy"
                 }`}
                 title={jobs.length ? jobs.map((j) => j.title).join(", ") : "Click to schedule"}
               >
-                {day}
+                <span className="text-[10px] uppercase opacity-70">
+                  {d.toLocaleDateString("en-CA", { weekday: "short" })}
+                </span>
+                <span className="text-sm font-medium">{d.getDate()}</span>
                 {jobs.length > 0 && (
-                  <span className={`h-1 w-1 rounded-full mt-0.5 ${isToday ? "bg-white" : "bg-warning"}`} />
+                  <span className={`h-1 w-1 rounded-full ${isToday ? "bg-white" : "bg-warning"}`} />
                 )}
               </button>
             )
