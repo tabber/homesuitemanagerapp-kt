@@ -168,7 +168,13 @@ async function fillRTB1(template: Uint8Array, data: LeaseFormData): Promise<Uint
   for (const [id, val] of Object.entries(text)) {
     if (!val) continue
     try {
-      form.getTextField(id).setText(val)
+      const f = form.getTextField(id)
+      try {
+        f.setFontSize(0)
+      } catch {
+        /* ignore */
+      }
+      f.setText(val)
     } catch {
       /* skip unknown field */
     }
