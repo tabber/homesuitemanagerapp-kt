@@ -450,7 +450,7 @@ const selectedProperty = dbProperties.find((p) => p.id === selectedPropertyId) ?
       buildingFacts.notes,
   )
 
-   const handleGenerateRTB1 = async (leaseId: string) => {
+  const handleGenerateRTB1 = async (leaseId: string) => {
     if (generatingRTB1) return
     setGeneratingRTB1(true)
     try {
