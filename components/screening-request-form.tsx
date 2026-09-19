@@ -117,10 +117,10 @@ export function ScreeningRequestForm({ pricing, onSubmit }: ScreeningRequestForm
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10">
             <ShieldCheck className="h-6 w-6 text-teal" aria-hidden="true" />
           </div>
-          <h2 className="text-lg font-medium text-navy">Screening request sent</h2>
+          <h2 className="text-lg font-medium text-navy">Screening request logged</h2>
           <p className="max-w-sm text-sm leading-relaxed text-text-muted text-pretty">
-            {name} will receive an email at {email} with a link to consent and pay for their
-            screening. You&apos;ll be notified when the results are ready.
+            We&apos;ve logged your screening request for {name} ({email}). We&apos;ll follow up
+            to arrange the checks you selected.
           </p>
         </CardContent>
       </Card>
@@ -132,8 +132,8 @@ export function ScreeningRequestForm({ pricing, onSubmit }: ScreeningRequestForm
       <CardHeader>
         <CardTitle className="text-navy">Request applicant screening</CardTitle>
         <p className="text-sm leading-relaxed text-text-muted">
-          Choose the checks you need and we&apos;ll send the applicant a secure link to complete
-          them.
+          Choose the checks you need and enter the applicant&apos;s details. We&apos;ll take it
+          from there.
         </p>
       </CardHeader>
       <CardContent>
@@ -246,8 +246,8 @@ export function ScreeningRequestForm({ pricing, onSubmit }: ScreeningRequestForm
           <div className="flex items-start gap-3 rounded-lg border border-sage bg-background p-4">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-hidden="true" />
             <p className="text-sm leading-relaxed text-text-muted text-pretty">
-              The applicant will receive an email to consent and pay for their screening — you
-              won&apos;t be charged directly for this.
+              This logs a screening request. We&apos;ll follow up to arrange the checks — the
+              applicant&apos;s consent is required before any screening is run.
             </p>
           </div>
 
